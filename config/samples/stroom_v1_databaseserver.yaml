@@ -6,6 +6,7 @@ spec:
   image:
     repository: mysql/mysql-server
     tag: 8.0.23
+  databaseNames: [] # Names of the databases to create during initialisation
   additionalConfig: []
   resources: {}
   volumeClaim: {} # VolumeClaimSpec

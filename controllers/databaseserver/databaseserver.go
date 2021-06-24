@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"strings"
 )
 
 func GetBaseName(componentName string) string {
@@ -26,7 +27,7 @@ var (
 	// DefaultSecretFileMode is the file mode to use for Secret volume mounts
 	DefaultSecretFileMode int32 = 0400
 
-	ServiceUserName       = "stroom"
+	ServiceUserName       = "stroomuser"
 	DatabasePort    int32 = 3306
 )
 
@@ -56,6 +57,67 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 
 	ctrl.SetControllerReference(dbServer, secret, r.Scheme)
 	return secret
+}
+
+func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseServer) *corev1.ConfigMap {
+	labels := r.createLabels(dbServer)
+
+	additionalConfig := ""
+	if dbServer.Spec.AdditionalConfig != nil {
+		additionalConfig = strings.Join(dbServer.Spec.AdditionalConfig, "\n")
+	}
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      GetBaseName(dbServer.Name),
+			Namespace: dbServer.Namespace,
+			Labels:    labels,
+		},
+		Data: map[string]string{
+			"my.cnf": "" +
+				"[mysqld]\n" +
+				"datadir=/var/lib/mysql\n" +
+				"port=" + string(DatabasePort) + "\n" +
+				"user=mysql\n" +
+				additionalConfig,
+		},
+	}
+
+	ctrl.SetControllerReference(dbServer, configMap, r.Scheme)
+	return configMap
+}
+
+func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.DatabaseServer) *corev1.ConfigMap {
+	labels := r.createLabels(dbServer)
+
+	databaseCreateStatements := ""
+	for databaseName := range dbServer.Spec.DatabaseNames {
+		databaseCreateStatements += "" +
+			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %v;\n", databaseName) +
+			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", databaseName, ServiceUserName)
+	}
+
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.getInitConfigName(dbServer),
+			Namespace: dbServer.Namespace,
+			Labels:    labels,
+		},
+		Data: map[string]string{
+			"create-service-user.sql": "" +
+				"-- Create a service user for determining MySQL health\n" +
+				"CREATE USER 'healthcheck'@'localhost';",
+			"init-stroom-db.sql": "" +
+				"-- Initialise Stroom databases\n" +
+				databaseCreateStatements + "\n\n" +
+				"SELECT 'Dumping list of databases' AS '';\n" +
+				"SELECT '---------------------------------------' AS '';\n" +
+				"SHOW databases;",
+		},
+	}
+
+	ctrl.SetControllerReference(dbServer, configMap, r.Scheme)
+	return configMap
 }
 
 func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.DatabaseServer) *appsv1.StatefulSet {

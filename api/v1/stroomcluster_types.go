@@ -17,18 +17,18 @@ limitations under the License.
 package v1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // StroomClusterSpec defines the desired state of StroomCluster
 type StroomClusterSpec struct {
-	Image             string        `json:"image,omitempty"`
-	ImagePullPolicy   v1.PullPolicy `json:"imagePullPolicy,omitempty"`
-	MaxClientBodySize string        `json:"maxClientBodySize,omitempty"`
-	ExtraEnv          []v1.EnvVar   `json:"extraEnv,omitempty"`
-	AppDatabase       DatabaseRef   `json:"appDatabase"`
-	StatsDatabase     DatabaseRef   `json:"statsDatabase"`
+	Image             string            `json:"image,omitempty"`
+	ImagePullPolicy   corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	MaxClientBodySize string            `json:"maxClientBodySize,omitempty"`
+	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
+	AppDatabase       DatabaseRef       `json:"appDatabase"`
+	StatsDatabase     DatabaseRef       `json:"statsDatabase"`
 
 	// +kubebuilder:validation:MinItems=1
 	NodeSets []StroomNode `json:"nodeSets"`
@@ -50,21 +50,21 @@ type StroomNode struct {
 	Count     uint           `json:"count"`
 	Role      StroomNodeRole `json:"role,omitempty"`
 	LocalData struct {
-		VolumeClaim v1.PersistentVolumeClaimSpec `json:"volumeClaim,omitempty"`
+		VolumeClaim corev1.PersistentVolumeClaimSpec `json:"volumeClaim,omitempty"`
 	} `json:"localData,omitempty"`
 	SharedData struct {
-		Volume v1.VolumeSource `json:"volume,omitempty"`
+		Volume corev1.VolumeSource `json:"volume,omitempty"`
 	} `json:"sharedData,omitempty"`
-	StartupProbe       v1.Probe                `json:"startupProbe,omitempty"`
-	LivenessProbe      v1.Probe                `json:"livenessProbe,omitempty"`
-	Resources          v1.ResourceRequirements `json:"resources,omitempty"`
-	JavaOpts           string                  `json:"javaOpts,omitempty"`
-	PodAnnotations     map[string]string       `json:"podAnnotations,omitempty"`
-	PodSecurityContext v1.SecurityContext      `json:"podSecurityContext,omitempty"`
-	SecurityContext    v1.PodSecurityContext   `json:"securityContext,omitempty"`
-	NodeSelector       map[string]string       `json:"nodeSelector,omitempty"`
-	Tolerations        []v1.Toleration         `json:"tolerations,omitempty"`
-	Affinity           v1.Affinity             `json:"affinity,omitempty"`
+	StartupProbe       corev1.Probe                `json:"startupProbe,omitempty"`
+	LivenessProbe      corev1.Probe                `json:"livenessProbe,omitempty"`
+	Resources          corev1.ResourceRequirements `json:"resources,omitempty"`
+	JavaOpts           string                      `json:"javaOpts,omitempty"`
+	PodAnnotations     map[string]string           `json:"podAnnotations,omitempty"`
+	PodSecurityContext corev1.SecurityContext      `json:"podSecurityContext,omitempty"`
+	SecurityContext    corev1.PodSecurityContext   `json:"securityContext,omitempty"`
+	NodeSelector       map[string]string           `json:"nodeSelector,omitempty"`
+	Tolerations        []corev1.Toleration         `json:"tolerations,omitempty"`
+	Affinity           corev1.Affinity             `json:"affinity,omitempty"`
 }
 
 type StroomNodeRole string

@@ -17,28 +17,26 @@ limitations under the License.
 package v1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // DatabaseServerSpec defines the desired state of DatabaseServer
 type DatabaseServerSpec struct {
-	Image              string                       `json:"image,omitempty"`
-	ImagePullPolicy    v1.PullPolicy                `json:"imagePullPolicy,omitempty"`
-	AdditionalConfig   []string                     `json:"additionalConfig,omitempty"`
-	Resources          v1.ResourceRequirements      `json:"resources"`
-	VolumeClaim        v1.PersistentVolumeClaimSpec `json:"volumeClaim"`
-	ReadinessProbe     v1.Probe                     `json:"readinessProbe,omitempty"`
-	LivenessProbe      v1.Probe                     `json:"livenessProbe,omitempty"`
-	PodAnnotations     map[string]string            `json:"podAnnotations,omitempty"`
-	PodSecurityContext v1.PodSecurityContext        `json:"podSecurityContext,omitempty"`
-	SecurityContext    v1.SecurityContext           `json:"securityContext,omitempty"`
-	NodeSelector       map[string]string            `json:"nodeSelector,omitempty"`
-	Tolerations        []v1.Toleration              `json:"tolerations,omitempty"`
-	Affinity           v1.Affinity                  `json:"affinity,omitempty"`
+	Image              string                           `json:"image,omitempty"`
+	ImagePullPolicy    corev1.PullPolicy                `json:"imagePullPolicy,omitempty"`
+	DatabaseNames      []string                         `json:"databaseNames"`
+	AdditionalConfig   []string                         `json:"additionalConfig,omitempty"`
+	Resources          corev1.ResourceRequirements      `json:"resources"`
+	VolumeClaim        corev1.PersistentVolumeClaimSpec `json:"volumeClaim"`
+	ReadinessProbe     corev1.Probe                     `json:"readinessProbe,omitempty"`
+	LivenessProbe      corev1.Probe                     `json:"livenessProbe,omitempty"`
+	PodAnnotations     map[string]string                `json:"podAnnotations,omitempty"`
+	PodSecurityContext corev1.PodSecurityContext        `json:"podSecurityContext,omitempty"`
+	SecurityContext    corev1.SecurityContext           `json:"securityContext,omitempty"`
+	NodeSelector       map[string]string                `json:"nodeSelector,omitempty"`
+	Tolerations        []corev1.Toleration              `json:"tolerations,omitempty"`
+	Affinity           corev1.Affinity                  `json:"affinity,omitempty"`
 }
 
 // DatabaseServerStatus defines the observed state of DatabaseServer
