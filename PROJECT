@@ -16,4 +16,13 @@ resources:
   kind: StroomCluster
   path: github.com/p-kimberley/stroom-k8s-operator/api/v1
   version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: gchq.github.io
+  group: stroom
+  kind: DatabaseServer
+  path: github.com/p-kimberley/stroom-k8s-operator/api/v1
+  version: v1
 version: "3"

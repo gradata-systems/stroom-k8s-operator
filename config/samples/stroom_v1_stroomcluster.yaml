@@ -28,6 +28,7 @@ spec:
       resources: {}
       podAnnotations: {}
       podSecurityContext: {}
+      securityContext: {}
       nodeSelector: {}
       tolerations: []
       affinity: {}

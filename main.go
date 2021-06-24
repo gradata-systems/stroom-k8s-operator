@@ -18,6 +18,8 @@ package main
 
 import (
 	"flag"
+	"github.com/p-kimberley/stroom-k8s-operator/controllers/databaseserver"
+	"github.com/p-kimberley/stroom-k8s-operator/controllers/stroomcluster"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -32,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
-	"github.com/p-kimberley/stroom-k8s-operator/controllers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -78,11 +79,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.StroomClusterReconciler{
+	if err = (&stroomcluster.StroomClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "StroomCluster")
+		os.Exit(1)
+	}
+	if err = (&databaseserver.DatabaseServerReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DatabaseServer")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

@@ -23,23 +23,21 @@ import (
 
 // StroomClusterSpec defines the desired state of StroomCluster
 type StroomClusterSpec struct {
-	Name  string `json:"name"`
-	Image struct {
-		Repository string `json:"repository,omitempty"`
-		Tag        string `json:"tag,omitempty"`
-	} `json:"image,omitempty"`
-	MaxClientBodySize string      `json:"maxClientBodySize,omitempty"`
-	ExtraEnv          []v1.EnvVar `json:"extraEnv,omitempty"`
-	AppDatabase       DatabaseRef `json:"appDatabase"`
-	StatsDatabase     DatabaseRef `json:"statsDatabase"`
+	Image             string        `json:"image,omitempty"`
+	ImagePullPolicy   v1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	MaxClientBodySize string        `json:"maxClientBodySize,omitempty"`
+	ExtraEnv          []v1.EnvVar   `json:"extraEnv,omitempty"`
+	AppDatabase       DatabaseRef   `json:"appDatabase"`
+	StatsDatabase     DatabaseRef   `json:"statsDatabase"`
 
 	// +kubebuilder:validation:MinItems=1
 	NodeSets []StroomNode `json:"nodeSets"`
 }
 
 type DatabaseRef struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace,omitempty"`
+	DatabaseName string `json:"databaseName"`
 }
 
 // StroomClusterStatus defines the observed state of StroomCluster
@@ -61,8 +59,12 @@ type StroomNode struct {
 	LivenessProbe      v1.Probe                `json:"livenessProbe,omitempty"`
 	Resources          v1.ResourceRequirements `json:"resources,omitempty"`
 	JavaOpts           string                  `json:"javaOpts,omitempty"`
-	PodAnnotations     map[string]string       `json:"podAnnotations"`
-	PodSecurityContext v1.SecurityContext      `json:"podSecurityContext"`
+	PodAnnotations     map[string]string       `json:"podAnnotations,omitempty"`
+	PodSecurityContext v1.SecurityContext      `json:"podSecurityContext,omitempty"`
+	SecurityContext    v1.PodSecurityContext   `json:"securityContext,omitempty"`
+	NodeSelector       map[string]string       `json:"nodeSelector,omitempty"`
+	Tolerations        []v1.Toleration         `json:"tolerations,omitempty"`
+	Affinity           v1.Affinity             `json:"affinity,omitempty"`
 }
 
 type StroomNodeRole string

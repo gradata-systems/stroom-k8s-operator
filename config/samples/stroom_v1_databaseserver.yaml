@@ -1,0 +1,17 @@
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseServer
+metadata:
+  name: dev
+spec:
+  image:
+    repository: mysql/mysql-server
+    tag: 8.0.23
+  additionalConfig: []
+  resources: {}
+  volumeClaim: {} # VolumeClaimSpec
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
