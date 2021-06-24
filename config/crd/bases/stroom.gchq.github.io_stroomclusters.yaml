@@ -16,7 +16,7 @@ spec:
     singular: stroomcluster
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - name: v1
     schema:
       openAPIV3Schema:
         description: StroomCluster is the Schema for the stroomclusters API

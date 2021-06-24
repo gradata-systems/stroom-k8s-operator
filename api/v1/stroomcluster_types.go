@@ -14,29 +14,63 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // StroomClusterSpec defines the desired state of StroomCluster
 type StroomClusterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Name  string `json:"name"`
+	Image struct {
+		Repository string `json:"repository,omitempty"`
+		Tag        string `json:"tag,omitempty"`
+	} `json:"image,omitempty"`
+	MaxClientBodySize string      `json:"maxClientBodySize,omitempty"`
+	ExtraEnv          []v1.EnvVar `json:"extraEnv,omitempty"`
+	AppDatabase       DatabaseRef `json:"appDatabase"`
+	StatsDatabase     DatabaseRef `json:"statsDatabase"`
 
-	// Foo is an example field of StroomCluster. Edit stroomcluster_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +kubebuilder:validation:MinItems=1
+	NodeSets []StroomNode `json:"nodeSets"`
+}
+
+type DatabaseRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 // StroomClusterStatus defines the observed state of StroomCluster
 type StroomClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Nodes []string `json:"nodes,omitempty"`
 }
+
+type StroomNode struct {
+	Name      string         `json:"name"`
+	Count     uint           `json:"count"`
+	Role      StroomNodeRole `json:"role,omitempty"`
+	LocalData struct {
+		VolumeClaim v1.PersistentVolumeClaimSpec `json:"volumeClaim,omitempty"`
+	} `json:"localData,omitempty"`
+	SharedData struct {
+		Volume v1.VolumeSource `json:"volume,omitempty"`
+	} `json:"sharedData,omitempty"`
+	StartupProbe       v1.Probe                `json:"startupProbe,omitempty"`
+	LivenessProbe      v1.Probe                `json:"livenessProbe,omitempty"`
+	Resources          v1.ResourceRequirements `json:"resources,omitempty"`
+	JavaOpts           string                  `json:"javaOpts,omitempty"`
+	PodAnnotations     map[string]string       `json:"podAnnotations"`
+	PodSecurityContext v1.SecurityContext      `json:"podSecurityContext"`
+}
+
+type StroomNodeRole string
+
+const (
+	Processing StroomNodeRole = "Processing"
+	Frontend                  = "Frontend"
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status

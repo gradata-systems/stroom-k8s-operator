@@ -1,4 +1,4 @@
-apiVersion: stroom.gchq.github.io/v1alpha1
+apiVersion: stroom.gchq.github.io/v1
 kind: StroomCluster
 metadata:
   name: dev
@@ -11,7 +11,9 @@ spec:
       enabled: false
       zookeeperUrl: ""
     maxClientBodySize: 1g
-  extraEnvs: {}
+  extraEnv: {}
+  appDatabase:
+    hostName:
 
   nodeSets:
     - name: data
