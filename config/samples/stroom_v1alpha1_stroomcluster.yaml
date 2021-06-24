@@ -1,0 +1,34 @@
+apiVersion: stroom.gchq.github.io/v1alpha1
+kind: StroomCluster
+metadata:
+  name: dev
+spec:
+  image:
+    repository: gchq/stroom
+    tag: v7
+  config:
+    serviceDiscovery:
+      enabled: false
+      zookeeperUrl: ""
+    maxClientBodySize: 1g
+  extraEnvs: {}
+
+  nodeSets:
+    - name: data
+      count: 3
+      role: Processing # Processing | Frontend
+      localData:
+        volumeClaim: {} # VolumeClaim
+      sharedData:
+        volume: {} # Volume
+      startupProbe: {} # Probe
+      livenessProbe: {} # Probe
+      resources: {}
+      podAnnotations: {}
+      podSecurityContext: {}
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+    - name: ui
+      count: 2
+      role: Frontend
