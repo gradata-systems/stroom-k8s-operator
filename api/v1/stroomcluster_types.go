@@ -45,26 +45,30 @@ type StroomClusterStatus struct {
 	Nodes []string `json:"nodes,omitempty"`
 }
 
+type VolumeClaimDeletePolicy string
+
+const (
+	DeleteOnScaledownAndClusterDeletionPolicy VolumeClaimDeletePolicy = "DeleteOnScaledownAndClusterDeletion"
+	DeleteOnScaledownOnlyPolicy                                       = "DeleteOnScaledownOnly"
+)
+
 type StroomNode struct {
-	Name      string         `json:"name"`
-	Count     uint           `json:"count"`
-	Role      StroomNodeRole `json:"role,omitempty"`
-	LocalData struct {
-		VolumeClaim corev1.PersistentVolumeClaimSpec `json:"volumeClaim,omitempty"`
-	} `json:"localData,omitempty"`
-	SharedData struct {
-		Volume corev1.VolumeSource `json:"volume,omitempty"`
-	} `json:"sharedData,omitempty"`
-	StartupProbe       corev1.Probe                `json:"startupProbe,omitempty"`
-	LivenessProbe      corev1.Probe                `json:"livenessProbe,omitempty"`
-	Resources          corev1.ResourceRequirements `json:"resources,omitempty"`
-	JavaOpts           string                      `json:"javaOpts,omitempty"`
-	PodAnnotations     map[string]string           `json:"podAnnotations,omitempty"`
-	PodSecurityContext corev1.SecurityContext      `json:"podSecurityContext,omitempty"`
-	SecurityContext    corev1.PodSecurityContext   `json:"securityContext,omitempty"`
-	NodeSelector       map[string]string           `json:"nodeSelector,omitempty"`
-	Tolerations        []corev1.Toleration         `json:"tolerations,omitempty"`
-	Affinity           corev1.Affinity             `json:"affinity,omitempty"`
+	Name                    string                           `json:"name"`
+	Count                   uint                             `json:"count"`
+	Role                    StroomNodeRole                   `json:"role,omitempty"`
+	LocalDataVolumeClaim    corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
+	SharedDataVolume        corev1.VolumeSource              `json:"sharedDataVolume"`
+	VolumeClaimDeletePolicy VolumeClaimDeletePolicy          `json:"volumeClaimDeletePolicy,omitempty"`
+	StartupProbe            corev1.Probe                     `json:"startupProbe,omitempty"`
+	LivenessProbe           corev1.Probe                     `json:"livenessProbe,omitempty"`
+	Resources               corev1.ResourceRequirements      `json:"resources,omitempty"`
+	JavaOpts                string                           `json:"javaOpts,omitempty"`
+	PodAnnotations          map[string]string                `json:"podAnnotations,omitempty"`
+	PodSecurityContext      corev1.SecurityContext           `json:"podSecurityContext,omitempty"`
+	SecurityContext         corev1.PodSecurityContext        `json:"securityContext,omitempty"`
+	NodeSelector            map[string]string                `json:"nodeSelector,omitempty"`
+	Tolerations             []corev1.Toleration              `json:"tolerations,omitempty"`
+	Affinity                corev1.Affinity                  `json:"affinity,omitempty"`
 }
 
 type StroomNodeRole string
