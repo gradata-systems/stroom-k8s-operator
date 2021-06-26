@@ -82,6 +82,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
+	// TODO: Create service account
+
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		foundStatefulSet := appsv1.StatefulSet{}
@@ -127,7 +129,6 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				for _, ingress := range ingresses {
 					logger.Info("Creating a new Ingress", "Namespace", ingress.Namespace, "Name", ingress.Name)
 					err := r.Create(ctx, &ingress)
-
 					if err != nil {
 						return err
 					}

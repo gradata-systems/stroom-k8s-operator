@@ -7,7 +7,7 @@ spec:
     repository: gchq/stroom
     tag: v7
   extraEnv: {}
-  configMapRef: {}
+  configMapName: ""
   appDatabaseRef: {}
   statsDatabaseRef: {}
   ingress: {}

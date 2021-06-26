@@ -27,13 +27,10 @@ type StroomClusterSpec struct {
 	ImagePullPolicy   corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 	MaxClientBodySize string            `json:"maxClientBodySize,omitempty"`
 	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
-	ConfigMapRef      struct {
-		Name      string `json:"name"`
-		Namespace string `json:"namespace"`
-	} `json:"configMapRef,omitempty"`
-	AppDatabaseRef   DatabaseRef `json:"appDatabaseRef"`
-	StatsDatabaseRef DatabaseRef `json:"statsDatabaseRef"`
-	Ingress          struct {
+	ConfigMapName     string            `json:"configMapName"`
+	AppDatabaseRef    DatabaseRef       `json:"appDatabaseRef"`
+	StatsDatabaseRef  DatabaseRef       `json:"statsDatabaseRef"`
+	Ingress           struct {
 		HostName   string `json:"hostName"`
 		SecretName string `json:"secretName"`
 		ClassName  string `json:"className,omitempty"`
