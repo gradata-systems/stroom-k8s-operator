@@ -11,36 +11,47 @@ import (
 	"strings"
 )
 
-func GetBaseName(componentName string) string {
-	return fmt.Sprintf("stroom-%v-db", componentName)
+// GetBaseName creates a name incorporating the name of the database
+// Example: stroom-prod-db
+func GetBaseName(resourceName string) string {
+	return fmt.Sprintf("stroom-%v-db", resourceName)
 }
 
-func (r *DatabaseServerReconciler) getServiceName(dbServer *stroomv1.DatabaseServer) string {
-	return fmt.Sprintf("%v-headless", GetBaseName(dbServer.Name))
+func GetServiceName(resourceName string) string {
+	return fmt.Sprintf("%v-headless", GetBaseName(resourceName))
+}
+
+func GetSecretName(resourceName string) string {
+	return fmt.Sprintf("%v", GetBaseName(resourceName))
+}
+
+func GetConfigMapName(resourceName string) string {
+	return fmt.Sprintf("%v", GetBaseName(resourceName))
+}
+
+func GetInitConfigMapName(resourceName string) string {
+	return fmt.Sprintf("%v-init", GetBaseName(resourceName))
 }
 
 func (r *DatabaseServerReconciler) getInitConfigName(dbServer *stroomv1.DatabaseServer) string {
 	return fmt.Sprintf("%v-init", GetBaseName(dbServer.Name))
 }
 
-var (
-	// DefaultSecretFileMode is the file mode to use for Secret volume mounts
-	DefaultSecretFileMode int32 = 0400
-
+const (
 	ServiceUserName       = "stroomuser"
 	DatabasePort    int32 = 3306
 )
 
-func (r *DatabaseServerReconciler) createLabels(dbServer *stroomv1.DatabaseServer) map[string]string {
+func (r *DatabaseServerReconciler) createLabels(dbName string) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":      "stroom",
 		"app.kubernetes.io/component": "database-server",
-		"app.kubernetes.io/instance":  dbServer.Name,
+		"app.kubernetes.io/instance":  dbName,
 	}
 }
 
 func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServer) *corev1.Secret {
-	labels := r.createLabels(dbServer)
+	labels := r.createLabels(dbServer.Name)
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -60,7 +71,7 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 }
 
 func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseServer) *corev1.ConfigMap {
-	labels := r.createLabels(dbServer)
+	labels := r.createLabels(dbServer.Name)
 
 	additionalConfig := ""
 	if dbServer.Spec.AdditionalConfig != nil {
@@ -88,7 +99,7 @@ func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseSe
 }
 
 func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.DatabaseServer) *corev1.ConfigMap {
-	labels := r.createLabels(dbServer)
+	labels := r.createLabels(dbServer.Name)
 
 	databaseCreateStatements := ""
 	for databaseName := range dbServer.Spec.DatabaseNames {
@@ -121,8 +132,11 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 }
 
 func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.DatabaseServer) *appsv1.StatefulSet {
-	labels := r.createLabels(dbServer)
+	labels := r.createLabels(dbServer.Name)
 	var replicas int32 = 1
+
+	// DefaultSecretFileMode is the file mode to use for Secret volume mounts
+	var secretFileMode int32 = 0400
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -131,7 +145,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &replicas,
-			ServiceName: r.getServiceName(dbServer),
+			ServiceName: GetServiceName(dbServer.Name),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -220,7 +234,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 								Items: []corev1.KeyToPath{{
 									Key:  "root",
 									Path: "root",
-									Mode: &DefaultSecretFileMode,
+									Mode: &secretFileMode,
 								}},
 							},
 						},
@@ -238,4 +252,27 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 
 	ctrl.SetControllerReference(dbServer, statefulSet, r.Scheme)
 	return statefulSet
+}
+
+func (r *DatabaseServerReconciler) createService(dbServer *stroomv1.DatabaseServer) *corev1.Service {
+	labels := r.createLabels(dbServer.Name)
+
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: GetServiceName(dbServer.Name),
+		},
+		Spec: corev1.ServiceSpec{
+			Type:      corev1.ServiceTypeClusterIP,
+			ClusterIP: corev1.ClusterIPNone,
+			Selector:  labels,
+			Ports: []corev1.ServicePort{{
+				Name:     "tcp",
+				Port:     DatabasePort,
+				Protocol: corev1.ProtocolTCP,
+			}},
+		},
+	}
+
+	ctrl.SetControllerReference(dbServer, service, r.Scheme)
+	return service
 }

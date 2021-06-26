@@ -6,14 +6,11 @@ spec:
   image:
     repository: gchq/stroom
     tag: v7
-  config:
-    serviceDiscovery:
-      enabled: false
-      zookeeperUrl: ""
-    maxClientBodySize: 1g
   extraEnv: {}
-  appDatabase:
-    hostName:
+  configMapRef: {}
+  appDatabaseRef: {}
+  statsDatabaseRef: {}
+  ingress: {}
 
   nodeSets:
     - name: data
@@ -23,8 +20,8 @@ spec:
         volumeClaim: {} # VolumeClaim
       sharedData:
         volume: {} # Volume
-      startupProbe: {} # Probe
-      livenessProbe: {} # Probe
+      startupProbeTimings: {} # ProbeTimings
+      livenessProbeTimings: {} # ProbeTimings
       resources: {}
       podAnnotations: {}
       podSecurityContext: {}

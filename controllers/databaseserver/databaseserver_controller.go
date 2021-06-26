@@ -53,10 +53,10 @@ type DatabaseServerReconciler struct {
 func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	dbServer := &stroomv1.DatabaseServer{}
+	dbServer := stroomv1.DatabaseServer{}
 	result := reconcile.Result{}
 
-	err := r.Get(ctx, req.NamespacedName, dbServer)
+	err := r.Get(ctx, req.NamespacedName, &dbServer)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("DatabaseServer resource not found. Ignoring since object must be deleted")
@@ -65,9 +65,9 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	foundSecret := corev1.Secret{}
-	result, err = r.getOrCreateObject(ctx, dbServer, "Secret", &foundSecret, func() error {
+	result, err = r.getOrCreateObject(ctx, GetSecretName(dbServer.Name), dbServer.Namespace, "Secret", &foundSecret, func() error {
 		// Generate a secret containing the root and service user passwords
-		resource := r.createSecret(dbServer)
+		resource := r.createSecret(&dbServer)
 		logger.Info("Creating a new Secret", "Namespace", resource.Namespace, "Name", resource.Name)
 		return r.Create(ctx, resource)
 	})
@@ -75,10 +75,21 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return result, err
 	}
 
-	foundConfigMap := corev1.Secret{}
-	result, err = r.getOrCreateObject(ctx, dbServer, "ConfigMap", &foundConfigMap, func() error {
+	foundConfigMap := corev1.ConfigMap{}
+	result, err = r.getOrCreateObject(ctx, GetConfigMapName(dbServer.Name), dbServer.Namespace, "ConfigMap", &foundConfigMap, func() error {
 		// Generate a secret containing the root and service user passwords
-		resource := r.createDbInitConfigMap(dbServer)
+		resource := r.createConfigMap(&dbServer)
+		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
+		return r.Create(ctx, resource)
+	})
+	if err != nil {
+		return result, err
+	}
+
+	foundInitConfigMap := corev1.ConfigMap{}
+	result, err = r.getOrCreateObject(ctx, GetInitConfigMapName(dbServer.Name), dbServer.Namespace, "ConfigMap", &foundInitConfigMap, func() error {
+		// Generate a secret containing the root and service user passwords
+		resource := r.createDbInitConfigMap(&dbServer)
 		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
 		return r.Create(ctx, resource)
 	})
@@ -87,10 +98,21 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	foundStatefulSet := appsv1.StatefulSet{}
-	result, err = r.getOrCreateObject(ctx, dbServer, "StatefulSet", &foundStatefulSet, func() error {
+	result, err = r.getOrCreateObject(ctx, GetBaseName(dbServer.Name), dbServer.Namespace, "StatefulSet", &foundStatefulSet, func() error {
 		// Generate a secret containing the root and service user passwords
-		resource := r.createStatefulSet(dbServer)
+		resource := r.createStatefulSet(&dbServer)
 		logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
+		return r.Create(ctx, resource)
+	})
+	if err != nil {
+		return result, err
+	}
+
+	foundService := corev1.Service{}
+	result, err = r.getOrCreateObject(ctx, GetServiceName(dbServer.Name), dbServer.Namespace, "Service", &foundService, func() error {
+		// Create a headless service
+		resource := r.createService(&dbServer)
+		logger.Info("Creating a new Service", "Namespace", resource.Namespace, "Name", resource.Name)
 		return r.Create(ctx, resource)
 	})
 	if err != nil {
@@ -100,16 +122,16 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	return ctrl.Result{}, nil
 }
 
-func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, dbServer *stroomv1.DatabaseServer, objectType string, foundObject client.Object, onCreate func() error) (reconcile.Result, error) {
+func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, name string, namespace string, objectType string, foundObject client.Object, onCreate func() error) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
-	err := r.Get(ctx, types.NamespacedName{Name: dbServer.Name, Namespace: dbServer.Namespace}, foundObject)
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, foundObject)
 	if err != nil && errors.IsNotFound(err) {
 		// Attempt to create the object, as it doesn't exist
 		err = onCreate()
 
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("Failed to create new %v", objectType))
+			logger.Error(err, fmt.Sprintf("Failed to create new %v named %v in namespace %v", objectType, name, namespace))
 			return ctrl.Result{}, err
 		}
 

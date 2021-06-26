@@ -27,16 +27,33 @@ type StroomClusterSpec struct {
 	ImagePullPolicy   corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 	MaxClientBodySize string            `json:"maxClientBodySize,omitempty"`
 	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
-	AppDatabase       DatabaseRef       `json:"appDatabase"`
-	StatsDatabase     DatabaseRef       `json:"statsDatabase"`
+	ConfigMapRef      struct {
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
+	} `json:"configMapRef,omitempty"`
+	AppDatabaseRef   DatabaseRef `json:"appDatabaseRef"`
+	StatsDatabaseRef DatabaseRef `json:"statsDatabaseRef"`
+	Ingress          struct {
+		HostName   string `json:"hostName"`
+		SecretName string `json:"secretName"`
+		ClassName  string `json:"className,omitempty"`
+	} `json:"ingress"`
 
 	// +kubebuilder:validation:MinItems=1
-	NodeSets []StroomNode `json:"nodeSets"`
+	NodeSets []NodeSet `json:"nodeSets"`
 }
 
 type DatabaseRef struct {
-	Name         string `json:"name"`
-	Namespace    string `json:"namespace,omitempty"`
+	// If Namespace and Name are provided, point to the associated operator-managed DatabaseServer object
+	Namespace string `json:"namespace,omitempty"`
+	Name      string `json:"name,omitempty"`
+
+	// Alternatively, if the following parameters are provided, point directly to this DNS name.
+	// This allows external database instances to be used in place of an operator-generated one.
+	Address    string `json:"serviceName,omitempty"`
+	Port       int32  `json:"port,omitempty"`
+	SecretName string `json:"secretName,omitempty"`
+
 	DatabaseName string `json:"databaseName"`
 }
 
@@ -52,31 +69,39 @@ const (
 	DeleteOnScaledownOnlyPolicy                                       = "DeleteOnScaledownOnly"
 )
 
-type StroomNode struct {
+type NodeSet struct {
 	Name                    string                           `json:"name"`
-	Count                   uint                             `json:"count"`
-	Role                    StroomNodeRole                   `json:"role,omitempty"`
+	Count                   int32                            `json:"count"`
+	Role                    NodeRole                         `json:"role,omitempty"`
 	LocalDataVolumeClaim    corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
 	SharedDataVolume        corev1.VolumeSource              `json:"sharedDataVolume"`
 	VolumeClaimDeletePolicy VolumeClaimDeletePolicy          `json:"volumeClaimDeletePolicy,omitempty"`
-	StartupProbe            corev1.Probe                     `json:"startupProbe,omitempty"`
-	LivenessProbe           corev1.Probe                     `json:"livenessProbe,omitempty"`
+	StartupProbeTimings     ProbeTimings                     `json:"startupProbeTimings,omitempty"`
+	LivenessProbeTimings    ProbeTimings                     `json:"livenessProbeTimings,omitempty"`
 	Resources               corev1.ResourceRequirements      `json:"resources,omitempty"`
 	JavaOpts                string                           `json:"javaOpts,omitempty"`
 	PodAnnotations          map[string]string                `json:"podAnnotations,omitempty"`
-	PodSecurityContext      corev1.SecurityContext           `json:"podSecurityContext,omitempty"`
-	SecurityContext         corev1.PodSecurityContext        `json:"securityContext,omitempty"`
+	PodSecurityContext      corev1.PodSecurityContext        `json:"podSecurityContext,omitempty"`
+	SecurityContext         corev1.SecurityContext           `json:"securityContext,omitempty"`
 	NodeSelector            map[string]string                `json:"nodeSelector,omitempty"`
 	Tolerations             []corev1.Toleration              `json:"tolerations,omitempty"`
 	Affinity                corev1.Affinity                  `json:"affinity,omitempty"`
 }
 
-type StroomNodeRole string
+type NodeRole string
 
 const (
-	Processing StroomNodeRole = "Processing"
-	Frontend                  = "Frontend"
+	Processing NodeRole = "Processing"
+	Frontend            = "Frontend"
 )
+
+type ProbeTimings struct {
+	InitialDelaySeconds int32 `json:"initialDelaySeconds,omitempty"`
+	TimeoutSeconds      int32 `json:"timeoutSeconds,omitempty"`
+	PeriodSeconds       int32 `json:"periodSeconds,omitempty"`
+	SuccessThreshold    int32 `json:"successThreshold,omitempty"`
+	FailureThreshold    int32 `json:"failureThreshold,omitempty"`
+}
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
