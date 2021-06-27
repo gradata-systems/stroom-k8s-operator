@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"strconv"
 	"strings"
 )
 
@@ -88,7 +89,7 @@ func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseSe
 			"my.cnf": "" +
 				"[mysqld]\n" +
 				"datadir=/var/lib/mysql\n" +
-				"port=" + string(DatabasePort) + "\n" +
+				"port=" + strconv.Itoa(int(DatabasePort)) + "\n" +
 				"user=mysql\n" +
 				additionalConfig,
 		},
@@ -102,7 +103,7 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 	labels := r.createLabels(dbServer.Name)
 
 	databaseCreateStatements := ""
-	for databaseName := range dbServer.Spec.DatabaseNames {
+	for _, databaseName := range dbServer.Spec.DatabaseNames {
 		databaseCreateStatements += "" +
 			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %v;\n", databaseName) +
 			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", databaseName, ServiceUserName)
@@ -142,6 +143,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GetBaseName(dbServer.Name),
 			Namespace: dbServer.Namespace,
+			Labels:    labels,
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &replicas,
@@ -181,8 +183,8 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 							ContainerPort: DatabasePort,
 							Protocol:      corev1.ProtocolTCP,
 						}},
-						ReadinessProbe:  &dbServer.Spec.ReadinessProbe,
-						LivenessProbe:   &dbServer.Spec.LivenessProbe,
+						ReadinessProbe:  r.createReadinessProbe(dbServer.Spec.ReadinessProbeTimings),
+						LivenessProbe:   r.createLivenessProbe(dbServer.Spec.LivenessProbeTimings),
 						SecurityContext: &dbServer.Spec.SecurityContext,
 						Resources:       dbServer.Spec.Resources,
 						VolumeMounts: []corev1.VolumeMount{{
@@ -254,12 +256,52 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 	return statefulSet
 }
 
+func (r *DatabaseServerReconciler) createReadinessProbe(timings stroomv1.ProbeTimings) *corev1.Probe {
+	return &corev1.Probe{
+		Handler: corev1.Handler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"sh",
+					"-c",
+					"|",
+					"status=$(mysql -u healthcheck -e \"SELECT 'OK'\" | grep 'OK');\n",
+					"if [[ $status ]]; then echo 1; else echo 0; fi",
+				},
+			},
+		},
+		InitialDelaySeconds: timings.InitialDelaySeconds,
+		PeriodSeconds:       timings.PeriodSeconds,
+		TimeoutSeconds:      timings.TimeoutSeconds,
+		SuccessThreshold:    timings.SuccessThreshold,
+		FailureThreshold:    timings.FailureThreshold,
+	}
+}
+
+func (r *DatabaseServerReconciler) createLivenessProbe(timings stroomv1.ProbeTimings) *corev1.Probe {
+	return &corev1.Probe{
+		Handler: corev1.Handler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"mysqladmin -u healthcheck ping",
+				},
+			},
+		},
+		InitialDelaySeconds: timings.InitialDelaySeconds,
+		PeriodSeconds:       timings.PeriodSeconds,
+		TimeoutSeconds:      timings.TimeoutSeconds,
+		SuccessThreshold:    timings.SuccessThreshold,
+		FailureThreshold:    timings.FailureThreshold,
+	}
+}
+
 func (r *DatabaseServerReconciler) createService(dbServer *stroomv1.DatabaseServer) *corev1.Service {
 	labels := r.createLabels(dbServer.Name)
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: GetServiceName(dbServer.Name),
+			Name:      GetServiceName(dbServer.Name),
+			Namespace: dbServer.Namespace,
+			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
 			Type:      corev1.ServiceTypeClusterIP,

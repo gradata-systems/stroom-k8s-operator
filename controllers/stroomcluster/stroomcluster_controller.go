@@ -44,9 +44,10 @@ type StroomClusterReconciler struct {
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters/finalizers,verbs=update
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.

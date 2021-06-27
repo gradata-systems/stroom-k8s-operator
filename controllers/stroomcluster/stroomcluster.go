@@ -292,8 +292,9 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) *corev1.Service {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name),
-			Labels: r.createLabels(stroomCluster),
+			Name:      GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name),
+			Namespace: stroomCluster.Namespace,
+			Labels:    r.createLabels(stroomCluster),
 		},
 		Spec: corev1.ServiceSpec{
 			Type:      corev1.ServiceTypeClusterIP,
@@ -322,8 +323,9 @@ func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.Stroom
 
 	ingresses := []v1.Ingress{{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   GetBaseName(stroomCluster.Name),
-			Labels: labels,
+			Name:      GetBaseName(stroomCluster.Name),
+			Namespace: stroomCluster.Namespace,
+			Labels:    labels,
 			Annotations: map[string]string{
 				"nginx.ingress.kubernetes.io/affinity":        "cookie",
 				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
@@ -340,8 +342,9 @@ func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.Stroom
 	}, {
 		// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   GetBaseName(stroomCluster.Name) + "-datafeed",
-			Labels: labels,
+			Name:      GetBaseName(stroomCluster.Name) + "-datafeed",
+			Namespace: stroomCluster.Namespace,
+			Labels:    labels,
 			Annotations: map[string]string{
 				"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed$1$2",
 			},
@@ -357,8 +360,9 @@ func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.Stroom
 	}, {
 		// Deny access to the `/stroom/clustercall.rpc` endpoint
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   GetBaseName(stroomCluster.Name) + "-clustercall",
-			Labels: labels,
+			Name:      GetBaseName(stroomCluster.Name) + "-clustercall",
+			Namespace: stroomCluster.Namespace,
+			Labels:    labels,
 			Annotations: map[string]string{
 				"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
 			},

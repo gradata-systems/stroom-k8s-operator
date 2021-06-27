@@ -1,0 +1,49 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: '[]'
+    capabilities: Basic Install
+  name: stroom-operator.v0.0.0
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: DatabaseServer is the Schema for the databases API
+      displayName: Database Server
+      kind: DatabaseServer
+      name: databaseservers.stroom.gchq.github.io
+      version: v1
+    - description: StroomCluster is the Schema for the stroomclusters API
+      displayName: Stroom Cluster
+      kind: StroomCluster
+      name: stroomclusters.stroom.gchq.github.io
+      version: v1
+  description: Stroom
+  displayName: stroom-k8s-operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - stroom
+  links:
+  - name: Stroom Operator
+    url: https://stroom-operator.domain
+  maturity: alpha
+  provider:
+    name: p.kimberley@gmail.com
+  version: 0.0.0

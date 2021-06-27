@@ -114,8 +114,8 @@ func (in *DatabaseServerSpec) DeepCopyInto(out *DatabaseServerSpec) {
 	}
 	in.Resources.DeepCopyInto(&out.Resources)
 	in.VolumeClaim.DeepCopyInto(&out.VolumeClaim)
-	in.ReadinessProbe.DeepCopyInto(&out.ReadinessProbe)
-	in.LivenessProbe.DeepCopyInto(&out.LivenessProbe)
+	out.ReadinessProbeTimings = in.ReadinessProbeTimings
+	out.LivenessProbeTimings = in.LivenessProbeTimings
 	if in.PodAnnotations != nil {
 		in, out := &in.PodAnnotations, &out.PodAnnotations
 		*out = make(map[string]string, len(*in))
