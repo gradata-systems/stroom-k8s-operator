@@ -10,7 +10,10 @@ spec:
   configMapName: ""
   appDatabaseRef: {}
   statsDatabaseRef: {}
-  ingress: {}
+  ingress:
+    hostName: ""
+    secretName: ""
+    className: nginx
 
   nodeSets:
     - name: data

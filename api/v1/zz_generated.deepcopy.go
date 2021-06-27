@@ -310,7 +310,6 @@ func (in *StroomClusterSpec) DeepCopyInto(out *StroomClusterSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	out.ConfigMapRef = in.ConfigMapRef
 	out.AppDatabaseRef = in.AppDatabaseRef
 	out.StatsDatabaseRef = in.StatsDatabaseRef
 	out.Ingress = in.Ingress

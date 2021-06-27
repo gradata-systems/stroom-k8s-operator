@@ -46,7 +46,7 @@ type DatabaseRef struct {
 	Name      string `json:"name,omitempty"`
 
 	// Alternatively, if the following parameters are provided, point directly to this DNS name.
-	// This allows external database instances to be used in place of an operator-generated one.
+	// This allows external database instances to be used in place of an operator-managed one.
 	Address    string `json:"serviceName,omitempty"`
 	Port       int32  `json:"port,omitempty"`
 	SecretName string `json:"secretName,omitempty"`

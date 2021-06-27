@@ -11,6 +11,11 @@ import (
 	"strings"
 )
 
+const (
+	ServiceUserName       = "stroomuser"
+	DatabasePort    int32 = 3306
+)
+
 // GetBaseName creates a name incorporating the name of the database
 // Example: stroom-prod-db
 func GetBaseName(resourceName string) string {
@@ -36,11 +41,6 @@ func GetInitConfigMapName(resourceName string) string {
 func (r *DatabaseServerReconciler) getInitConfigName(dbServer *stroomv1.DatabaseServer) string {
 	return fmt.Sprintf("%v-init", GetBaseName(dbServer.Name))
 }
-
-const (
-	ServiceUserName       = "stroomuser"
-	DatabasePort    int32 = 3306
-)
 
 func (r *DatabaseServerReconciler) createLabels(dbName string) map[string]string {
 	return map[string]string{

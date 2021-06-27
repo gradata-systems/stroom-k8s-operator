@@ -44,10 +44,13 @@ type DatabaseServerReconciler struct {
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/finalizers,verbs=update
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=serviceaccounts,verbs=get;list;watch
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
+//
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -66,7 +69,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	foundSecret := corev1.Secret{}
 	result, err = r.getOrCreateObject(ctx, GetSecretName(dbServer.Name), dbServer.Namespace, "Secret", &foundSecret, func() error {
-		// Generate a secret containing the root and service user passwords
+		// Generate a Secret containing the root and service user passwords
 		resource := r.createSecret(&dbServer)
 		logger.Info("Creating a new Secret", "Namespace", resource.Namespace, "Name", resource.Name)
 		return r.Create(ctx, resource)
@@ -77,7 +80,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	foundConfigMap := corev1.ConfigMap{}
 	result, err = r.getOrCreateObject(ctx, GetConfigMapName(dbServer.Name), dbServer.Namespace, "ConfigMap", &foundConfigMap, func() error {
-		// Generate a secret containing the root and service user passwords
+		// Generate a ConfigMap containing the MySQL database configuration
 		resource := r.createConfigMap(&dbServer)
 		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
 		return r.Create(ctx, resource)
@@ -88,7 +91,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	foundInitConfigMap := corev1.ConfigMap{}
 	result, err = r.getOrCreateObject(ctx, GetInitConfigMapName(dbServer.Name), dbServer.Namespace, "ConfigMap", &foundInitConfigMap, func() error {
-		// Generate a secret containing the root and service user passwords
+		// Generate a ConfigMap containing database initialisation scripts
 		resource := r.createDbInitConfigMap(&dbServer)
 		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
 		return r.Create(ctx, resource)
@@ -99,7 +102,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	foundStatefulSet := appsv1.StatefulSet{}
 	result, err = r.getOrCreateObject(ctx, GetBaseName(dbServer.Name), dbServer.Namespace, "StatefulSet", &foundStatefulSet, func() error {
-		// Generate a secret containing the root and service user passwords
+		// Generate a StatefulSet for running a single instance of MySQL
 		resource := r.createStatefulSet(&dbServer)
 		logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
 		return r.Create(ctx, resource)

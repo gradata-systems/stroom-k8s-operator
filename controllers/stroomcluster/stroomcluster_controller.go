@@ -44,6 +44,9 @@ type StroomClusterReconciler struct {
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters/finalizers,verbs=update
+//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -82,7 +85,24 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	// TODO: Create service account
+	foundServiceAccount := corev1.ServiceAccount{}
+	result, err = r.getOrCreateObject(ctx, GetBaseName(stroomCluster.Name), stroomCluster.Namespace, "ServiceAccount", &foundServiceAccount, func() error {
+		// Create a new ServiceAccount
+		resource := r.createServiceAccount(&stroomCluster)
+		logger.Info("Creating a new ServiceAccount", "Namespace", resource.Namespace, "Name", resource.Name)
+		return r.Create(ctx, resource)
+	})
+	if err != nil {
+		return result, err
+	}
+
+	// Check the StroomCluster ConfigMap exists
+	foundConfigMap := corev1.ConfigMap{}
+	err = r.Get(ctx, types.NamespacedName{Name: stroomCluster.Spec.ConfigMapName, Namespace: stroomCluster.Namespace}, &foundConfigMap)
+	if err != nil {
+		logger.Error(err, fmt.Sprintf("ConfigMap '%v' referenced by StroomCluster '%v' was not found", stroomCluster.Spec.ConfigMapName, stroomCluster.Name))
+		return ctrl.Result{}, err
+	}
 
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
@@ -140,6 +160,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	} else {
 		logger.Info("No Ingress created as no NodeSet exists with a role of 'Frontend'")
 	}
+
+	// TODO: Add node list to status
 
 	return ctrl.Result{}, nil
 }

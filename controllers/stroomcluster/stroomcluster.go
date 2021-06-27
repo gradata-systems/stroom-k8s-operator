@@ -15,6 +15,13 @@ import (
 	"strconv"
 )
 
+const (
+	AppPortName     = "app"
+	AppPortNumber   = 8080
+	AdminPortName   = "admin"
+	AdminPortNumber = 8081
+)
+
 func GetBaseName(clusterName string) string {
 	return fmt.Sprintf("stroom-%v", clusterName)
 }
@@ -27,45 +34,58 @@ func GetStroomNodeSetServiceName(clusterName string, nodeSetName string) string 
 	return fmt.Sprintf("%v-http", GetStroomNodeSetName(clusterName, nodeSetName))
 }
 
-func (r *StroomClusterReconciler) createLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
+func (r *StroomClusterReconciler) createLabels(stroomCluster *stroomv1.StroomCluster) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":      "stroom",
 		"app.kubernetes.io/component": "stroom-cluster",
 		"stroom/cluster":              stroomCluster.Name,
-		"stroom/nodeSet":              nodeSet.Name,
-		"stroom/nodeSetRole":          string(nodeSet.Role),
 	}
 }
 
-const (
-	AppPortName     = "app"
-	AppPortNumber   = 8080
-	AdminPortName   = "admin"
-	AdminPortNumber = 8081
-)
+func (r *StroomClusterReconciler) createNodeSetSelectorLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
+	return map[string]string{
+		"stroom/cluster":     stroomCluster.Name,
+		"stroom/nodeSet":     nodeSet.Name,
+		"stroom/nodeSetRole": string(nodeSet.Role),
+	}
+}
+
+func (r *StroomClusterReconciler) createServiceAccount(stroomCluster *stroomv1.StroomCluster) *corev1.ServiceAccount {
+	serviceAccount := corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      GetBaseName(stroomCluster.Name),
+			Namespace: stroomCluster.Namespace,
+			Labels:    r.createLabels(stroomCluster),
+		},
+	}
+
+	ctrl.SetControllerReference(stroomCluster, &serviceAccount, r.Scheme)
+	return &serviceAccount
+}
 
 func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet,
 	appDatabase *databaseserver.DatabaseConnectionInfo, statsDatabase *databaseserver.DatabaseConnectionInfo) *appsv1.StatefulSet {
-	labels := r.createLabels(stroomCluster, nodeSet)
+	selectorLabels := r.createNodeSetSelectorLabels(stroomCluster, nodeSet)
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GetStroomNodeSetName(stroomCluster.Name, nodeSet.Name),
 			Namespace: stroomCluster.Namespace,
+			Labels:    r.createLabels(stroomCluster),
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &nodeSet.Count,
 			ServiceName: GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name),
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
+				MatchLabels: selectorLabels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: nodeSet.PodAnnotations,
-					Labels:      labels,
+					Labels:      selectorLabels,
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName: "", // TODO: Add service account
+					ServiceAccountName: GetBaseName(stroomCluster.Name),
 					SecurityContext:    &nodeSet.PodSecurityContext,
 					Containers: []corev1.Container{{
 						Name:            "stroom-node",
@@ -270,16 +290,15 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 }
 
 func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) *corev1.Service {
-	labels := r.createLabels(stroomCluster, nodeSet)
-
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name),
+			Name:   GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name),
+			Labels: r.createLabels(stroomCluster),
 		},
 		Spec: corev1.ServiceSpec{
 			Type:      corev1.ServiceTypeClusterIP,
 			ClusterIP: corev1.ClusterIPNone,
-			Selector:  labels,
+			Selector:  r.createNodeSetSelectorLabels(stroomCluster, nodeSet),
 			Ports: []corev1.ServicePort{{
 				Name:     AppPortName,
 				Port:     AppPortNumber,
@@ -299,10 +318,12 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.StroomCluster, serviceName string) []v1.Ingress {
 	ingressSettings := &stroomCluster.Spec.Ingress
 	hostName := ingressSettings.HostName
+	labels := r.createLabels(stroomCluster)
 
 	ingresses := []v1.Ingress{{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: GetBaseName(stroomCluster.Name),
+			Name:   GetBaseName(stroomCluster.Name),
+			Labels: labels,
 			Annotations: map[string]string{
 				"nginx.ingress.kubernetes.io/affinity":        "cookie",
 				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
@@ -319,7 +340,8 @@ func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.Stroom
 	}, {
 		// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
 		ObjectMeta: metav1.ObjectMeta{
-			Name: GetBaseName(stroomCluster.Name) + "-datafeed",
+			Name:   GetBaseName(stroomCluster.Name) + "-datafeed",
+			Labels: labels,
 			Annotations: map[string]string{
 				"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed$1$2",
 			},
@@ -335,7 +357,8 @@ func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.Stroom
 	}, {
 		// Deny access to the `/stroom/clustercall.rpc` endpoint
 		ObjectMeta: metav1.ObjectMeta{
-			Name: GetBaseName(stroomCluster.Name) + "-clustercall",
+			Name:   GetBaseName(stroomCluster.Name) + "-clustercall",
+			Labels: labels,
 			Annotations: map[string]string{
 				"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
 			},
