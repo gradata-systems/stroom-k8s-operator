@@ -2,9 +2,11 @@ package databaseserver
 
 import (
 	"fmt"
+	v1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 )
 
 type DatabaseConnectionInfo struct {
+	DatabaseRef  *v1.DatabaseServer
 	Address      string
 	Port         int32
 	DatabaseName string

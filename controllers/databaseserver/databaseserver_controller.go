@@ -19,10 +19,12 @@ package databaseserver
 import (
 	"context"
 	"fmt"
+	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -60,16 +62,18 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	dbServer := stroomv1.DatabaseServer{}
 	result := reconcile.Result{}
 
-	err := r.Get(ctx, req.NamespacedName, &dbServer)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			logger.Info("DatabaseServer resource not found. Ignoring since object must be deleted")
-			return ctrl.Result{}, nil
-		}
+	if err := r.Get(ctx, req.NamespacedName, &dbServer); err != nil {
+		logger.Error(err, fmt.Sprintf("Unable to fetch DatabaseServer %v", req.NamespacedName.String()))
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// If item is deleted or an error occurs when adding a finalizer, bail out
+	if deleted, err := r.checkIfDeleted(ctx, &dbServer); deleted || err != nil {
+		return ctrl.Result{}, err
 	}
 
 	foundSecret := corev1.Secret{}
-	result, err = r.getOrCreateObject(ctx, GetSecretName(dbServer.Name), dbServer.Namespace, "Secret", &foundSecret, func() error {
+	result, err := r.getOrCreateObject(ctx, GetSecretName(dbServer.Name), dbServer.Namespace, "Secret", &foundSecret, func() error {
 		// Generate a Secret containing the root and service user passwords
 		resource := r.createSecret(&dbServer)
 		logger.Info("Creating a new Secret", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -134,6 +138,45 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// checkIfDeleted inspects the DatabaseServer to see if a deletion request is pending.
+// If true, it executes finalizer logic to block deletion while the associated StroomCluster (if defined) still exists.
+// Returns whether the resource is being deleted and any error that occured.
+func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer *stroomv1.DatabaseServer) (bool, error) {
+	logger := log.FromContext(ctx)
+
+	const finalizerName = "stroom.gchq.github.io/finalizer"
+
+	if dbServer.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !common.ContainsString(dbServer.GetFinalizers(), finalizerName) {
+			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
+			controllerutil.AddFinalizer(dbServer, finalizerName)
+			if err := r.Update(ctx, dbServer); err != nil {
+				return false, err
+			}
+		}
+	} else {
+		if common.ContainsString(dbServer.GetFinalizers(), finalizerName) {
+			// Finalizer is present, so check whether the DatabaseServer is claimed by a StroomCluster
+			if dbServer.StroomClusterRef != (stroomv1.StroomClusterRef{}) {
+				stroomCluster := stroomv1.StroomCluster{}
+				if err := r.Get(ctx, types.NamespacedName{Name: dbServer.StroomClusterRef.Name, Namespace: dbServer.StroomClusterRef.Namespace}, &stroomCluster); err == nil {
+					// Related StroomCluster resource exists, so block deletion
+					return true, nil
+				} else {
+					// StroomCluster resource doesn't exist, so remove the finalizer
+					controllerutil.RemoveFinalizer(dbServer, finalizerName)
+					if err := r.Update(ctx, dbServer); err != nil {
+						logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v'", dbServer.Name))
+						return true, err
+					}
+				}
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, name string, namespace string, objectType string, foundObject client.Object, onCreate func() error) (reconcile.Result, error) {

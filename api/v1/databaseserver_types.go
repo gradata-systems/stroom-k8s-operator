@@ -55,6 +55,15 @@ type DatabaseServer struct {
 
 	Spec   DatabaseServerSpec   `json:"spec,omitempty"`
 	Status DatabaseServerStatus `json:"status,omitempty"`
+
+	// Set by the controller when a StroomCluster binds to the DatabaseServer.
+	// This is used to prevent the DatabaseServer from being deleted while its paired StroomCluster still exists.
+	StroomClusterRef StroomClusterRef `json:"stroomClusterRef,omitempty"`
+}
+
+type StroomClusterRef struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
 }
 
 //+kubebuilder:object:root=true
