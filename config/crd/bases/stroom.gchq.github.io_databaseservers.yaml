@@ -649,18 +649,23 @@ spec:
               livenessProbeTimings:
                 properties:
                   failureThreshold:
+                    default: 10
                     format: int32
                     type: integer
                   initialDelaySeconds:
+                    default: 5
                     format: int32
                     type: integer
                   periodSeconds:
+                    default: 5
                     format: int32
                     type: integer
                   successThreshold:
+                    default: 1
                     format: int32
                     type: integer
                   timeoutSeconds:
+                    default: 5
                     format: int32
                     type: integer
                 type: object
@@ -821,18 +826,23 @@ spec:
               readinessProbeTimings:
                 properties:
                   failureThreshold:
+                    default: 10
                     format: int32
                     type: integer
                   initialDelaySeconds:
+                    default: 5
                     format: int32
                     type: integer
                   periodSeconds:
+                    default: 5
                     format: int32
                     type: integer
                   successThreshold:
+                    default: 1
                     format: int32
                     type: integer
                   timeoutSeconds:
+                    default: 5
                     format: int32
                     type: integer
                 type: object
@@ -1183,7 +1193,6 @@ spec:
                 type: string
             required:
             - name
-            - namespace
             type: object
         type: object
     served: true

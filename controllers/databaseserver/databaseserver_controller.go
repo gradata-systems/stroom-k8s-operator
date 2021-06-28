@@ -151,18 +151,16 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer *stroomv1.DatabaseServer) (bool, error) {
 	logger := log.FromContext(ctx)
 
-	const finalizerName = "stroom.gchq.github.io/finalizer"
-
 	if dbServer.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !common.ContainsString(dbServer.GetFinalizers(), finalizerName) {
+		if !common.ContainsString(dbServer.GetFinalizers(), common.FinalizerName) {
 			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
-			controllerutil.AddFinalizer(dbServer, finalizerName)
+			controllerutil.AddFinalizer(dbServer, common.FinalizerName)
 			if err := r.Update(ctx, dbServer); err != nil {
 				return false, err
 			}
 		}
 	} else {
-		if common.ContainsString(dbServer.GetFinalizers(), finalizerName) {
+		if common.ContainsString(dbServer.GetFinalizers(), common.FinalizerName) {
 			// Finalizer is present, so check whether the DatabaseServer is claimed by a StroomCluster
 			if dbServer.StroomClusterRef != (stroomv1.ResourceRef{}) {
 				stroomCluster := stroomv1.StroomCluster{}
@@ -175,7 +173,7 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 
 			// Not claimed by a StroomCluster or the StroomCluster doesn't exist, so remove the finalizer.
 			// This allows the DatabaseServer resource to be removed.
-			controllerutil.RemoveFinalizer(dbServer, finalizerName)
+			controllerutil.RemoveFinalizer(dbServer, common.FinalizerName)
 			if err := r.Update(ctx, dbServer); err != nil {
 				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v/%v'", dbServer.Namespace, dbServer.Name))
 				return true, err
@@ -183,6 +181,8 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 
 			logger.Info(fmt.Sprintf("DatabaseServer '%v/%v' deleted", dbServer.Namespace, dbServer.Name))
 		}
+
+		return true, nil
 	}
 
 	return false, nil

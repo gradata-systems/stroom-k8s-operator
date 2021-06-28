@@ -2,30 +2,58 @@ apiVersion: stroom.gchq.github.io/v1
 kind: StroomCluster
 metadata:
   name: dev
+  namespace: stroom-7
 spec:
   image:
-    repository: gchq/stroom
+    repository: docker.intranet.gradata.com.au/gchq/stroom
     tag: v7
+  imagePullPolicy: Always
+  maxClientBodySize: 1g
   extraEnv: []
-  configMapName: ""
+  configMapName: stroom-dev
   appDatabaseRef:
     databaseName: stroom
+    databaseServerRef:
+      name: dev
   statsDatabaseRef:
     databaseName: stats
-  ingress:
-    hostName: ""
-    secretName: ""
-    className: nginx
+    databaseServerRef:
+      name: dev
 
   nodeSets:
     - name: data
-      count: 3
-      role: Processing # Processing | Frontend
-      localDataVolumeClaim: {}
-      sharedDataVolume: {}
-      startupProbeTimings: {} # ProbeTimings
-      livenessProbeTimings: {} # ProbeTimings
-      resources: {}
+      count: 2
+      role: Processing
+      localDataVolumeClaim:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+          limits:
+            storage: 1Gi
+        selector:
+          matchLabels:
+            app: stroom-7
+            component: stroom-node
+      sharedDataVolume:
+        nfs:
+          server: gs-fs01.internal
+          path: /volume2/AppData/stroom-7/stroom-shared
+      ingress:
+        hostName: stroom-7.internal
+        secretName: stroom-7-tls
+        className: nginx
+      startupProbeTimings: {}
+      livenessProbeTimings: {}
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 8Gi
       podAnnotations: {}
       podSecurityContext: {}
       securityContext: {}
@@ -33,7 +61,29 @@ spec:
       tolerations: []
       affinity: {}
     - name: ui
-      count: 2
+      count: 1
       role: Frontend
-      localDataVolumeClaim: {}
-      sharedDataVolume: {}
+      localDataVolumeClaim:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+          limits:
+            storage: 1Gi
+        selector:
+          matchLabels:
+            app: stroom-7
+            component: stroom-node
+      ingress:
+        hostName: stroom-7.internal
+        secretName: stroom-7-tls
+        className: nginx
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi

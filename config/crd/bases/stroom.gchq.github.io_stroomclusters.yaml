@@ -54,7 +54,7 @@ spec:
                     type: object
                   databaseName:
                     type: string
-                  serverRef:
+                  databaseServerRef:
                     description: If specified, point to an operator-managed DatabaseServer
                       object
                     properties:
@@ -64,12 +64,9 @@ spec:
                         type: string
                     required:
                     - name
-                    - namespace
                     type: object
                 required:
-                - connectionSpec
                 - databaseName
-                - serverRef
                 type: object
               configMapName:
                 type: string
@@ -186,18 +183,6 @@ spec:
                 description: PullPolicy describes a policy for if/when to pull a container
                   image
                 type: string
-              ingress:
-                properties:
-                  className:
-                    type: string
-                  hostName:
-                    type: string
-                  secretName:
-                    type: string
-                required:
-                - hostName
-                - secretName
-                type: object
               maxClientBodySize:
                 type: string
               nodeSets:
@@ -832,23 +817,40 @@ spec:
                     count:
                       format: int32
                       type: integer
+                    ingress:
+                      properties:
+                        className:
+                          type: string
+                        hostName:
+                          type: string
+                        secretName:
+                          type: string
+                      required:
+                      - hostName
+                      - secretName
+                      type: object
                     javaOpts:
                       type: string
                     livenessProbeTimings:
                       properties:
                         failureThreshold:
+                          default: 10
                           format: int32
                           type: integer
                         initialDelaySeconds:
+                          default: 5
                           format: int32
                           type: integer
                         periodSeconds:
+                          default: 5
                           format: int32
                           type: integer
                         successThreshold:
+                          default: 1
                           format: int32
                           type: integer
                         timeoutSeconds:
+                          default: 5
                           format: int32
                           type: integer
                       type: object
@@ -2809,18 +2811,23 @@ spec:
                     startupProbeTimings:
                       properties:
                         failureThreshold:
+                          default: 10
                           format: int32
                           type: integer
                         initialDelaySeconds:
+                          default: 5
                           format: int32
                           type: integer
                         periodSeconds:
+                          default: 5
                           format: int32
                           type: integer
                         successThreshold:
+                          default: 1
                           format: int32
                           type: integer
                         timeoutSeconds:
+                          default: 5
                           format: int32
                           type: integer
                       type: object
@@ -2869,9 +2876,10 @@ spec:
                       type: string
                   required:
                   - count
+                  - ingress
                   - localDataVolumeClaim
                   - name
-                  - sharedDataVolume
+                  - resources
                   type: object
                 minItems: 1
                 type: array
@@ -2893,7 +2901,7 @@ spec:
                     type: object
                   databaseName:
                     type: string
-                  serverRef:
+                  databaseServerRef:
                     description: If specified, point to an operator-managed DatabaseServer
                       object
                     properties:
@@ -2903,17 +2911,13 @@ spec:
                         type: string
                     required:
                     - name
-                    - namespace
                     type: object
                 required:
-                - connectionSpec
                 - databaseName
-                - serverRef
                 type: object
             required:
             - appDatabaseRef
             - configMapName
-            - ingress
             - nodeSets
             - statsDatabaseRef
             type: object

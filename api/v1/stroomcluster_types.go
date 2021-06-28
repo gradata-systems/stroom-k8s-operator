@@ -30,7 +30,6 @@ type StroomClusterSpec struct {
 	ConfigMapName     string            `json:"configMapName"`
 	AppDatabaseRef    DatabaseRef       `json:"appDatabaseRef"`
 	StatsDatabaseRef  DatabaseRef       `json:"statsDatabaseRef"`
-	Ingress           IngressSettings   `json:"ingress"`
 
 	// +kubebuilder:validation:MinItems=1
 	NodeSets []NodeSet `json:"nodeSets"`
@@ -44,11 +43,11 @@ type IngressSettings struct {
 
 type DatabaseRef struct {
 	// If specified, point to an operator-managed DatabaseServer object
-	DatabaseServerRef ResourceRef `json:"serverRef"`
+	DatabaseServerRef ResourceRef `json:"databaseServerRef,omitempty"`
 
 	// Alternatively, if the following parameters are provided, point directly to a DB by its TCP address.
 	// This allows external database instances to be used in place of an operator-managed one.
-	ConnectionSpec DatabaseAddress `json:"connectionSpec"`
+	ConnectionSpec DatabaseAddress `json:"connectionSpec,omitempty"`
 
 	DatabaseName string `json:"databaseName"`
 }
@@ -76,11 +75,12 @@ type NodeSet struct {
 	Count                   int32                            `json:"count"`
 	Role                    NodeRole                         `json:"role,omitempty"`
 	LocalDataVolumeClaim    corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
-	SharedDataVolume        corev1.VolumeSource              `json:"sharedDataVolume"`
+	SharedDataVolume        corev1.VolumeSource              `json:"sharedDataVolume,omitempty"`
 	VolumeClaimDeletePolicy VolumeClaimDeletePolicy          `json:"volumeClaimDeletePolicy,omitempty"`
+	Ingress                 IngressSettings                  `json:"ingress"`
+	Resources               corev1.ResourceRequirements      `json:"resources"`
 	StartupProbeTimings     ProbeTimings                     `json:"startupProbeTimings,omitempty"`
 	LivenessProbeTimings    ProbeTimings                     `json:"livenessProbeTimings,omitempty"`
-	Resources               corev1.ResourceRequirements      `json:"resources,omitempty"`
 	JavaOpts                string                           `json:"javaOpts,omitempty"`
 	PodAnnotations          map[string]string                `json:"podAnnotations,omitempty"`
 	PodSecurityContext      corev1.PodSecurityContext        `json:"podSecurityContext,omitempty"`

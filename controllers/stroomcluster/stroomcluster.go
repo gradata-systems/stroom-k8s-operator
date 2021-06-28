@@ -27,7 +27,7 @@ func GetBaseName(clusterName string) string {
 }
 
 func GetStroomNodeSetName(clusterName string, nodeSetName string) string {
-	return fmt.Sprintf("stroom-%v-%v", clusterName, nodeSetName)
+	return fmt.Sprintf("stroom-%v-node-%v", clusterName, nodeSetName)
 }
 
 func GetStroomNodeSetServiceName(clusterName string, nodeSetName string) string {
@@ -67,6 +67,60 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	appDatabase *databaseserver.DatabaseConnectionInfo, statsDatabase *databaseserver.DatabaseConnectionInfo) *appsv1.StatefulSet {
 	selectorLabels := r.createNodeSetSelectorLabels(stroomCluster, nodeSet)
 
+	volumes := []corev1.Volume{{
+		Name: "config",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: stroomCluster.Spec.ConfigMapName,
+				},
+			},
+		},
+	}}
+
+	volumeMounts := []corev1.VolumeMount{{
+		Name:      "config",
+		SubPath:   "config.yml",
+		MountPath: "/stroom/config/config.yml",
+		ReadOnly:  true,
+	}, {
+		Name:      "data",
+		SubPath:   "logs",
+		MountPath: "/stroom/logs",
+	}, {
+		Name:      "data",
+		SubPath:   "output",
+		MountPath: "/stroom/output",
+	}, {
+		Name:      "data",
+		SubPath:   "tmp",
+		MountPath: "/stroom/tmp",
+	}, {
+		Name:      "data",
+		SubPath:   "proxy-repo",
+		MountPath: "/stroom/proxy_repo",
+	}, {
+		Name:      "data",
+		SubPath:   "reference-data",
+		MountPath: "/stroom/reference_data",
+	}, {
+		Name:      "data",
+		SubPath:   "search-results",
+		MountPath: "/stroom/search_results",
+	}}
+
+	// Shared volumes are optional and for UI nodes, it makes sense to omit them
+	if nodeSet.SharedDataVolume != (corev1.VolumeSource{}) {
+		volumes = append(volumes, corev1.Volume{
+			Name:         "stroom-shared",
+			VolumeSource: nodeSet.SharedDataVolume,
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "stroom-shared",
+			MountPath: "/stroom/volumes",
+		})
+	}
+
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      GetStroomNodeSetName(stroomCluster.Name, nodeSet.Name),
@@ -92,6 +146,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 						Image:           stroomCluster.Spec.Image.String(),
 						ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
 						Env: []corev1.EnvVar{{
+							Name:  "API_GATEWAY_HOST",
+							Value: nodeSet.Ingress.HostName,
+						}, {
 							Name:  "ADMIN_CONTEXT_PATH",
 							Value: "/stroomAdmin",
 						}, {
@@ -118,6 +175,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 									FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
 								},
 							},
+						}, {
+							Name:  "POD_SUBDOMAIN",
+							Value: fmt.Sprintf("%v.%v.svc", GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name), stroomCluster.Namespace),
 						}, {
 							Name:  "JAVA_OPTS",
 							Value: r.getJvmOptions(stroomCluster, nodeSet),
@@ -173,39 +233,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 								},
 							},
 						}},
-						VolumeMounts: []corev1.VolumeMount{{
-							Name:      "config",
-							SubPath:   "config.yml",
-							MountPath: "/stroom/config/config.yml",
-							ReadOnly:  true,
-						}, {
-							Name:      "data",
-							SubPath:   "logs",
-							MountPath: "/stroom/logs",
-						}, {
-							Name:      "data",
-							SubPath:   "output",
-							MountPath: "/stroom/output",
-						}, {
-							Name:      "data",
-							SubPath:   "tmp",
-							MountPath: "/stroom/tmp",
-						}, {
-							Name:      "data",
-							SubPath:   "proxy-repo",
-							MountPath: "/stroom/proxy_repo",
-						}, {
-							Name:      "data",
-							SubPath:   "reference-data",
-							MountPath: "/stroom/reference_data",
-						}, {
-							Name:      "data",
-							SubPath:   "search-results",
-							MountPath: "/stroom/search_results",
-						}, {
-							Name:      "stroom-shared",
-							MountPath: "/stroom/volumes",
-						}},
+						VolumeMounts:    volumeMounts,
 						SecurityContext: &nodeSet.SecurityContext,
 						Ports: []corev1.ContainerPort{{
 							Name:          AppPortName,
@@ -220,19 +248,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 						LivenessProbe: r.createProbe(&nodeSet.LivenessProbeTimings, AdminPortName),
 						Resources:     nodeSet.Resources,
 					}},
-					Volumes: []corev1.Volume{{
-						Name: "config",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: stroomCluster.Spec.ConfigMapName,
-								},
-							},
-						},
-					}, {
-						Name:         "stroom-shared",
-						VolumeSource: nodeSet.SharedDataVolume,
-					}},
+					Volumes:      volumes,
 					NodeSelector: nodeSet.NodeSelector,
 					Affinity:     &nodeSet.Affinity,
 					Tolerations:  nodeSet.Tolerations,
@@ -271,7 +287,7 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 }
 
 func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTimings, portName string) *corev1.Probe {
-	return &corev1.Probe{
+	probe := &corev1.Probe{
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path: "/stroomAdmin/healthcheck",
@@ -281,12 +297,25 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 				},
 			},
 		},
-		InitialDelaySeconds: probeTimings.InitialDelaySeconds,
-		TimeoutSeconds:      probeTimings.TimeoutSeconds,
-		PeriodSeconds:       probeTimings.PeriodSeconds,
-		SuccessThreshold:    probeTimings.SuccessThreshold,
-		FailureThreshold:    probeTimings.FailureThreshold,
 	}
+
+	if probeTimings.InitialDelaySeconds != 0 {
+		probe.InitialDelaySeconds = probeTimings.InitialDelaySeconds
+	}
+	if probeTimings.PeriodSeconds != 0 {
+		probe.PeriodSeconds = probeTimings.InitialDelaySeconds
+	}
+	if probeTimings.TimeoutSeconds != 0 {
+		probe.TimeoutSeconds = probeTimings.TimeoutSeconds
+	}
+	if probeTimings.SuccessThreshold != 0 {
+		probe.SuccessThreshold = probeTimings.SuccessThreshold
+	}
+	if probeTimings.FailureThreshold != 0 {
+		probe.FailureThreshold = probeTimings.FailureThreshold
+	}
+
+	return probe
 }
 
 func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) *corev1.Service {
@@ -316,66 +345,85 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 	return service
 }
 
-func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.StroomCluster, serviceName string) []v1.Ingress {
-	ingressSettings := &stroomCluster.Spec.Ingress
-	hostName := ingressSettings.HostName
+func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.StroomCluster) []v1.Ingress {
 	labels := r.createLabels(stroomCluster)
+	var ingresses []v1.Ingress
 
-	ingresses := []v1.Ingress{{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(stroomCluster.Name),
-			Namespace: stroomCluster.Namespace,
-			Labels:    labels,
-			Annotations: map[string]string{
-				"nginx.ingress.kubernetes.io/affinity":        "cookie",
-				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
-			},
-		},
-		Spec: v1.IngressSpec{
-			IngressClassName: &ingressSettings.ClassName,
-			TLS: []v1.IngressTLS{{
-				Hosts:      []string{hostName},
-				SecretName: ingressSettings.SecretName,
-			}},
-			Rules: r.createIngressRules(hostName, v1.PathTypePrefix, "/", serviceName),
-		},
-	}, {
-		// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(stroomCluster.Name) + "-datafeed",
-			Namespace: stroomCluster.Namespace,
-			Labels:    labels,
-			Annotations: map[string]string{
-				"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed$1$2",
-			},
-		},
-		Spec: v1.IngressSpec{
-			IngressClassName: &ingressSettings.ClassName,
-			TLS: []v1.IngressTLS{{
-				Hosts:      []string{hostName},
-				SecretName: ingressSettings.SecretName,
-			}},
-			Rules: r.createIngressRules(hostName, v1.PathTypePrefix, "/stroom/datafeeddirect(/|$)(.*)", serviceName),
-		},
-	}, {
-		// Deny access to the `/stroom/clustercall.rpc` endpoint
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(stroomCluster.Name) + "-clustercall",
-			Namespace: stroomCluster.Namespace,
-			Labels:    labels,
-			Annotations: map[string]string{
-				"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
-			},
-		},
-		Spec: v1.IngressSpec{
-			IngressClassName: &ingressSettings.ClassName,
-			TLS: []v1.IngressTLS{{
-				Hosts:      []string{hostName},
-				SecretName: ingressSettings.SecretName,
-			}},
-			Rules: r.createIngressRules(hostName, v1.PathTypeExact, "/clustercall.rpc", serviceName),
-		},
-	}}
+	// Create an Ingress for each route in each NodeSet, where Ingress is enabled
+	for _, nodeSet := range stroomCluster.Spec.NodeSets {
+		ingressSettings := nodeSet.Ingress
+
+		if ingressSettings != (stroomv1.IngressSettings{}) {
+			nodeSetName := GetStroomNodeSetName(stroomCluster.Name, nodeSet.Name)
+			serviceName := GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name)
+
+			if nodeSet.Role != stroomv1.Processing {
+				ingresses = append(ingresses,
+					v1.Ingress{
+						// Default route (/)
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      nodeSetName,
+							Namespace: stroomCluster.Namespace,
+							Labels:    labels,
+							Annotations: map[string]string{
+								"kubernetes.io/ingress.class":                 "nginx",
+								"nginx.ingress.kubernetes.io/affinity":        "cookie",
+								"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
+							},
+						},
+						Spec: v1.IngressSpec{
+							TLS: []v1.IngressTLS{{
+								Hosts:      []string{ingressSettings.HostName},
+								SecretName: ingressSettings.SecretName,
+							}},
+							Rules: r.createIngressRules(ingressSettings.HostName, v1.PathTypePrefix, "/", serviceName),
+						},
+					},
+					v1.Ingress{
+						// Deny access to the `/stroom/clustercall.rpc` endpoint
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      nodeSetName + "-clustercall",
+							Namespace: stroomCluster.Namespace,
+							Labels:    labels,
+							Annotations: map[string]string{
+								"kubernetes.io/ingress.class":                "nginx",
+								"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
+							},
+						},
+						Spec: v1.IngressSpec{
+							TLS: []v1.IngressTLS{{
+								Hosts:      []string{ingressSettings.HostName},
+								SecretName: ingressSettings.SecretName,
+							}},
+							Rules: r.createIngressRules(ingressSettings.HostName, v1.PathTypeExact, "/clustercall.rpc", serviceName),
+						},
+					})
+			}
+
+			// Only accept feed data at non-UI nodes
+			if nodeSet.Role != stroomv1.Frontend {
+				ingresses = append(ingresses, v1.Ingress{
+					// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      nodeSetName + "-datafeed",
+						Namespace: stroomCluster.Namespace,
+						Labels:    labels,
+						Annotations: map[string]string{
+							"kubernetes.io/ingress.class":                "nginx",
+							"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed$1$2",
+						},
+					},
+					Spec: v1.IngressSpec{
+						TLS: []v1.IngressTLS{{
+							Hosts:      []string{ingressSettings.HostName},
+							SecretName: ingressSettings.SecretName,
+						}},
+						Rules: r.createIngressRules(ingressSettings.HostName, v1.PathTypePrefix, "/stroom/datafeeddirect(/|$)(.*)", serviceName),
+					},
+				})
+			}
+		}
+	}
 
 	for _, ingress := range ingresses {
 		ctrl.SetControllerReference(stroomCluster, &ingress, r.Scheme)

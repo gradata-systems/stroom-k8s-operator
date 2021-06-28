@@ -19,12 +19,14 @@ package stroomcluster
 import (
 	"context"
 	"fmt"
+	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	"github.com/p-kimberley/stroom-k8s-operator/controllers/databaseserver"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -49,6 +51,7 @@ type StroomClusterReconciler struct {
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -70,13 +73,16 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	// TODO: Add finalizer logic, to ensure all nodes are removed first
+	// If item is deleted or an error occurs when adding a finalizer, bail out
+	if deleted, err := r.checkIfDeleted(ctx, &stroomCluster); deleted || err != nil {
+		return ctrl.Result{}, err
+	}
 
 	// Retrieve app database connection info
 	appDatabaseRef := stroomCluster.Spec.AppDatabaseRef
 	appDatabaseConnectionInfo := databaseserver.DatabaseConnectionInfo{}
 	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo); err != nil {
-		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", appDatabaseRef.DatabaseServerRef.String()))
+		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", appDatabaseRef.DatabaseServerRef))
 		return ctrl.Result{}, err
 	} else if result != (ctrl.Result{}) {
 		return result, nil
@@ -86,7 +92,6 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	statsDatabaseRef := stroomCluster.Spec.StatsDatabaseRef
 	statsDatabaseConnectionInfo := databaseserver.DatabaseConnectionInfo{}
 	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &statsDatabaseRef, &statsDatabaseConnectionInfo); err != nil {
-		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", statsDatabaseRef.DatabaseServerRef.String()))
 		return ctrl.Result{}, err
 	} else if result != (ctrl.Result{}) {
 		return result, nil
@@ -146,39 +151,93 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// Find the first NodeSet with the Frontend node role. The Ingress will point to this NodeSet.
-	serviceName := ""
-	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		if nodeSet.Role == stroomv1.Frontend {
-			serviceName = GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name)
-		}
-	}
-
-	if serviceName != "" {
+	ingresses := r.createIngresses(&stroomCluster)
+	for _, ingress := range ingresses {
 		// Create an Ingress if it doesn't already exist
 		foundIngress := v1.Ingress{}
-		result, err = r.getOrCreateObject(ctx, GetBaseName(stroomCluster.Name), stroomCluster.Namespace, "Ingress", &foundIngress, func() error {
+		result, err = r.getOrCreateObject(ctx, ingress.Name, ingress.Namespace, "Ingress", &foundIngress, func() error {
 			// Create an Ingress
-			ingresses := r.createIngresses(&stroomCluster, serviceName)
-			if ingresses != nil {
-				for _, ingress := range ingresses {
-					logger.Info("Creating a new Ingress", "Namespace", ingress.Namespace, "Name", ingress.Name)
-					err := r.Create(ctx, &ingress)
-					if err != nil {
-						return err
-					}
-				}
+			logger.Info("Creating a new Ingress", "Namespace", ingress.Namespace, "Name", ingress.Name)
+			if err := r.Create(ctx, &ingress); err != nil {
+				return err
 			}
-
 			return nil
 		})
-	} else {
-		logger.Info("No Ingress created as no NodeSet exists with a role of 'Frontend'")
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// TODO: Add node list to status
 
 	return ctrl.Result{}, nil
+}
+
+func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomCluster *stroomv1.StroomCluster) (bool, error) {
+	logger := log.FromContext(ctx)
+
+	if stroomCluster.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !common.ContainsString(stroomCluster.GetFinalizers(), common.FinalizerName) {
+			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
+			controllerutil.AddFinalizer(stroomCluster, common.FinalizerName)
+			if err := r.Update(ctx, stroomCluster); err != nil {
+				return false, err
+			}
+		}
+	} else {
+		if common.ContainsString(stroomCluster.GetFinalizers(), common.FinalizerName) {
+			// TODO: Add deletion blocking logic
+
+			// Remove finalizer from the linked DatabaseServers
+			appDbResult := r.removeDatabaseFinalizer(ctx, stroomCluster, stroomCluster.Spec.AppDatabaseRef.DatabaseServerRef)
+			statsDbResult := r.removeDatabaseFinalizer(ctx, stroomCluster, stroomCluster.Spec.StatsDatabaseRef.DatabaseServerRef)
+			if appDbResult != nil && statsDbResult != nil {
+				// A failure occurred, so block deletion until this resolves
+				return true, nil
+			}
+
+			// Remove the finalizer, allowing the StroomCluster to be removed
+			controllerutil.RemoveFinalizer(stroomCluster, common.FinalizerName)
+			if err := r.Update(ctx, stroomCluster); err != nil {
+				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from StroomCluster '%v/%v'", stroomCluster.Namespace, stroomCluster.Name))
+				return true, err
+			}
+
+			logger.Info(fmt.Sprintf("StroomCluster '%v/%v' deleted", stroomCluster.Namespace, stroomCluster.Name))
+		}
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (r *StroomClusterReconciler) removeDatabaseFinalizer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef) error {
+	logger := log.FromContext(ctx)
+	db := stroomv1.DatabaseServer{}
+
+	if dbRef == (stroomv1.ResourceRef{}) {
+		return nil
+	}
+
+	// Use the StroomCluster namespace if none specified
+	if dbRef.Namespace == "" {
+		dbRef.Namespace = stroomCluster.Namespace
+	}
+
+	if err := r.Get(ctx, dbRef.NamespacedName(), &db); err == nil {
+		controllerutil.RemoveFinalizer(&db, common.FinalizerName)
+		if err := r.Update(ctx, &db); err == nil {
+			return nil
+		} else {
+			logger.Error(err, fmt.Sprintf("Could not remove finalizer from DatabaseServer '%v'", dbRef))
+			return err
+		}
+	} else {
+		logger.Error(err, fmt.Sprintf("Could not find DatabaseServer '%v' in order to remove finalizer", dbRef))
+		// Return `nil` to allow deletion of StroomCluster to continue. DatabaseServer may have been deleted manually.
+		return nil
+	}
 }
 
 func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name string, namespace string, objectType string, foundObject client.Object, onCreate func() error) (reconcile.Result, error) {
@@ -215,15 +274,22 @@ func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context,
 	} else {
 		// Get or create an operator-managed database instance
 		db := stroomv1.DatabaseServer{}
-		if err := r.Get(ctx, types.NamespacedName{Namespace: dbRef.DatabaseServerRef.Namespace, Name: dbRef.DatabaseServerRef.Name}, &db); err != nil {
+		dbReference := dbRef.DatabaseServerRef
+
+		// If the DatabaseRef namespace is empty, try to find the DatabaseServer in the same namespace as StroomCluster
+		if dbReference.Namespace == "" {
+			dbReference.Namespace = stroomCluster.Namespace
+		}
+
+		if err := r.Get(ctx, types.NamespacedName{Namespace: dbReference.Namespace, Name: dbReference.Name}, &db); err != nil {
 			if errors.IsNotFound(err) {
-				logger.Error(err, fmt.Sprintf("DatabaseServer '%v' was not found", dbRef.DatabaseServerRef))
+				logger.Error(err, fmt.Sprintf("DatabaseServer '%v' was not found", dbReference))
 			} else {
-				logger.Error(err, fmt.Sprintf("Error accessing DatabaseServer '%v'", dbRef.DatabaseServerRef))
+				logger.Error(err, fmt.Sprintf("Error accessing DatabaseServer '%v'", dbReference))
 			}
 			return ctrl.Result{}, err
 		} else {
-			if err := r.claimDatabaseServer(ctx, stroomCluster, dbRef, &db); err != nil {
+			if err := r.claimDatabaseServer(ctx, stroomCluster, dbReference, &db); err != nil {
 				return ctrl.Result{}, err
 			}
 
@@ -239,22 +305,27 @@ func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context,
 	return ctrl.Result{}, nil
 }
 
-func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseRef, db *stroomv1.DatabaseServer) error {
+func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef, db *stroomv1.DatabaseServer) error {
 	logger := log.FromContext(ctx)
 
 	// If DatabaseServer is claimed by a StroomCluster, check whether it is the current cluster
-	if db.StroomClusterRef != (stroomv1.ResourceRef{}) && db.StroomClusterRef.Name != stroomCluster.Name && db.StroomClusterRef.Namespace != stroomCluster.Name {
+	if db.StroomClusterRef != (stroomv1.ResourceRef{}) {
+		if db.StroomClusterRef.Name == stroomCluster.Name && db.StroomClusterRef.Namespace == stroomCluster.Namespace {
+			// Already claimed by this cluster
+			return nil
+		}
+
 		// Already owned by another cluster, so we can't claim it
-		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v'",
-			db.Namespace, db.Name, db.StroomClusterRef.String()))
+		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v'. Cannot be claimed by StroomCluster '%v/%v'",
+			db.Namespace, db.Name, db.StroomClusterRef, stroomCluster.Namespace, stroomCluster.Name))
 		logger.Error(err, "Cannot claim DatabaseServer")
 		return err
 	} else {
 		// Register the StroomCluster with the DatabaseServer
-		db.StroomClusterRef = dbRef.DatabaseServerRef
+		db.StroomClusterRef = dbRef
 		err := r.Update(ctx, db)
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef.DatabaseServerRef.String(), stroomCluster.Namespace, stroomCluster.Name))
+			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef, stroomCluster.Namespace, stroomCluster.Name))
 			return err
 		}
 	}

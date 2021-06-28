@@ -67,7 +67,8 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 		},
 	}
 
-	ctrl.SetControllerReference(dbServer, secret, r.Scheme)
+	// Do not set the controller reference, as we want the Secret to persist if the DatabaseServer is deleted
+
 	return secret
 }
 

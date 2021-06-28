@@ -221,9 +221,10 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 	*out = *in
 	in.LocalDataVolumeClaim.DeepCopyInto(&out.LocalDataVolumeClaim)
 	in.SharedDataVolume.DeepCopyInto(&out.SharedDataVolume)
+	out.Ingress = in.Ingress
+	in.Resources.DeepCopyInto(&out.Resources)
 	out.StartupProbeTimings = in.StartupProbeTimings
 	out.LivenessProbeTimings = in.LivenessProbeTimings
-	in.Resources.DeepCopyInto(&out.Resources)
 	if in.PodAnnotations != nil {
 		in, out := &in.PodAnnotations, &out.PodAnnotations
 		*out = make(map[string]string, len(*in))
@@ -362,7 +363,6 @@ func (in *StroomClusterSpec) DeepCopyInto(out *StroomClusterSpec) {
 	}
 	out.AppDatabaseRef = in.AppDatabaseRef
 	out.StatsDatabaseRef = in.StatsDatabaseRef
-	out.Ingress = in.Ingress
 	if in.NodeSets != nil {
 		in, out := &in.NodeSets, &out.NodeSets
 		*out = make([]NodeSet, len(*in))
