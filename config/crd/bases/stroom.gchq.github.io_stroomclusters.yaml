@@ -38,26 +38,38 @@ spec:
             properties:
               appDatabaseRef:
                 properties:
+                  connectionSpec:
+                    description: Alternatively, if the following parameters are provided,
+                      point directly to a DB by its TCP address. This allows external
+                      database instances to be used in place of an operator-managed
+                      one.
+                    properties:
+                      address:
+                        type: string
+                      port:
+                        format: int32
+                        type: integer
+                      secretName:
+                        type: string
+                    type: object
                   databaseName:
                     type: string
-                  name:
-                    type: string
-                  namespace:
-                    description: If Namespace and Name are provided, point to the
-                      associated operator-managed DatabaseServer object
-                    type: string
-                  port:
-                    format: int32
-                    type: integer
-                  secretName:
-                    type: string
-                  serviceName:
-                    description: Alternatively, if the following parameters are provided,
-                      point directly to this DNS name. This allows external database
-                      instances to be used in place of an operator-managed one.
-                    type: string
+                  serverRef:
+                    description: If specified, point to an operator-managed DatabaseServer
+                      object
+                    properties:
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                 required:
+                - connectionSpec
                 - databaseName
+                - serverRef
                 type: object
               configMapName:
                 type: string
@@ -164,7 +176,12 @@ spec:
                   type: object
                 type: array
               image:
-                type: string
+                properties:
+                  repository:
+                    type: string
+                  tag:
+                    type: string
+                type: object
               imagePullPolicy:
                 description: PullPolicy describes a policy for if/when to pull a container
                   image
@@ -2860,26 +2877,38 @@ spec:
                 type: array
               statsDatabaseRef:
                 properties:
+                  connectionSpec:
+                    description: Alternatively, if the following parameters are provided,
+                      point directly to a DB by its TCP address. This allows external
+                      database instances to be used in place of an operator-managed
+                      one.
+                    properties:
+                      address:
+                        type: string
+                      port:
+                        format: int32
+                        type: integer
+                      secretName:
+                        type: string
+                    type: object
                   databaseName:
                     type: string
-                  name:
-                    type: string
-                  namespace:
-                    description: If Namespace and Name are provided, point to the
-                      associated operator-managed DatabaseServer object
-                    type: string
-                  port:
-                    format: int32
-                    type: integer
-                  secretName:
-                    type: string
-                  serviceName:
-                    description: Alternatively, if the following parameters are provided,
-                      point directly to this DNS name. This allows external database
-                      instances to be used in place of an operator-managed one.
-                    type: string
+                  serverRef:
+                    description: If specified, point to an operator-managed DatabaseServer
+                      object
+                    properties:
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                 required:
+                - connectionSpec
                 - databaseName
+                - serverRef
                 type: object
             required:
             - appDatabaseRef

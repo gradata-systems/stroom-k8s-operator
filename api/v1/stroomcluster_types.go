@@ -23,7 +23,7 @@ import (
 
 // StroomClusterSpec defines the desired state of StroomCluster
 type StroomClusterSpec struct {
-	Image             string            `json:"image,omitempty"`
+	Image             Image             `json:"image,omitempty"`
 	ImagePullPolicy   corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 	MaxClientBodySize string            `json:"maxClientBodySize,omitempty"`
 	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
@@ -43,17 +43,20 @@ type IngressSettings struct {
 }
 
 type DatabaseRef struct {
-	// If Namespace and Name are provided, point to the associated operator-managed DatabaseServer object
-	Namespace string `json:"namespace,omitempty"`
-	Name      string `json:"name,omitempty"`
+	// If specified, point to an operator-managed DatabaseServer object
+	DatabaseServerRef ResourceRef `json:"serverRef"`
 
-	// Alternatively, if the following parameters are provided, point directly to this DNS name.
+	// Alternatively, if the following parameters are provided, point directly to a DB by its TCP address.
 	// This allows external database instances to be used in place of an operator-managed one.
-	Address    string `json:"serviceName,omitempty"`
-	Port       int32  `json:"port,omitempty"`
-	SecretName string `json:"secretName,omitempty"`
+	ConnectionSpec DatabaseAddress `json:"connectionSpec"`
 
 	DatabaseName string `json:"databaseName"`
+}
+
+type DatabaseAddress struct {
+	Address    string `json:"address,omitempty"`
+	Port       int32  `json:"port,omitempty"`
+	SecretName string `json:"secretName,omitempty"`
 }
 
 // StroomClusterStatus defines the observed state of StroomCluster

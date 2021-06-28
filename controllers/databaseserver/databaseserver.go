@@ -159,7 +159,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:            "mysql",
-						Image:           dbServer.Spec.Image,
+						Image:           dbServer.Spec.Image.String(),
 						ImagePullPolicy: dbServer.Spec.ImagePullPolicy,
 						Env: []corev1.EnvVar{{
 							Name:  "MYSQL_ROOT_PASSWORD",

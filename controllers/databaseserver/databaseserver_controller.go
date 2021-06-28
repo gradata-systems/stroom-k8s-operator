@@ -164,7 +164,7 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 	} else {
 		if common.ContainsString(dbServer.GetFinalizers(), finalizerName) {
 			// Finalizer is present, so check whether the DatabaseServer is claimed by a StroomCluster
-			if dbServer.StroomClusterRef != (stroomv1.StroomClusterRef{}) {
+			if dbServer.StroomClusterRef != (stroomv1.ResourceRef{}) {
 				stroomCluster := stroomv1.StroomCluster{}
 				if err := r.Get(ctx, types.NamespacedName{Name: dbServer.StroomClusterRef.Name, Namespace: dbServer.StroomClusterRef.Namespace}, &stroomCluster); err == nil {
 					// Related StroomCluster resource exists, so block deletion

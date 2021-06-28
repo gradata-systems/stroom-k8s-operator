@@ -6,11 +6,9 @@ import (
 )
 
 type DatabaseConnectionInfo struct {
-	DatabaseRef  *v1.DatabaseServer
-	Address      string
-	Port         int32
+	DatabaseServer *v1.DatabaseServer
+	v1.DatabaseAddress
 	DatabaseName string
-	SecretName   string
 }
 
 func (dbInfo *DatabaseConnectionInfo) ToConnectionString() string {

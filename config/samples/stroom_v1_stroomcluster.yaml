@@ -6,10 +6,12 @@ spec:
   image:
     repository: gchq/stroom
     tag: v7
-  extraEnv: {}
+  extraEnv: []
   configMapName: ""
-  appDatabaseRef: {}
-  statsDatabaseRef: {}
+  appDatabaseRef:
+    databaseName: stroom
+  statsDatabaseRef:
+    databaseName: stats
   ingress:
     hostName: ""
     secretName: ""
@@ -19,10 +21,8 @@ spec:
     - name: data
       count: 3
       role: Processing # Processing | Frontend
-      localData:
-        volumeClaim: {} # VolumeClaim
-      sharedData:
-        volume: {} # Volume
+      localDataVolumeClaim: {}
+      sharedDataVolume: {}
       startupProbeTimings: {} # ProbeTimings
       livenessProbeTimings: {} # ProbeTimings
       resources: {}
@@ -35,3 +35,5 @@ spec:
     - name: ui
       count: 2
       role: Frontend
+      localDataVolumeClaim: {}
+      sharedDataVolume: {}

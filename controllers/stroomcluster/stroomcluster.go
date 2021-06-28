@@ -89,7 +89,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					SecurityContext:    &nodeSet.PodSecurityContext,
 					Containers: []corev1.Container{{
 						Name:            "stroom-node",
-						Image:           stroomCluster.Spec.Image,
+						Image:           stroomCluster.Spec.Image.String(),
 						ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
 						Env: []corev1.EnvVar{{
 							Name:  "ADMIN_CONTEXT_PATH",

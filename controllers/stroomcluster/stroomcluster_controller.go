@@ -75,9 +75,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Retrieve app database connection info
 	appDatabaseRef := stroomCluster.Spec.AppDatabaseRef
 	appDatabaseConnectionInfo := databaseserver.DatabaseConnectionInfo{}
-	result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo)
-	if err != nil {
-		logger.Info(fmt.Sprintf("Stroom app database %v could not be found", appDatabaseRef.Name))
+	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo); err != nil {
+		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", appDatabaseRef.DatabaseServerRef.String()))
 		return ctrl.Result{}, err
 	} else if result != (ctrl.Result{}) {
 		return result, nil
@@ -86,16 +85,15 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Retrieve stats database connection info
 	statsDatabaseRef := stroomCluster.Spec.StatsDatabaseRef
 	statsDatabaseConnectionInfo := databaseserver.DatabaseConnectionInfo{}
-	result, err = r.getDatabaseConnectionInfo(ctx, &stroomCluster, &statsDatabaseRef, &statsDatabaseConnectionInfo)
-	if err != nil {
-		logger.Info(fmt.Sprintf("Stroom stats database %v could not be found", statsDatabaseRef.Name))
+	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &statsDatabaseRef, &statsDatabaseConnectionInfo); err != nil {
+		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", statsDatabaseRef.DatabaseServerRef.String()))
 		return ctrl.Result{}, err
 	} else if result != (ctrl.Result{}) {
 		return result, nil
 	}
 
 	foundServiceAccount := corev1.ServiceAccount{}
-	result, err = r.getOrCreateObject(ctx, GetBaseName(stroomCluster.Name), stroomCluster.Namespace, "ServiceAccount", &foundServiceAccount, func() error {
+	result, err := r.getOrCreateObject(ctx, GetBaseName(stroomCluster.Name), stroomCluster.Namespace, "ServiceAccount", &foundServiceAccount, func() error {
 		// Create a new ServiceAccount
 		resource := r.createServiceAccount(&stroomCluster)
 		logger.Info("Creating a new ServiceAccount", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -186,8 +184,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name string, namespace string, objectType string, foundObject client.Object, onCreate func() error) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
-	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, foundObject)
-	if err != nil && errors.IsNotFound(err) {
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, foundObject); err != nil && errors.IsNotFound(err) {
 		// Attempt to create the object, as it doesn't exist
 		err = onCreate()
 
@@ -204,35 +201,33 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 	}
 
 	// Object exists and was successfully retrieved
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseRef, dbConnectionInfo *databaseserver.DatabaseConnectionInfo) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	if dbRef.Address != "" && dbRef.Port != 0 && dbRef.SecretName != "" {
+	if dbRef.DatabaseServerRef == (stroomv1.ResourceRef{}) {
 		// This is an external database connection
-		dbConnectionInfo.Address = dbRef.Address
-		dbConnectionInfo.Port = dbRef.Port
-		dbConnectionInfo.SecretName = dbRef.SecretName
+		dbConnectionInfo.Address = dbRef.ConnectionSpec.Address
+		dbConnectionInfo.Port = dbRef.ConnectionSpec.Port
+		dbConnectionInfo.SecretName = dbRef.ConnectionSpec.SecretName
 	} else {
 		// Get or create an operator-managed database instance
 		db := stroomv1.DatabaseServer{}
-		err := r.Get(ctx, types.NamespacedName{Name: dbRef.Name, Namespace: dbRef.Namespace}, &db)
-		if err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Namespace: dbRef.DatabaseServerRef.Namespace, Name: dbRef.DatabaseServerRef.Name}, &db); err != nil {
 			if errors.IsNotFound(err) {
-				logger.Info(fmt.Sprintf("Database instance '%v' was not found", dbRef.Name))
+				logger.Error(err, fmt.Sprintf("DatabaseServer '%v' was not found", dbRef.DatabaseServerRef))
 			} else {
-				logger.Info(fmt.Sprintf("Error accessing database instance '%v'", dbRef.Name))
+				logger.Error(err, fmt.Sprintf("Error accessing DatabaseServer '%v'", dbRef.DatabaseServerRef))
 			}
 			return ctrl.Result{}, err
 		} else {
-			err = r.claimDatabaseServer(ctx, stroomCluster, dbRef, &db)
-			if err != nil {
+			if err := r.claimDatabaseServer(ctx, stroomCluster, dbRef, &db); err != nil {
 				return ctrl.Result{}, err
 			}
 
-			dbConnectionInfo.DatabaseRef = &db
+			dbConnectionInfo.DatabaseServer = &db
 			dbConnectionInfo.Address = databaseserver.GetServiceName(db.Name)
 			dbConnectionInfo.Port = databaseserver.DatabasePort
 			dbConnectionInfo.SecretName = databaseserver.GetSecretName(db.Name)
@@ -248,19 +243,18 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 	logger := log.FromContext(ctx)
 
 	// If DatabaseServer is claimed by a StroomCluster, check whether it is the current cluster
-	if db.StroomClusterRef != (stroomv1.StroomClusterRef{}) && db.StroomClusterRef.Name != dbRef.Name && db.StroomClusterRef.Namespace != dbRef.Namespace {
+	if db.StroomClusterRef != (stroomv1.ResourceRef{}) && db.StroomClusterRef.Name != stroomCluster.Name && db.StroomClusterRef.Namespace != stroomCluster.Name {
 		// Already owned by another cluster, so we can't claim it
 		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v'",
-			db.Namespace, db.Name, db.StroomClusterRef.Name))
+			db.Namespace, db.Name, db.StroomClusterRef.String()))
 		logger.Error(err, "Cannot claim DatabaseServer")
 		return err
 	} else {
 		// Register the StroomCluster with the DatabaseServer
-		db.StroomClusterRef.Name = dbRef.Name
-		db.StroomClusterRef.Namespace = dbRef.Namespace
+		db.StroomClusterRef = dbRef.DatabaseServerRef
 		err := r.Update(ctx, db)
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v/%v' by StroomCluster '%v'", dbRef.Namespace, dbRef.Name, stroomCluster.Name))
+			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef.DatabaseServerRef.String(), stroomCluster.Namespace, stroomCluster.Name))
 			return err
 		}
 	}

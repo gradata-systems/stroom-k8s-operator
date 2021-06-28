@@ -23,7 +23,7 @@ import (
 
 // DatabaseServerSpec defines the desired state of DatabaseServer
 type DatabaseServerSpec struct {
-	Image                 string                           `json:"image,omitempty"`
+	Image                 Image                            `json:"image,omitempty"`
 	ImagePullPolicy       corev1.PullPolicy                `json:"imagePullPolicy,omitempty"`
 	DatabaseNames         []string                         `json:"databaseNames"`
 	AdditionalConfig      []string                         `json:"additionalConfig,omitempty"`
@@ -58,12 +58,7 @@ type DatabaseServer struct {
 
 	// Set by the controller when a StroomCluster binds to the DatabaseServer.
 	// This is used to prevent the DatabaseServer from being deleted while its paired StroomCluster still exists.
-	StroomClusterRef StroomClusterRef `json:"stroomClusterRef,omitempty"`
-}
-
-type StroomClusterRef struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
+	StroomClusterRef ResourceRef `json:"stroomClusterRef,omitempty"`
 }
 
 //+kubebuilder:object:root=true

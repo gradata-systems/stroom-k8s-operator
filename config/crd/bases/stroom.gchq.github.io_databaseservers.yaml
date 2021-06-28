@@ -636,7 +636,12 @@ spec:
                   type: string
                 type: array
               image:
-                type: string
+                properties:
+                  repository:
+                    type: string
+                  tag:
+                    type: string
+                type: object
               imagePullPolicy:
                 description: PullPolicy describes a policy for if/when to pull a container
                   image
