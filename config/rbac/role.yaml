@@ -95,18 +95,6 @@ rules:
 - apiGroups:
   - stroom.gchq.github.io
   resources:
-  - secrets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
   - stroomclusters
   verbs:
   - create

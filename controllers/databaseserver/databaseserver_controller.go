@@ -44,7 +44,8 @@ type DatabaseServerReconciler struct {
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/finalizers,verbs=update
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
@@ -63,8 +64,12 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	result := reconcile.Result{}
 
 	if err := r.Get(ctx, req.NamespacedName, &dbServer); err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+
 		logger.Error(err, fmt.Sprintf("Unable to fetch DatabaseServer %v", req.NamespacedName.String()))
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	// If item is deleted or an error occurs when adding a finalizer, bail out
@@ -163,16 +168,20 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 				stroomCluster := stroomv1.StroomCluster{}
 				if err := r.Get(ctx, types.NamespacedName{Name: dbServer.StroomClusterRef.Name, Namespace: dbServer.StroomClusterRef.Namespace}, &stroomCluster); err == nil {
 					// Related StroomCluster resource exists, so block deletion
+					logger.Info(fmt.Sprintf("DatabaseServer will be deleted once StroomCluster '%v/%v' is deleted", stroomCluster.Namespace, stroomCluster.Name))
 					return true, nil
-				} else {
-					// StroomCluster resource doesn't exist, so remove the finalizer
-					controllerutil.RemoveFinalizer(dbServer, finalizerName)
-					if err := r.Update(ctx, dbServer); err != nil {
-						logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v'", dbServer.Name))
-						return true, err
-					}
 				}
 			}
+
+			// Not claimed by a StroomCluster or the StroomCluster doesn't exist, so remove the finalizer.
+			// This allows the DatabaseServer resource to be removed.
+			controllerutil.RemoveFinalizer(dbServer, finalizerName)
+			if err := r.Update(ctx, dbServer); err != nil {
+				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v/%v'", dbServer.Namespace, dbServer.Name))
+				return true, err
+			}
+
+			logger.Info(fmt.Sprintf("DatabaseServer '%v/%v' deleted", dbServer.Namespace, dbServer.Name))
 		}
 	}
 
@@ -188,7 +197,7 @@ func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, name s
 		err = onCreate()
 
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("Failed to create new %v named %v in namespace %v", objectType, name, namespace))
+			logger.Error(err, fmt.Sprintf("Failed to create new %v: %v/%v", objectType, namespace, name))
 			return ctrl.Result{}, err
 		}
 

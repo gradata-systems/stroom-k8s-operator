@@ -61,16 +61,21 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	stroomCluster := stroomv1.StroomCluster{}
 	result := reconcile.Result{}
 
-	err := r.Get(ctx, req.NamespacedName, &stroomCluster)
-	if err != nil {
+	if err := r.Get(ctx, req.NamespacedName, &stroomCluster); err != nil {
+		if errors.IsNotFound(err) {
+			return ctrl.Result{}, nil
+		}
+
 		logger.Error(err, fmt.Sprintf("Unable to fetch StroomCluster %v", req.NamespacedName.String()))
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
+
+	// TODO: Add finalizer logic, to ensure all nodes are removed first
 
 	// Retrieve app database connection info
 	appDatabaseRef := stroomCluster.Spec.AppDatabaseRef
 	appDatabaseConnectionInfo := databaseserver.DatabaseConnectionInfo{}
-	result, err = r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo)
+	result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo)
 	if err != nil {
 		logger.Info(fmt.Sprintf("Stroom app database %v could not be found", appDatabaseRef.Name))
 		return ctrl.Result{}, err
@@ -187,7 +192,7 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 		err = onCreate()
 
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("Failed to create new %v named %v in namespace %v", objectType, name, namespace))
+			logger.Error(err, fmt.Sprintf("Failed to create new %v: '%v/%v'", objectType, namespace, name))
 			return ctrl.Result{}, err
 		}
 
@@ -245,8 +250,8 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 	// If DatabaseServer is claimed by a StroomCluster, check whether it is the current cluster
 	if db.StroomClusterRef != (stroomv1.StroomClusterRef{}) && db.StroomClusterRef.Name != dbRef.Name && db.StroomClusterRef.Namespace != dbRef.Namespace {
 		// Already owned by another cluster, so we can't claim it
-		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v' already claimed by StroomCluster '%v' in namespace '%v'",
-			db.Name, db.StroomClusterRef.Name, db.StroomClusterRef.Namespace))
+		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v'",
+			db.Namespace, db.Name, db.StroomClusterRef.Name))
 		logger.Error(err, "Cannot claim DatabaseServer")
 		return err
 	} else {
@@ -255,7 +260,7 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 		db.StroomClusterRef.Namespace = dbRef.Namespace
 		err := r.Update(ctx, db)
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v'", dbRef.Name, stroomCluster.Name))
+			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v/%v' by StroomCluster '%v'", dbRef.Namespace, dbRef.Name, stroomCluster.Name))
 			return err
 		}
 	}

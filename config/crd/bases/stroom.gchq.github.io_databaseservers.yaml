@@ -1167,6 +1167,19 @@ spec:
           status:
             description: DatabaseServerStatus defines the observed state of DatabaseServer
             type: object
+          stroomClusterRef:
+            description: Set by the controller when a StroomCluster binds to the DatabaseServer.
+              This is used to prevent the DatabaseServer from being deleted while
+              its paired StroomCluster still exists.
+            properties:
+              name:
+                type: string
+              namespace:
+                type: string
+            required:
+            - name
+            - namespace
+            type: object
         type: object
     served: true
     storage: true
