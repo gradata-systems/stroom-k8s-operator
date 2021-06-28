@@ -30,14 +30,16 @@ type StroomClusterSpec struct {
 	ConfigMapName     string            `json:"configMapName"`
 	AppDatabaseRef    DatabaseRef       `json:"appDatabaseRef"`
 	StatsDatabaseRef  DatabaseRef       `json:"statsDatabaseRef"`
-	Ingress           struct {
-		HostName   string `json:"hostName"`
-		SecretName string `json:"secretName"`
-		ClassName  string `json:"className,omitempty"`
-	} `json:"ingress"`
+	Ingress           IngressSettings   `json:"ingress"`
 
 	// +kubebuilder:validation:MinItems=1
 	NodeSets []NodeSet `json:"nodeSets"`
+}
+
+type IngressSettings struct {
+	HostName   string `json:"hostName"`
+	SecretName string `json:"secretName"`
+	ClassName  string `json:"className,omitempty"`
 }
 
 type DatabaseRef struct {

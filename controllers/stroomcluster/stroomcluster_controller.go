@@ -46,6 +46,7 @@ type StroomClusterReconciler struct {
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters/finalizers,verbs=update
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
@@ -75,6 +76,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		logger.Info(fmt.Sprintf("Stroom app database %v could not be found", appDatabaseRef.Name))
 		return ctrl.Result{}, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	// Retrieve stats database connection info
@@ -84,6 +87,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		logger.Info(fmt.Sprintf("Stroom stats database %v could not be found", statsDatabaseRef.Name))
 		return ctrl.Result{}, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	foundServiceAccount := corev1.ServiceAccount{}
@@ -95,6 +100,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	})
 	if err != nil {
 		return result, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	// Check the StroomCluster ConfigMap exists
@@ -103,6 +110,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		logger.Error(err, fmt.Sprintf("ConfigMap '%v' referenced by StroomCluster '%v' was not found", stroomCluster.Spec.ConfigMapName, stroomCluster.Name))
 		return ctrl.Result{}, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
@@ -116,6 +125,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		})
 		if err != nil {
 			return result, err
+		} else if result != (ctrl.Result{}) {
+			return result, nil
 		}
 
 		// TODO: Update the replica count if different to the request
@@ -129,6 +140,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		})
 		if err != nil {
 			return result, err
+		} else if result != (ctrl.Result{}) {
+			return result, nil
 		}
 	}
 

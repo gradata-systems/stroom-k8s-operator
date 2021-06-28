@@ -56,7 +56,7 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(dbServer.Name),
+			Name:      GetSecretName(dbServer.Name),
 			Namespace: dbServer.Namespace,
 			Labels:    labels,
 		},
@@ -263,9 +263,8 @@ func (r *DatabaseServerReconciler) createReadinessProbe(timings stroomv1.ProbeTi
 				Command: []string{
 					"sh",
 					"-c",
-					"|",
-					"status=$(mysql -u healthcheck -e \"SELECT 'OK'\" | grep 'OK');\n",
-					"if [[ $status ]]; then echo 1; else echo 0; fi",
+					"status=$(mysql -u healthcheck -e \"SELECT 'OK'\" | grep 'OK');\n" +
+						"if [[ $status ]]; then echo 1; else echo 0; fi",
 				},
 			},
 		},

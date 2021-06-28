@@ -43,10 +43,11 @@ type DatabaseServerReconciler struct {
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/finalizers,verbs=update
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=secrets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=serviceaccounts,verbs=get;list;watch
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -76,6 +77,8 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	foundConfigMap := corev1.ConfigMap{}
@@ -87,6 +90,8 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	foundInitConfigMap := corev1.ConfigMap{}
@@ -98,6 +103,8 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	foundStatefulSet := appsv1.StatefulSet{}
@@ -109,6 +116,8 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	foundService := corev1.Service{}
@@ -120,6 +129,8 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
+	} else if result != (ctrl.Result{}) {
+		return result, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -138,7 +149,7 @@ func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, name s
 			return ctrl.Result{}, err
 		}
 
-		// Object does not exist, so create it
+		// Object created successfully, so return and requeue
 		return ctrl.Result{Requeue: true}, nil
 	} else if err != nil {
 		logger.Error(err, fmt.Sprintf("Failed to get %v", objectType))
@@ -146,7 +157,7 @@ func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, name s
 	}
 
 	// Object exists and was successfully retrieved
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
