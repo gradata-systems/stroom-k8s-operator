@@ -2098,9 +2098,12 @@ spec:
               image:
                 properties:
                   repository:
+                    minLength: 1
                     type: string
                   tag:
                     type: string
+                required:
+                - repository
                 type: object
               imagePullPolicy:
                 description: PullPolicy describes a policy for if/when to pull a container
@@ -2128,6 +2131,12 @@ spec:
                     default: 5
                     format: int32
                     type: integer
+                required:
+                - failureThreshold
+                - initialDelaySeconds
+                - periodSeconds
+                - successThreshold
+                - timeoutSeconds
                 type: object
               nodeSelector:
                 additionalProperties:
@@ -2305,6 +2314,12 @@ spec:
                     default: 5
                     format: int32
                     type: integer
+                required:
+                - failureThreshold
+                - initialDelaySeconds
+                - periodSeconds
+                - successThreshold
+                - timeoutSeconds
                 type: object
               resources:
                 description: ResourceRequirements describes the compute resource requirements.

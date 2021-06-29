@@ -53,6 +53,7 @@ spec:
                         type: string
                     type: object
                   databaseName:
+                    minLength: 1
                     type: string
                   databaseServerRef:
                     description: If specified, point to an operator-managed DatabaseServer
@@ -69,6 +70,7 @@ spec:
                 - databaseName
                 type: object
               configMapName:
+                minLength: 1
                 type: string
               extraEnv:
                 items:
@@ -175,9 +177,12 @@ spec:
               image:
                 properties:
                   repository:
+                    minLength: 1
                     type: string
                   tag:
                     type: string
+                required:
+                - repository
                 type: object
               imagePullPolicy:
                 description: PullPolicy describes a policy for if/when to pull a container
@@ -195,8 +200,6 @@ spec:
                 - hostName
                 - secretName
                 type: object
-              maxClientBodySize:
-                type: string
               nodeSets:
                 items:
                   properties:
@@ -855,6 +858,12 @@ spec:
                           default: 5
                           format: int32
                           type: integer
+                      required:
+                      - failureThreshold
+                      - initialDelaySeconds
+                      - periodSeconds
+                      - successThreshold
+                      - timeoutSeconds
                       type: object
                     localDataVolumeClaim:
                       description: PersistentVolumeClaimSpec describes the common
@@ -2832,6 +2841,12 @@ spec:
                           default: 5
                           format: int32
                           type: integer
+                      required:
+                      - failureThreshold
+                      - initialDelaySeconds
+                      - periodSeconds
+                      - successThreshold
+                      - timeoutSeconds
                       type: object
                     tolerations:
                       items:
@@ -2902,6 +2917,7 @@ spec:
                         type: string
                     type: object
                   databaseName:
+                    minLength: 1
                     type: string
                   databaseServerRef:
                     description: If specified, point to an operator-managed DatabaseServer
@@ -2920,6 +2936,7 @@ spec:
             required:
             - appDatabaseRef
             - configMapName
+            - image
             - ingress
             - nodeSets
             - statsDatabaseRef

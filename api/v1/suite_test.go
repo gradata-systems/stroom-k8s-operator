@@ -17,6 +17,8 @@ limitations under the License.
 package v1
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -46,13 +48,17 @@ func TestAPIs(t *testing.T) {
 		[]Reporter{printer.NewlineReporter{}})
 }
 
-var _ = BeforeSuite(func() {
+var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	Expect(os.Setenv("TEST_ASSET_KUBE_APISERVER", "../../testbin/bin/kube-apiserver")).To(Succeed())
+	Expect(os.Setenv("TEST_ASSET_ETCD", "../../testbin/bin/etcd")).To(Succeed())
+	Expect(os.Setenv("TEST_ASSET_KUBECTL", "../../testbin/bin/kubectl")).To(Succeed())
+
 	By("bootstrapping test environment")
-	t := true
 	testEnv = &envtest.Environment{
-		UseExistingCluster: &t,
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	err := SchemeBuilder.AddToScheme(scheme.Scheme)
@@ -66,10 +72,16 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	close(done)
+
 }, 60)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
+
+	Expect(os.Unsetenv("TEST_ASSET_KUBE_APISERVER")).To(Succeed())
+	Expect(os.Unsetenv("TEST_ASSET_ETCD")).To(Succeed())
+	Expect(os.Unsetenv("TEST_ASSET_KUBECTL")).To(Succeed())
 })

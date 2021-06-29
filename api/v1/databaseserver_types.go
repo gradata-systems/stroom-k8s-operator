@@ -40,6 +40,7 @@ type DatabaseServer struct {
 
 	// Set by the controller when a StroomCluster binds to the DatabaseServer.
 	// This is used to prevent the DatabaseServer from being deleted while its paired StroomCluster still exists.
+	// +optional
 	StroomClusterRef ResourceRef `json:"stroomClusterRef,omitempty"`
 }
 

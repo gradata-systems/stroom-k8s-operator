@@ -4,6 +4,7 @@ import (
 	"context"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -35,6 +36,18 @@ var _ = Describe("DatabaseServer", func() {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      key.Name,
 					Namespace: key.Namespace,
+				},
+				Spec: &DatabaseServerSpec{
+					Image: Image{
+						Repository: "mysql/mysql-server",
+					},
+					DatabaseNames: []string{
+						"stroom",
+						"stats",
+					},
+					AdditionalConfig: nil,
+					Resources:        corev1.ResourceRequirements{},
+					VolumeClaim:      corev1.PersistentVolumeClaimSpec{},
 				},
 			}
 			By("creating an API obj")
