@@ -29,6 +29,7 @@ type DatabaseServerSpec struct {
 	AdditionalConfig      []string                         `json:"additionalConfig,omitempty"`
 	Resources             corev1.ResourceRequirements      `json:"resources"`
 	VolumeClaim           corev1.PersistentVolumeClaimSpec `json:"volumeClaim"`
+	Backup                BackupSettings                   `json:"backup,omitempty"`
 	ReadinessProbeTimings ProbeTimings                     `json:"readinessProbeTimings,omitempty"`
 	LivenessProbeTimings  ProbeTimings                     `json:"livenessProbeTimings,omitempty"`
 	PodAnnotations        map[string]string                `json:"podAnnotations,omitempty"`
@@ -37,6 +38,16 @@ type DatabaseServerSpec struct {
 	NodeSelector          map[string]string                `json:"nodeSelector,omitempty"`
 	Tolerations           []corev1.Toleration              `json:"tolerations,omitempty"`
 	Affinity              corev1.Affinity                  `json:"affinity,omitempty"`
+}
+
+type BackupSettings struct {
+	DatabaseNames []string            `json:"databaseNames,omitempty"`
+	TargetVolume  corev1.VolumeSource `json:"volume"`
+	Schedule      string              `json:"schedule"`
+}
+
+func (in *BackupSettings) IsUnset() bool {
+	return len(in.DatabaseNames) == 0 && in.TargetVolume == (corev1.VolumeSource{}) && in.Schedule == ""
 }
 
 // DatabaseServerStatus defines the observed state of DatabaseServer

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -51,6 +52,7 @@ type DatabaseServerReconciler struct {
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -140,6 +142,21 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return result, err
 	} else if result != (ctrl.Result{}) {
 		return result, nil
+	}
+
+	if !dbServer.Spec.Backup.IsUnset() {
+		foundCronJob := v1beta1.CronJob{}
+		result, err = r.getOrCreateObject(ctx, GetBaseName(dbServer.Name), dbServer.Namespace, "CronJob", &foundCronJob, func() error {
+			// Create a CronJob for performing scheduled database backups
+			resource := r.createCronJob(&dbServer)
+			logger.Info("Creating a new CronJob", "Namespace", resource.Namespace, "Name", resource.Name)
+			return r.Create(ctx, resource)
+		})
+		if err != nil {
+			return result, err
+		} else if result != (ctrl.Result{}) {
+			return result, nil
+		}
 	}
 
 	return ctrl.Result{}, nil

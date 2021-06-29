@@ -9,7 +9,16 @@ spec:
   databaseNames: [] # Names of the databases to create during initialisation
   additionalConfig: []
   resources: {}
-  volumeClaim: {} # VolumeClaimSpec
+  volumeClaim: {}
+  backup:
+    schedule: "* * * * *"
+    databaseNames:
+      - stroom
+      - stats
+    volume:
+      nfs:
+        path: /volume2/stroom
+        server: gs-fs01.internal
   podAnnotations: {}
   podSecurityContext: {}
   securityContext: {}

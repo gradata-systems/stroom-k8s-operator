@@ -5,14 +5,18 @@ import (
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/batch/v1"
+	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"path"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"strconv"
 	"strings"
 )
 
 const (
+	RootUserName          = "root"
 	ServiceUserName       = "stroomuser"
 	DatabasePort    int32 = 3306
 )
@@ -62,7 +66,7 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			"root":          common.GeneratePassword(),
+			RootUserName:    common.GeneratePassword(),
 			ServiceUserName: common.GeneratePassword(),
 		},
 	}
@@ -203,7 +207,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						}, {
 							Name:      "root-password",
 							MountPath: "/etc/mysql/password/root",
-							SubPath:   "root",
+							SubPath:   RootUserName,
 							ReadOnly:  true,
 						}},
 					}},
@@ -235,8 +239,8 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 							Secret: &corev1.SecretVolumeSource{
 								SecretName: GetBaseName(dbServer.Name),
 								Items: []corev1.KeyToPath{{
-									Key:  "root",
-									Path: "root",
+									Key:  RootUserName,
+									Path: RootUserName,
 									Mode: &secretFileMode,
 								}},
 							},
@@ -317,4 +321,90 @@ func (r *DatabaseServerReconciler) createService(dbServer *stroomv1.DatabaseServ
 
 	ctrl.SetControllerReference(dbServer, service, r.Scheme)
 	return service
+}
+
+func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServer) *v1beta1.CronJob {
+	labels := r.createLabels(dbServer.Name)
+	backupSettings := dbServer.Spec.Backup
+	const targetDirectory = "/var/lib/mysql/backup"
+	const datePattern = "%Y-%m-%d_%H-%M-%S"
+	archiveFileName := fmt.Sprintf("$(date +'%v_%v.sql.gz')", dbServer.Name, datePattern)
+	backupDirectory := path.Join(targetDirectory, "$(date +'%Y-%m')") // Subdirectory in the format YYYY-MM
+	archivePath := path.Join(backupDirectory, archiveFileName)
+
+	mysqlDumpCommand := "mysqldump -u${MYSQL_USER} -p${MYSQL_PASSWORD} -h${MYSQL_HOST} --single-transaction --no-tablespaces"
+	plainTextDatabaseList := ""
+	if len(backupSettings.DatabaseNames) > 0 {
+		mysqlDumpCommand += " --databases " + strings.Join(backupSettings.DatabaseNames, " ")
+		plainTextDatabaseList = fmt.Sprintf("databases (%v)", strings.Join(backupSettings.DatabaseNames, ","))
+	} else {
+		mysqlDumpCommand += " --all-databases"
+		plainTextDatabaseList = "all databases"
+	}
+
+	cronJob := &v1beta1.CronJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      GetBaseName(dbServer.Name),
+			Namespace: dbServer.Namespace,
+			Labels:    labels,
+		},
+		Spec: v1beta1.CronJobSpec{
+			Schedule:          backupSettings.Schedule,
+			ConcurrencyPolicy: v1beta1.ForbidConcurrent,
+			JobTemplate: v1beta1.JobTemplateSpec{
+				Spec: v1.JobSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							RestartPolicy: corev1.RestartPolicyOnFailure,
+							Containers: []corev1.Container{{
+								Name:            "backup-job",
+								Image:           dbServer.Spec.Image.String(),
+								ImagePullPolicy: corev1.PullIfNotPresent,
+								Command: []string{
+									"bash",
+									"-c",
+									fmt.Sprintf("archivePath=\"%v\"", archivePath) + "\n" +
+										fmt.Sprintf("echo \"Backing up %v to: $archivePath\"", plainTextDatabaseList) + "\n" +
+										fmt.Sprintf("mkdir -p %v", backupDirectory) + "\n" +
+										fmt.Sprintf("%v | gzip > \"$archivePath\"", mysqlDumpCommand) + "\n" +
+										"if [ -f \"$archivePath\" ]; then\n" +
+										"  chmod 444 \"$archivePath\"\n" +
+										"  echo \"Backup successful\"\n" +
+										"fi",
+								},
+								Env: []corev1.EnvVar{{
+									Name:  "MYSQL_HOST",
+									Value: GetServiceName(dbServer.Name),
+								}, {
+									Name:  "MYSQL_USER",
+									Value: ServiceUserName,
+								}, {
+									Name: "MYSQL_PASSWORD",
+									ValueFrom: &corev1.EnvVarSource{
+										SecretKeyRef: &corev1.SecretKeySelector{
+											LocalObjectReference: corev1.LocalObjectReference{
+												Name: GetSecretName(dbServer.Name),
+											},
+											Key: ServiceUserName,
+										},
+									},
+								}},
+								VolumeMounts: []corev1.VolumeMount{{
+									Name:      "data",
+									MountPath: "/var/lib/mysql/backup",
+								}},
+							}},
+							Volumes: []corev1.Volume{{
+								Name:         "data",
+								VolumeSource: backupSettings.TargetVolume,
+							}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ctrl.SetControllerReference(dbServer, cronJob, r.Scheme)
+	return cronJob
 }
