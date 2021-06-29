@@ -18,38 +18,8 @@ package v1
 
 import (
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// DatabaseServerSpec defines the desired state of DatabaseServer
-type DatabaseServerSpec struct {
-	Image                 Image                            `json:"image,omitempty"`
-	ImagePullPolicy       corev1.PullPolicy                `json:"imagePullPolicy,omitempty"`
-	DatabaseNames         []string                         `json:"databaseNames"`
-	AdditionalConfig      []string                         `json:"additionalConfig,omitempty"`
-	Resources             corev1.ResourceRequirements      `json:"resources"`
-	VolumeClaim           corev1.PersistentVolumeClaimSpec `json:"volumeClaim"`
-	Backup                BackupSettings                   `json:"backup,omitempty"`
-	ReadinessProbeTimings ProbeTimings                     `json:"readinessProbeTimings,omitempty"`
-	LivenessProbeTimings  ProbeTimings                     `json:"livenessProbeTimings,omitempty"`
-	PodAnnotations        map[string]string                `json:"podAnnotations,omitempty"`
-	PodSecurityContext    corev1.PodSecurityContext        `json:"podSecurityContext,omitempty"`
-	SecurityContext       corev1.SecurityContext           `json:"securityContext,omitempty"`
-	NodeSelector          map[string]string                `json:"nodeSelector,omitempty"`
-	Tolerations           []corev1.Toleration              `json:"tolerations,omitempty"`
-	Affinity              corev1.Affinity                  `json:"affinity,omitempty"`
-}
-
-type BackupSettings struct {
-	DatabaseNames []string            `json:"databaseNames,omitempty"`
-	TargetVolume  corev1.VolumeSource `json:"volume"`
-	Schedule      string              `json:"schedule"`
-}
-
-func (in *BackupSettings) IsUnset() bool {
-	return len(in.DatabaseNames) == 0 && in.TargetVolume == (corev1.VolumeSource{}) && in.Schedule == ""
-}
 
 // DatabaseServerStatus defines the observed state of DatabaseServer
 type DatabaseServerStatus struct {
@@ -65,8 +35,8 @@ type DatabaseServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   DatabaseServerSpec   `json:"spec,omitempty"`
-	Status DatabaseServerStatus `json:"status,omitempty"`
+	Spec   *DatabaseServerSpec   `json:"spec,omitempty"`
+	Status *DatabaseServerStatus `json:"status,omitempty"`
 
 	// Set by the controller when a StroomCluster binds to the DatabaseServer.
 	// This is used to prevent the DatabaseServer from being deleted while its paired StroomCluster still exists.
@@ -92,6 +62,10 @@ func (in *DatabaseServer) GetConfigMapName() string {
 
 func (in *DatabaseServer) GetInitConfigMapName() string {
 	return fmt.Sprintf("%v-init", in.GetBaseName())
+}
+
+func (in *DatabaseServer) IsBeingDeleted() bool {
+	return !in.ObjectMeta.DeletionTimestamp.IsZero()
 }
 
 //+kubebuilder:object:root=true

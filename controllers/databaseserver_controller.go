@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
-	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -171,15 +170,15 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 	logger := log.FromContext(ctx)
 
 	if dbServer.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !controllers.ContainsString(dbServer.GetFinalizers(), controllers.FinalizerName) {
+		if !controllerutil.ContainsFinalizer(dbServer, stroomv1.StroomClusterFinalizerName) {
 			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
-			controllerutil.AddFinalizer(dbServer, controllers.FinalizerName)
+			controllerutil.AddFinalizer(dbServer, stroomv1.StroomClusterFinalizerName)
 			if err := r.Update(ctx, dbServer); err != nil {
 				return false, err
 			}
 		}
 	} else {
-		if controllers.ContainsString(dbServer.GetFinalizers(), controllers.FinalizerName) {
+		if controllerutil.ContainsFinalizer(dbServer, stroomv1.StroomClusterFinalizerName) {
 			// Finalizer is present, so check whether the DatabaseServer is claimed by a StroomCluster
 			if dbServer.StroomClusterRef != (stroomv1.ResourceRef{}) {
 				stroomCluster := stroomv1.StroomCluster{}
@@ -192,7 +191,7 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 
 			// Not claimed by a StroomCluster or the StroomCluster doesn't exist, so remove the finalizer.
 			// This allows the DatabaseServer resource to be removed.
-			controllerutil.RemoveFinalizer(dbServer, controllers.FinalizerName)
+			controllerutil.RemoveFinalizer(dbServer, stroomv1.StroomClusterFinalizerName)
 			if err := r.Update(ctx, dbServer); err != nil {
 				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v/%v'", dbServer.Namespace, dbServer.Name))
 				return true, err
@@ -235,5 +234,6 @@ func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, name s
 func (r *DatabaseServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&stroomv1.DatabaseServer{}).
+		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
 }

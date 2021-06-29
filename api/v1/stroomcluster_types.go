@@ -18,86 +18,13 @@ package v1
 
 import (
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// StroomClusterSpec defines the desired state of StroomCluster
-type StroomClusterSpec struct {
-	Image             Image             `json:"image,omitempty"`
-	ImagePullPolicy   corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
-	MaxClientBodySize string            `json:"maxClientBodySize,omitempty"`
-	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
-	ConfigMapName     string            `json:"configMapName"`
-	AppDatabaseRef    DatabaseRef       `json:"appDatabaseRef"`
-	StatsDatabaseRef  DatabaseRef       `json:"statsDatabaseRef"`
-	Ingress           IngressSettings   `json:"ingress"`
-
-	// +kubebuilder:validation:MinItems=1
-	NodeSets []NodeSet `json:"nodeSets"`
-}
-
-type IngressSettings struct {
-	HostName   string `json:"hostName"`
-	SecretName string `json:"secretName"`
-	ClassName  string `json:"className,omitempty"`
-}
-
-type DatabaseRef struct {
-	// If specified, point to an operator-managed DatabaseServer object
-	DatabaseServerRef ResourceRef `json:"databaseServerRef,omitempty"`
-
-	// Alternatively, if the following parameters are provided, point directly to a DB by its TCP address.
-	// This allows external database instances to be used in place of an operator-managed one.
-	ConnectionSpec DatabaseAddress `json:"connectionSpec,omitempty"`
-
-	DatabaseName string `json:"databaseName"`
-}
-
-type DatabaseAddress struct {
-	Address    string `json:"address,omitempty"`
-	Port       int32  `json:"port,omitempty"`
-	SecretName string `json:"secretName,omitempty"`
-}
 
 // StroomClusterStatus defines the observed state of StroomCluster
 type StroomClusterStatus struct {
 	Nodes []string `json:"nodes,omitempty"`
 }
-
-type VolumeClaimDeletePolicy string
-
-const (
-	DeleteOnScaledownAndClusterDeletionPolicy VolumeClaimDeletePolicy = "DeleteOnScaledownAndClusterDeletion"
-	DeleteOnScaledownOnlyPolicy                                       = "DeleteOnScaledownOnly"
-)
-
-type NodeSet struct {
-	Name                    string                           `json:"name"`
-	Count                   int32                            `json:"count"`
-	Role                    NodeRole                         `json:"role,omitempty"`
-	LocalDataVolumeClaim    corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
-	SharedDataVolume        corev1.VolumeSource              `json:"sharedDataVolume"`
-	VolumeClaimDeletePolicy VolumeClaimDeletePolicy          `json:"volumeClaimDeletePolicy,omitempty"`
-	Resources               corev1.ResourceRequirements      `json:"resources"`
-	IngressEnabled          bool                             `json:"ingressEnabled,omitempty"`
-	StartupProbeTimings     ProbeTimings                     `json:"startupProbeTimings,omitempty"`
-	LivenessProbeTimings    ProbeTimings                     `json:"livenessProbeTimings,omitempty"`
-	JavaOpts                string                           `json:"javaOpts,omitempty"`
-	PodAnnotations          map[string]string                `json:"podAnnotations,omitempty"`
-	PodSecurityContext      corev1.PodSecurityContext        `json:"podSecurityContext,omitempty"`
-	SecurityContext         corev1.SecurityContext           `json:"securityContext,omitempty"`
-	NodeSelector            map[string]string                `json:"nodeSelector,omitempty"`
-	Tolerations             []corev1.Toleration              `json:"tolerations,omitempty"`
-	Affinity                corev1.Affinity                  `json:"affinity,omitempty"`
-}
-
-type NodeRole string
-
-const (
-	Processing NodeRole = "Processing"
-	Frontend            = "Frontend"
-)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
@@ -121,6 +48,10 @@ func (in *StroomCluster) GetNodeSetName(nodeSetName string) string {
 
 func (in *StroomCluster) GetNodeSetServiceName(nodeSetName string) string {
 	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSetName))
+}
+
+func (in *StroomCluster) IsBeingDeleted() bool {
+	return !in.ObjectMeta.DeletionTimestamp.IsZero()
 }
 
 //+kubebuilder:object:root=true

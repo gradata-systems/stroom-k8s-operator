@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
@@ -176,15 +175,15 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 	logger := log.FromContext(ctx)
 
 	if stroomCluster.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !controllers.ContainsString(stroomCluster.GetFinalizers(), controllers.FinalizerName) {
+		if !controllerutil.ContainsFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName) {
 			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
-			controllerutil.AddFinalizer(stroomCluster, controllers.FinalizerName)
+			controllerutil.AddFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName)
 			if err := r.Update(ctx, stroomCluster); err != nil {
 				return false, err
 			}
 		}
 	} else {
-		if controllers.ContainsString(stroomCluster.GetFinalizers(), controllers.FinalizerName) {
+		if controllerutil.ContainsFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName) {
 			// TODO: Add deletion blocking logic
 
 			// Remove finalizer from the linked DatabaseServers
@@ -196,7 +195,7 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 			}
 
 			// Remove the finalizer, allowing the StroomCluster to be removed
-			controllerutil.RemoveFinalizer(stroomCluster, controllers.FinalizerName)
+			controllerutil.RemoveFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName)
 			if err := r.Update(ctx, stroomCluster); err != nil {
 				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from StroomCluster '%v/%v'", stroomCluster.Namespace, stroomCluster.Name))
 				return true, err
@@ -237,7 +236,7 @@ func (r *StroomClusterReconciler) cleanup(ctx context.Context, stroomCluster *st
 
 func (r *StroomClusterReconciler) removeDatabaseFinalizer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef) error {
 	logger := log.FromContext(ctx)
-	db := stroomv1.DatabaseServer{}
+	dbServer := stroomv1.DatabaseServer{}
 
 	if dbRef == (stroomv1.ResourceRef{}) {
 		return nil
@@ -248,9 +247,9 @@ func (r *StroomClusterReconciler) removeDatabaseFinalizer(ctx context.Context, s
 		dbRef.Namespace = stroomCluster.Namespace
 	}
 
-	if err := r.Get(ctx, dbRef.NamespacedName(), &db); err == nil {
-		controllerutil.RemoveFinalizer(&db, controllers.FinalizerName)
-		if err := r.Update(ctx, &db); err == nil {
+	if err := r.Get(ctx, dbRef.NamespacedName(), &dbServer); err == nil {
+		controllerutil.RemoveFinalizer(&dbServer, stroomv1.StroomClusterFinalizerName)
+		if err := r.Update(ctx, &dbServer); err == nil {
 			return nil
 		} else {
 			logger.Error(err, fmt.Sprintf("Could not remove finalizer from DatabaseServer '%v'", dbRef))
@@ -360,5 +359,6 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 func (r *StroomClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&stroomv1.StroomCluster{}).
+		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
 }

@@ -3,7 +3,6 @@ package controllers
 import (
 	"fmt"
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
-	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/batch/v1"
 	"k8s.io/api/batch/v1beta1"
@@ -44,8 +43,8 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			DatabaseRootUserName:    controllers.GeneratePassword(),
-			DatabaseServiceUserName: controllers.GeneratePassword(),
+			DatabaseRootUserName:    stroomv1.GeneratePassword(),
+			DatabaseServiceUserName: stroomv1.GeneratePassword(),
 		},
 	}
 
