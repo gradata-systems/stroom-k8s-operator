@@ -183,6 +183,18 @@ spec:
                 description: PullPolicy describes a policy for if/when to pull a container
                   image
                 type: string
+              ingress:
+                properties:
+                  className:
+                    type: string
+                  hostName:
+                    type: string
+                  secretName:
+                    type: string
+                required:
+                - hostName
+                - secretName
+                type: object
               maxClientBodySize:
                 type: string
               nodeSets:
@@ -817,18 +829,8 @@ spec:
                     count:
                       format: int32
                       type: integer
-                    ingress:
-                      properties:
-                        className:
-                          type: string
-                        hostName:
-                          type: string
-                        secretName:
-                          type: string
-                      required:
-                      - hostName
-                      - secretName
-                      type: object
+                    ingressEnabled:
+                      type: boolean
                     javaOpts:
                       type: string
                     livenessProbeTimings:
@@ -2876,10 +2878,10 @@ spec:
                       type: string
                   required:
                   - count
-                  - ingress
                   - localDataVolumeClaim
                   - name
                   - resources
+                  - sharedDataVolume
                   type: object
                 minItems: 1
                 type: array
@@ -2918,6 +2920,7 @@ spec:
             required:
             - appDatabaseRef
             - configMapName
+            - ingress
             - nodeSets
             - statsDatabaseRef
             type: object

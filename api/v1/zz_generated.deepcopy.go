@@ -221,7 +221,6 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 	*out = *in
 	in.LocalDataVolumeClaim.DeepCopyInto(&out.LocalDataVolumeClaim)
 	in.SharedDataVolume.DeepCopyInto(&out.SharedDataVolume)
-	out.Ingress = in.Ingress
 	in.Resources.DeepCopyInto(&out.Resources)
 	out.StartupProbeTimings = in.StartupProbeTimings
 	out.LivenessProbeTimings = in.LivenessProbeTimings
@@ -363,6 +362,7 @@ func (in *StroomClusterSpec) DeepCopyInto(out *StroomClusterSpec) {
 	}
 	out.AppDatabaseRef = in.AppDatabaseRef
 	out.StatsDatabaseRef = in.StatsDatabaseRef
+	out.Ingress = in.Ingress
 	if in.NodeSets != nil {
 		in, out := &in.NodeSets, &out.NodeSets
 		*out = make([]NodeSet, len(*in))

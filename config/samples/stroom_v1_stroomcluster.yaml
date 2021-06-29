@@ -19,6 +19,9 @@ spec:
     databaseName: stats
     databaseServerRef:
       name: dev
+  ingress:
+    hostName: stroom-7.internal
+    secretName: stroom-7-tls
 
   nodeSets:
     - name: data
@@ -41,10 +44,7 @@ spec:
         nfs:
           server: gs-fs01.internal
           path: /volume2/AppData/stroom-7/stroom-shared
-      ingress:
-        hostName: stroom-7.internal
-        secretName: stroom-7-tls
-        className: nginx
+      ingressEnabled: true
       startupProbeTimings: {}
       livenessProbeTimings: {}
       resources:
@@ -76,10 +76,7 @@ spec:
           matchLabels:
             app: stroom-7
             component: stroom-node
-      ingress:
-        hostName: stroom-7.internal
-        secretName: stroom-7-tls
-        className: nginx
+      ingressEnabled: true
       resources:
         requests:
           cpu: 500m

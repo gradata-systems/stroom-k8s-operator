@@ -30,6 +30,7 @@ type StroomClusterSpec struct {
 	ConfigMapName     string            `json:"configMapName"`
 	AppDatabaseRef    DatabaseRef       `json:"appDatabaseRef"`
 	StatsDatabaseRef  DatabaseRef       `json:"statsDatabaseRef"`
+	Ingress           IngressSettings   `json:"ingress"`
 
 	// +kubebuilder:validation:MinItems=1
 	NodeSets []NodeSet `json:"nodeSets"`
@@ -75,10 +76,10 @@ type NodeSet struct {
 	Count                   int32                            `json:"count"`
 	Role                    NodeRole                         `json:"role,omitempty"`
 	LocalDataVolumeClaim    corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
-	SharedDataVolume        corev1.VolumeSource              `json:"sharedDataVolume,omitempty"`
+	SharedDataVolume        corev1.VolumeSource              `json:"sharedDataVolume"`
 	VolumeClaimDeletePolicy VolumeClaimDeletePolicy          `json:"volumeClaimDeletePolicy,omitempty"`
-	Ingress                 IngressSettings                  `json:"ingress"`
 	Resources               corev1.ResourceRequirements      `json:"resources"`
+	IngressEnabled          bool                             `json:"ingressEnabled,omitempty"`
 	StartupProbeTimings     ProbeTimings                     `json:"startupProbeTimings,omitempty"`
 	LivenessProbeTimings    ProbeTimings                     `json:"livenessProbeTimings,omitempty"`
 	JavaOpts                string                           `json:"javaOpts,omitempty"`

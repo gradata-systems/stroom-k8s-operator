@@ -151,7 +151,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	ingresses := r.createIngresses(&stroomCluster)
+	ingresses := r.createIngresses(ctx, &stroomCluster)
 	for _, ingress := range ingresses {
 		// Create an Ingress if it doesn't already exist
 		foundIngress := v1.Ingress{}
@@ -206,10 +206,34 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 			logger.Info(fmt.Sprintf("StroomCluster '%v/%v' deleted", stroomCluster.Namespace, stroomCluster.Name))
 		}
 
+		r.cleanup(ctx, stroomCluster)
 		return true, nil
 	}
 
 	return false, nil
+}
+
+// cleanup performs post-deletion actions like removing Ingress resources created by the operator
+func (r *StroomClusterReconciler) cleanup(ctx context.Context, stroomCluster *stroomv1.StroomCluster) {
+	logger := log.FromContext(ctx)
+
+	// Remove any Ingress objects created by the operator
+	ingressNames := []string{
+		GetBaseName(stroomCluster.Name),
+		GetBaseName(stroomCluster.Name) + "-clustercall",
+		GetBaseName(stroomCluster.Name) + "-datafeed",
+	}
+	for _, ingressName := range ingressNames {
+		ingressRef := types.NamespacedName{Namespace: stroomCluster.Namespace, Name: ingressName}
+		ingress := v1.Ingress{}
+		if err := r.Get(ctx, ingressRef, &ingress); err != nil {
+			logger.Error(err, fmt.Sprintf("Could not fetch Ingress '%v' for deletion", ingressRef))
+		} else {
+			if err := r.Delete(ctx, &ingress); err != nil {
+				logger.Error(err, fmt.Sprintf("Could not delete Ingress '%v'", err))
+			}
+		}
+	}
 }
 
 func (r *StroomClusterReconciler) removeDatabaseFinalizer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef) error {

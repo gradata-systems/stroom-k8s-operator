@@ -1,6 +1,7 @@
 package stroomcluster
 
 import (
+	"context"
 	"fmt"
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	"github.com/p-kimberley/stroom-k8s-operator/controllers/databaseserver"
@@ -12,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"math"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"strconv"
 )
 
@@ -147,7 +149,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 						ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
 						Env: []corev1.EnvVar{{
 							Name:  "API_GATEWAY_HOST",
-							Value: nodeSet.Ingress.HostName,
+							Value: stroomCluster.Spec.Ingress.HostName,
 						}, {
 							Name:  "ADMIN_CONTEXT_PATH",
 							Value: "/stroomAdmin",
@@ -345,72 +347,42 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 	return service
 }
 
-func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.StroomCluster) []v1.Ingress {
+func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomCluster *stroomv1.StroomCluster) []v1.Ingress {
+	logger := log.FromContext(ctx)
 	labels := r.createLabels(stroomCluster)
+	ingressSettings := stroomCluster.Spec.Ingress
 	var ingresses []v1.Ingress
+
+	// Find out the first non-UI NodeSet so we know where to route datafeed traffic to
+	firstNonUiServiceName := ""
+	for _, nodeSet := range stroomCluster.Spec.NodeSets {
+		if nodeSet.Role != stroomv1.Frontend {
+			firstNonUiServiceName = GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name)
+			break
+		}
+	}
 
 	// Create an Ingress for each route in each NodeSet, where Ingress is enabled
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		ingressSettings := nodeSet.Ingress
+		clusterName := GetBaseName(stroomCluster.Name)
+		serviceName := GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name)
 
-		if ingressSettings != (stroomv1.IngressSettings{}) {
-			nodeSetName := GetStroomNodeSetName(stroomCluster.Name, nodeSet.Name)
-			serviceName := GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name)
+		if nodeSet.IngressEnabled != true {
+			continue
+		}
 
-			if nodeSet.Role != stroomv1.Processing {
-				ingresses = append(ingresses,
-					v1.Ingress{
-						// Default route (/)
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      nodeSetName,
-							Namespace: stroomCluster.Namespace,
-							Labels:    labels,
-							Annotations: map[string]string{
-								"kubernetes.io/ingress.class":                 "nginx",
-								"nginx.ingress.kubernetes.io/affinity":        "cookie",
-								"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
-							},
-						},
-						Spec: v1.IngressSpec{
-							TLS: []v1.IngressTLS{{
-								Hosts:      []string{ingressSettings.HostName},
-								SecretName: ingressSettings.SecretName,
-							}},
-							Rules: r.createIngressRules(ingressSettings.HostName, v1.PathTypePrefix, "/", serviceName),
-						},
-					},
-					v1.Ingress{
-						// Deny access to the `/stroom/clustercall.rpc` endpoint
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      nodeSetName + "-clustercall",
-							Namespace: stroomCluster.Namespace,
-							Labels:    labels,
-							Annotations: map[string]string{
-								"kubernetes.io/ingress.class":                "nginx",
-								"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
-							},
-						},
-						Spec: v1.IngressSpec{
-							TLS: []v1.IngressTLS{{
-								Hosts:      []string{ingressSettings.HostName},
-								SecretName: ingressSettings.SecretName,
-							}},
-							Rules: r.createIngressRules(ingressSettings.HostName, v1.PathTypeExact, "/clustercall.rpc", serviceName),
-						},
-					})
-			}
-
-			// Only accept feed data at non-UI nodes
-			if nodeSet.Role != stroomv1.Frontend {
-				ingresses = append(ingresses, v1.Ingress{
-					// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
+		if nodeSet.Role != stroomv1.Processing {
+			ingresses = append(ingresses,
+				v1.Ingress{
+					// Default route (/)
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      nodeSetName + "-datafeed",
+						Name:      clusterName,
 						Namespace: stroomCluster.Namespace,
 						Labels:    labels,
 						Annotations: map[string]string{
-							"kubernetes.io/ingress.class":                "nginx",
-							"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed$1$2",
+							"kubernetes.io/ingress.class":                 "nginx",
+							"nginx.ingress.kubernetes.io/affinity":        "cookie",
+							"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
 						},
 					},
 					Spec: v1.IngressSpec{
@@ -418,22 +390,74 @@ func (r *StroomClusterReconciler) createIngresses(stroomCluster *stroomv1.Stroom
 							Hosts:      []string{ingressSettings.HostName},
 							SecretName: ingressSettings.SecretName,
 						}},
-						Rules: r.createIngressRules(ingressSettings.HostName, v1.PathTypePrefix, "/stroom/datafeeddirect(/|$)(.*)", serviceName),
+						Rules: []v1.IngressRule{
+							// Explicitly route datafeed traffic to the first non-UI NodeSet
+							r.createIngressRule(ingressSettings.HostName, v1.PathTypeExact, "/stroom/noauth/datafeed", firstNonUiServiceName),
+
+							// All other traffic is routed to the UI NodeSets
+							r.createIngressRule(ingressSettings.HostName, v1.PathTypePrefix, "/", serviceName),
+						},
+					},
+				},
+				v1.Ingress{
+					// Deny access to the `/stroom/clustercall.rpc` endpoint
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      clusterName + "-clustercall",
+						Namespace: stroomCluster.Namespace,
+						Labels:    labels,
+						Annotations: map[string]string{
+							"kubernetes.io/ingress.class":                "nginx",
+							"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
+						},
+					},
+					Spec: v1.IngressSpec{
+						TLS: []v1.IngressTLS{{
+							Hosts:      []string{ingressSettings.HostName},
+							SecretName: ingressSettings.SecretName,
+						}},
+						Rules: []v1.IngressRule{
+							r.createIngressRule(ingressSettings.HostName, v1.PathTypeExact, "/clustercall.rpc", serviceName),
+						},
 					},
 				})
-			}
+		}
+
+		if nodeSet.Role != stroomv1.Frontend {
+			ingresses = append(ingresses, v1.Ingress{
+				// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      clusterName + "-datafeed",
+					Namespace: stroomCluster.Namespace,
+					Labels:    labels,
+					Annotations: map[string]string{
+						"kubernetes.io/ingress.class":                "nginx",
+						"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed",
+					},
+				},
+				Spec: v1.IngressSpec{
+					TLS: []v1.IngressTLS{{
+						Hosts:      []string{ingressSettings.HostName},
+						SecretName: ingressSettings.SecretName,
+					}},
+					Rules: []v1.IngressRule{
+						r.createIngressRule(ingressSettings.HostName, v1.PathTypeExact, "/stroom/datafeeddirect", serviceName),
+					},
+				},
+			})
 		}
 	}
 
 	for _, ingress := range ingresses {
-		ctrl.SetControllerReference(stroomCluster, &ingress, r.Scheme)
+		if err := ctrl.SetControllerReference(stroomCluster, &ingress, r.Scheme); err != nil {
+			logger.Error(err, fmt.Sprintf("Could not set controller reference on ingress '%v/%v'", ingress.Namespace, ingress.Name))
+		}
 	}
 
 	return ingresses
 }
 
-func (r *StroomClusterReconciler) createIngressRules(hostName string, pathType v1.PathType, path string, serviceName string) []v1.IngressRule {
-	return []v1.IngressRule{{
+func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType v1.PathType, path string, serviceName string) v1.IngressRule {
+	return v1.IngressRule{
 		Host: hostName,
 		IngressRuleValue: v1.IngressRuleValue{
 			HTTP: &v1.HTTPIngressRuleValue{
@@ -451,5 +475,5 @@ func (r *StroomClusterReconciler) createIngressRules(hostName string, pathType v
 				}},
 			},
 		},
-	}}
+	}
 }
