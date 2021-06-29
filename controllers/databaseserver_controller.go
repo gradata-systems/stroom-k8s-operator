@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package databaseserver
+package controllers
 
 import (
 	"context"
 	"fmt"
+	"github.com/go-logr/logr"
 	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/batch/v1beta1"
@@ -40,6 +41,7 @@ import (
 type DatabaseServerReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers,verbs=get;list;watch;create;update;patch;delete
@@ -80,7 +82,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	foundSecret := corev1.Secret{}
-	result, err := r.getOrCreateObject(ctx, GetSecretName(dbServer.Name), dbServer.Namespace, "Secret", &foundSecret, func() error {
+	result, err := r.getOrCreateObject(ctx, dbServer.GetSecretName(), dbServer.Namespace, "Secret", &foundSecret, func() error {
 		// Generate a Secret containing the root and service user passwords
 		resource := r.createSecret(&dbServer)
 		logger.Info("Creating a new Secret", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -93,7 +95,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	foundConfigMap := corev1.ConfigMap{}
-	result, err = r.getOrCreateObject(ctx, GetConfigMapName(dbServer.Name), dbServer.Namespace, "ConfigMap", &foundConfigMap, func() error {
+	result, err = r.getOrCreateObject(ctx, dbServer.GetConfigMapName(), dbServer.Namespace, "ConfigMap", &foundConfigMap, func() error {
 		// Generate a ConfigMap containing the MySQL database configuration
 		resource := r.createConfigMap(&dbServer)
 		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -106,7 +108,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	foundInitConfigMap := corev1.ConfigMap{}
-	result, err = r.getOrCreateObject(ctx, GetInitConfigMapName(dbServer.Name), dbServer.Namespace, "ConfigMap", &foundInitConfigMap, func() error {
+	result, err = r.getOrCreateObject(ctx, dbServer.GetInitConfigMapName(), dbServer.Namespace, "ConfigMap", &foundInitConfigMap, func() error {
 		// Generate a ConfigMap containing database initialisation scripts
 		resource := r.createDbInitConfigMap(&dbServer)
 		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -119,7 +121,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	foundStatefulSet := appsv1.StatefulSet{}
-	result, err = r.getOrCreateObject(ctx, GetBaseName(dbServer.Name), dbServer.Namespace, "StatefulSet", &foundStatefulSet, func() error {
+	result, err = r.getOrCreateObject(ctx, dbServer.GetBaseName(), dbServer.Namespace, "StatefulSet", &foundStatefulSet, func() error {
 		// Generate a StatefulSet for running a single instance of MySQL
 		resource := r.createStatefulSet(&dbServer)
 		logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -132,7 +134,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	foundService := corev1.Service{}
-	result, err = r.getOrCreateObject(ctx, GetServiceName(dbServer.Name), dbServer.Namespace, "Service", &foundService, func() error {
+	result, err = r.getOrCreateObject(ctx, dbServer.GetServiceName(), dbServer.Namespace, "Service", &foundService, func() error {
 		// Create a headless service
 		resource := r.createService(&dbServer)
 		logger.Info("Creating a new Service", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -146,7 +148,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if !dbServer.Spec.Backup.IsUnset() {
 		foundCronJob := v1beta1.CronJob{}
-		result, err = r.getOrCreateObject(ctx, GetBaseName(dbServer.Name), dbServer.Namespace, "CronJob", &foundCronJob, func() error {
+		result, err = r.getOrCreateObject(ctx, dbServer.GetBaseName(), dbServer.Namespace, "CronJob", &foundCronJob, func() error {
 			// Create a CronJob for performing scheduled database backups
 			resource := r.createCronJob(&dbServer)
 			logger.Info("Creating a new CronJob", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -169,15 +171,15 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 	logger := log.FromContext(ctx)
 
 	if dbServer.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !common.ContainsString(dbServer.GetFinalizers(), common.FinalizerName) {
+		if !controllers.ContainsString(dbServer.GetFinalizers(), controllers.FinalizerName) {
 			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
-			controllerutil.AddFinalizer(dbServer, common.FinalizerName)
+			controllerutil.AddFinalizer(dbServer, controllers.FinalizerName)
 			if err := r.Update(ctx, dbServer); err != nil {
 				return false, err
 			}
 		}
 	} else {
-		if common.ContainsString(dbServer.GetFinalizers(), common.FinalizerName) {
+		if controllers.ContainsString(dbServer.GetFinalizers(), controllers.FinalizerName) {
 			// Finalizer is present, so check whether the DatabaseServer is claimed by a StroomCluster
 			if dbServer.StroomClusterRef != (stroomv1.ResourceRef{}) {
 				stroomCluster := stroomv1.StroomCluster{}
@@ -190,7 +192,7 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 
 			// Not claimed by a StroomCluster or the StroomCluster doesn't exist, so remove the finalizer.
 			// This allows the DatabaseServer resource to be removed.
-			controllerutil.RemoveFinalizer(dbServer, common.FinalizerName)
+			controllerutil.RemoveFinalizer(dbServer, controllers.FinalizerName)
 			if err := r.Update(ctx, dbServer); err != nil {
 				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v/%v'", dbServer.Namespace, dbServer.Name))
 				return true, err

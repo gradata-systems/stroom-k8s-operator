@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -108,6 +109,18 @@ type StroomCluster struct {
 
 	Spec   StroomClusterSpec   `json:"spec,omitempty"`
 	Status StroomClusterStatus `json:"status,omitempty"`
+}
+
+func (in *StroomCluster) GetBaseName() string {
+	return fmt.Sprintf("stroom-%v", in.Name)
+}
+
+func (in *StroomCluster) GetNodeSetName(nodeSetName string) string {
+	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSetName)
+}
+
+func (in *StroomCluster) GetNodeSetServiceName(nodeSetName string) string {
+	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSetName))
 }
 
 //+kubebuilder:object:root=true

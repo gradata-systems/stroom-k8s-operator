@@ -1,10 +1,9 @@
-package stroomcluster
+package controllers
 
 import (
 	"context"
 	"fmt"
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
-	"github.com/p-kimberley/stroom-k8s-operator/controllers/databaseserver"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
@@ -23,18 +22,6 @@ const (
 	AdminPortName   = "admin"
 	AdminPortNumber = 8081
 )
-
-func GetBaseName(clusterName string) string {
-	return fmt.Sprintf("stroom-%v", clusterName)
-}
-
-func GetStroomNodeSetName(clusterName string, nodeSetName string) string {
-	return fmt.Sprintf("stroom-%v-node-%v", clusterName, nodeSetName)
-}
-
-func GetStroomNodeSetServiceName(clusterName string, nodeSetName string) string {
-	return fmt.Sprintf("%v-http", GetStroomNodeSetName(clusterName, nodeSetName))
-}
 
 func (r *StroomClusterReconciler) createLabels(stroomCluster *stroomv1.StroomCluster) map[string]string {
 	return map[string]string{
@@ -55,7 +42,7 @@ func (r *StroomClusterReconciler) createNodeSetSelectorLabels(stroomCluster *str
 func (r *StroomClusterReconciler) createServiceAccount(stroomCluster *stroomv1.StroomCluster) *corev1.ServiceAccount {
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(stroomCluster.Name),
+			Name:      stroomCluster.GetBaseName(),
 			Namespace: stroomCluster.Namespace,
 			Labels:    r.createLabels(stroomCluster),
 		},
@@ -66,7 +53,7 @@ func (r *StroomClusterReconciler) createServiceAccount(stroomCluster *stroomv1.S
 }
 
 func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet,
-	appDatabase *databaseserver.DatabaseConnectionInfo, statsDatabase *databaseserver.DatabaseConnectionInfo) *appsv1.StatefulSet {
+	appDatabase *DatabaseConnectionInfo, statsDatabase *DatabaseConnectionInfo) *appsv1.StatefulSet {
 	selectorLabels := r.createNodeSetSelectorLabels(stroomCluster, nodeSet)
 
 	volumes := []corev1.Volume{{
@@ -125,13 +112,13 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetStroomNodeSetName(stroomCluster.Name, nodeSet.Name),
+			Name:      stroomCluster.GetNodeSetName(nodeSet.Name),
 			Namespace: stroomCluster.Namespace,
 			Labels:    r.createLabels(stroomCluster),
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &nodeSet.Count,
-			ServiceName: GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name),
+			ServiceName: stroomCluster.GetNodeSetServiceName(nodeSet.Name),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: selectorLabels,
 			},
@@ -141,7 +128,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					Labels:      selectorLabels,
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName: GetBaseName(stroomCluster.Name),
+					ServiceAccountName: stroomCluster.GetBaseName(),
 					SecurityContext:    &nodeSet.PodSecurityContext,
 					Containers: []corev1.Container{{
 						Name:            "stroom-node",
@@ -179,7 +166,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							},
 						}, {
 							Name:  "POD_SUBDOMAIN",
-							Value: fmt.Sprintf("%v.%v.svc", GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name), stroomCluster.Namespace),
+							Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetServiceName(nodeSet.Name), stroomCluster.Namespace),
 						}, {
 							Name:  "JAVA_OPTS",
 							Value: r.getJvmOptions(stroomCluster, nodeSet),
@@ -204,7 +191,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							Value: "com.mysql.cj.jdbc.Driver",
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_USERNAME",
-							Value: databaseserver.ServiceUserName,
+							Value: DatabaseServiceUserName,
 						}, {
 							Name: "STROOM_JDBC_DRIVER_PASSWORD",
 							ValueFrom: &corev1.EnvVarSource{
@@ -212,7 +199,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: appDatabase.SecretName,
 									},
-									Key: databaseserver.ServiceUserName,
+									Key: DatabaseServiceUserName,
 								},
 							},
 						}, {
@@ -223,7 +210,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							Value: "com.mysql.cj.jdbc.Driver",
 						}, {
 							Name:  "STROOM_STATISTICS_JDBC_DRIVER_USERNAME",
-							Value: databaseserver.ServiceUserName,
+							Value: DatabaseServiceUserName,
 						}, {
 							Name: "STROOM_STATISTICS_JDBC_DRIVER_PASSWORD",
 							ValueFrom: &corev1.EnvVarSource{
@@ -231,7 +218,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: statsDatabase.SecretName,
 									},
-									Key: databaseserver.ServiceUserName,
+									Key: DatabaseServiceUserName,
 								},
 							},
 						}},
@@ -323,7 +310,7 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) *corev1.Service {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name),
+			Name:      stroomCluster.GetNodeSetServiceName(nodeSet.Name),
 			Namespace: stroomCluster.Namespace,
 			Labels:    r.createLabels(stroomCluster),
 		},
@@ -357,15 +344,15 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 	firstNonUiServiceName := ""
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		if nodeSet.Role != stroomv1.Frontend {
-			firstNonUiServiceName = GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name)
+			firstNonUiServiceName = stroomCluster.GetNodeSetServiceName(nodeSet.Name)
 			break
 		}
 	}
 
 	// Create an Ingress for each route in each NodeSet, where Ingress is enabled
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		clusterName := GetBaseName(stroomCluster.Name)
-		serviceName := GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name)
+		clusterName := stroomCluster.GetBaseName()
+		serviceName := stroomCluster.GetNodeSetServiceName(nodeSet.Name)
 
 		if nodeSet.IngressEnabled != true {
 			continue

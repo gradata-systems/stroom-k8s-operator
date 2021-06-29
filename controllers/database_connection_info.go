@@ -1,4 +1,4 @@
-package databaseserver
+package controllers
 
 import (
 	"fmt"

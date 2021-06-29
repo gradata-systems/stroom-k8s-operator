@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package stroomcluster
+package controllers
 
 import (
 	"context"
 	"fmt"
 	"github.com/p-kimberley/stroom-k8s-operator/controllers/common"
-	"github.com/p-kimberley/stroom-k8s-operator/controllers/databaseserver"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
@@ -80,7 +79,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Retrieve app database connection info
 	appDatabaseRef := stroomCluster.Spec.AppDatabaseRef
-	appDatabaseConnectionInfo := databaseserver.DatabaseConnectionInfo{}
+	appDatabaseConnectionInfo := DatabaseConnectionInfo{}
 	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo); err != nil {
 		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", appDatabaseRef.DatabaseServerRef))
 		return ctrl.Result{}, err
@@ -90,7 +89,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Retrieve stats database connection info
 	statsDatabaseRef := stroomCluster.Spec.StatsDatabaseRef
-	statsDatabaseConnectionInfo := databaseserver.DatabaseConnectionInfo{}
+	statsDatabaseConnectionInfo := DatabaseConnectionInfo{}
 	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &statsDatabaseRef, &statsDatabaseConnectionInfo); err != nil {
 		return ctrl.Result{}, err
 	} else if result != (ctrl.Result{}) {
@@ -98,7 +97,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	foundServiceAccount := corev1.ServiceAccount{}
-	result, err := r.getOrCreateObject(ctx, GetBaseName(stroomCluster.Name), stroomCluster.Namespace, "ServiceAccount", &foundServiceAccount, func() error {
+	result, err := r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "ServiceAccount", &foundServiceAccount, func() error {
 		// Create a new ServiceAccount
 		resource := r.createServiceAccount(&stroomCluster)
 		logger.Info("Creating a new ServiceAccount", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -123,7 +122,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		foundStatefulSet := appsv1.StatefulSet{}
-		result, err = r.getOrCreateObject(ctx, GetStroomNodeSetName(stroomCluster.Name, nodeSet.Name), stroomCluster.Namespace, "StatefulSet", &foundStatefulSet, func() error {
+		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetName(nodeSet.Name), stroomCluster.Namespace, "StatefulSet", &foundStatefulSet, func() error {
 			// Create a StatefulSet for the NodeSet
 			resource := r.createStatefulSet(&stroomCluster, &nodeSet, &appDatabaseConnectionInfo, &statsDatabaseConnectionInfo)
 			logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -138,7 +137,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// TODO: Update the replica count if different to the request
 
 		foundService := corev1.Service{}
-		result, err = r.getOrCreateObject(ctx, GetStroomNodeSetServiceName(stroomCluster.Name, nodeSet.Name), stroomCluster.Namespace, "Service", &foundService, func() error {
+		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetServiceName(nodeSet.Name), stroomCluster.Namespace, "Service", &foundService, func() error {
 			// Create a headless service for the NodeSet
 			resource := r.createService(&stroomCluster, &nodeSet)
 			logger.Info("Creating a new Service", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -177,15 +176,15 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 	logger := log.FromContext(ctx)
 
 	if stroomCluster.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !common.ContainsString(stroomCluster.GetFinalizers(), common.FinalizerName) {
+		if !controllers.ContainsString(stroomCluster.GetFinalizers(), controllers.FinalizerName) {
 			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
-			controllerutil.AddFinalizer(stroomCluster, common.FinalizerName)
+			controllerutil.AddFinalizer(stroomCluster, controllers.FinalizerName)
 			if err := r.Update(ctx, stroomCluster); err != nil {
 				return false, err
 			}
 		}
 	} else {
-		if common.ContainsString(stroomCluster.GetFinalizers(), common.FinalizerName) {
+		if controllers.ContainsString(stroomCluster.GetFinalizers(), controllers.FinalizerName) {
 			// TODO: Add deletion blocking logic
 
 			// Remove finalizer from the linked DatabaseServers
@@ -197,7 +196,7 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 			}
 
 			// Remove the finalizer, allowing the StroomCluster to be removed
-			controllerutil.RemoveFinalizer(stroomCluster, common.FinalizerName)
+			controllerutil.RemoveFinalizer(stroomCluster, controllers.FinalizerName)
 			if err := r.Update(ctx, stroomCluster); err != nil {
 				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from StroomCluster '%v/%v'", stroomCluster.Namespace, stroomCluster.Name))
 				return true, err
@@ -219,9 +218,9 @@ func (r *StroomClusterReconciler) cleanup(ctx context.Context, stroomCluster *st
 
 	// Remove any Ingress objects created by the operator
 	ingressNames := []string{
-		GetBaseName(stroomCluster.Name),
-		GetBaseName(stroomCluster.Name) + "-clustercall",
-		GetBaseName(stroomCluster.Name) + "-datafeed",
+		stroomCluster.GetBaseName(),
+		stroomCluster.GetBaseName() + "-clustercall",
+		stroomCluster.GetBaseName() + "-datafeed",
 	}
 	for _, ingressName := range ingressNames {
 		ingressRef := types.NamespacedName{Namespace: stroomCluster.Namespace, Name: ingressName}
@@ -250,7 +249,7 @@ func (r *StroomClusterReconciler) removeDatabaseFinalizer(ctx context.Context, s
 	}
 
 	if err := r.Get(ctx, dbRef.NamespacedName(), &db); err == nil {
-		controllerutil.RemoveFinalizer(&db, common.FinalizerName)
+		controllerutil.RemoveFinalizer(&db, controllers.FinalizerName)
 		if err := r.Update(ctx, &db); err == nil {
 			return nil
 		} else {
@@ -287,7 +286,7 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 	return ctrl.Result{}, nil
 }
 
-func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseRef, dbConnectionInfo *databaseserver.DatabaseConnectionInfo) (ctrl.Result, error) {
+func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseRef, dbConnectionInfo *DatabaseConnectionInfo) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	if dbRef.DatabaseServerRef == (stroomv1.ResourceRef{}) {
@@ -297,7 +296,7 @@ func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context,
 		dbConnectionInfo.SecretName = dbRef.ConnectionSpec.SecretName
 	} else {
 		// Get or create an operator-managed database instance
-		db := stroomv1.DatabaseServer{}
+		dbServer := stroomv1.DatabaseServer{}
 		dbReference := dbRef.DatabaseServerRef
 
 		// If the DatabaseRef namespace is empty, try to find the DatabaseServer in the same namespace as StroomCluster
@@ -305,7 +304,7 @@ func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context,
 			dbReference.Namespace = stroomCluster.Namespace
 		}
 
-		if err := r.Get(ctx, types.NamespacedName{Namespace: dbReference.Namespace, Name: dbReference.Name}, &db); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Namespace: dbReference.Namespace, Name: dbReference.Name}, &dbServer); err != nil {
 			if errors.IsNotFound(err) {
 				logger.Error(err, fmt.Sprintf("DatabaseServer '%v' was not found", dbReference))
 			} else {
@@ -313,14 +312,14 @@ func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context,
 			}
 			return ctrl.Result{}, err
 		} else {
-			if err := r.claimDatabaseServer(ctx, stroomCluster, dbReference, &db); err != nil {
+			if err := r.claimDatabaseServer(ctx, stroomCluster, dbReference, &dbServer); err != nil {
 				return ctrl.Result{}, err
 			}
 
-			dbConnectionInfo.DatabaseServer = &db
-			dbConnectionInfo.Address = databaseserver.GetServiceName(db.Name)
-			dbConnectionInfo.Port = databaseserver.DatabasePort
-			dbConnectionInfo.SecretName = databaseserver.GetSecretName(db.Name)
+			dbConnectionInfo.DatabaseServer = &dbServer
+			dbConnectionInfo.Address = dbServer.GetServiceName()
+			dbConnectionInfo.Port = DatabasePort
+			dbConnectionInfo.SecretName = dbServer.GetSecretName()
 		}
 	}
 

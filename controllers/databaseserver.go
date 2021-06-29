@@ -1,4 +1,4 @@
-package databaseserver
+package controllers
 
 import (
 	"fmt"
@@ -16,35 +16,13 @@ import (
 )
 
 const (
-	RootUserName          = "root"
-	ServiceUserName       = "stroomuser"
-	DatabasePort    int32 = 3306
+	DatabaseRootUserName          = "root"
+	DatabaseServiceUserName       = "stroomuser"
+	DatabasePort            int32 = 3306
 )
 
-// GetBaseName creates a name incorporating the name of the database
-// Example: stroom-prod-db
-func GetBaseName(resourceName string) string {
-	return fmt.Sprintf("stroom-%v-db", resourceName)
-}
-
-func GetServiceName(resourceName string) string {
-	return fmt.Sprintf("%v-headless", GetBaseName(resourceName))
-}
-
-func GetSecretName(resourceName string) string {
-	return fmt.Sprintf("%v", GetBaseName(resourceName))
-}
-
-func GetConfigMapName(resourceName string) string {
-	return fmt.Sprintf("%v", GetBaseName(resourceName))
-}
-
-func GetInitConfigMapName(resourceName string) string {
-	return fmt.Sprintf("%v-init", GetBaseName(resourceName))
-}
-
 func (r *DatabaseServerReconciler) getInitConfigName(dbServer *stroomv1.DatabaseServer) string {
-	return fmt.Sprintf("%v-init", GetBaseName(dbServer.Name))
+	return fmt.Sprintf("%v-init", dbServer.GetBaseName())
 }
 
 func (r *DatabaseServerReconciler) createLabels(dbName string) map[string]string {
@@ -60,14 +38,14 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetSecretName(dbServer.Name),
+			Name:      dbServer.GetSecretName(),
 			Namespace: dbServer.Namespace,
 			Labels:    labels,
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
-			RootUserName:    common.GeneratePassword(),
-			ServiceUserName: common.GeneratePassword(),
+			DatabaseRootUserName:    controllers.GeneratePassword(),
+			DatabaseServiceUserName: controllers.GeneratePassword(),
 		},
 	}
 
@@ -86,7 +64,7 @@ func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseSe
 
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(dbServer.Name),
+			Name:      dbServer.GetBaseName(),
 			Namespace: dbServer.Namespace,
 			Labels:    labels,
 		},
@@ -111,7 +89,7 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 	for _, databaseName := range dbServer.Spec.DatabaseNames {
 		databaseCreateStatements += "" +
 			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %v;\n", databaseName) +
-			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", databaseName, ServiceUserName)
+			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", databaseName, DatabaseServiceUserName)
 	}
 
 	configMap := &corev1.ConfigMap{
@@ -146,13 +124,13 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(dbServer.Name),
+			Name:      dbServer.GetBaseName(),
 			Namespace: dbServer.Namespace,
 			Labels:    labels,
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &replicas,
-			ServiceName: GetServiceName(dbServer.Name),
+			ServiceName: dbServer.GetServiceName(),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -171,15 +149,15 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 							Value: "/etc/mysql/password/root",
 						}, {
 							Name:  "MYSQL_USER",
-							Value: ServiceUserName,
+							Value: DatabaseServiceUserName,
 						}, {
 							Name: "MYSQL_PASSWORD",
 							ValueFrom: &corev1.EnvVarSource{
 								SecretKeyRef: &corev1.SecretKeySelector{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: GetBaseName(dbServer.Name),
+										Name: dbServer.GetBaseName(),
 									},
-									Key: ServiceUserName,
+									Key: DatabaseServiceUserName,
 								},
 							},
 						}},
@@ -207,7 +185,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						}, {
 							Name:      "root-password",
 							MountPath: "/etc/mysql/password/root",
-							SubPath:   RootUserName,
+							SubPath:   DatabaseRootUserName,
 							ReadOnly:  true,
 						}},
 					}},
@@ -220,7 +198,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: GetBaseName(dbServer.Name),
+									Name: dbServer.GetBaseName(),
 								},
 							},
 						},
@@ -237,10 +215,10 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						Name: "root-password",
 						VolumeSource: corev1.VolumeSource{
 							Secret: &corev1.SecretVolumeSource{
-								SecretName: GetBaseName(dbServer.Name),
+								SecretName: dbServer.GetBaseName(),
 								Items: []corev1.KeyToPath{{
-									Key:  RootUserName,
-									Path: RootUserName,
+									Key:  DatabaseRootUserName,
+									Path: DatabaseRootUserName,
 									Mode: &secretFileMode,
 								}},
 							},
@@ -303,7 +281,7 @@ func (r *DatabaseServerReconciler) createService(dbServer *stroomv1.DatabaseServ
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetServiceName(dbServer.Name),
+			Name:      dbServer.GetServiceName(),
 			Namespace: dbServer.Namespace,
 			Labels:    labels,
 		},
@@ -344,7 +322,7 @@ func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServ
 
 	cronJob := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetBaseName(dbServer.Name),
+			Name:      dbServer.GetBaseName(),
 			Namespace: dbServer.Namespace,
 			Labels:    labels,
 		},
@@ -374,18 +352,18 @@ func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServ
 								},
 								Env: []corev1.EnvVar{{
 									Name:  "MYSQL_HOST",
-									Value: GetServiceName(dbServer.Name),
+									Value: dbServer.GetServiceName(),
 								}, {
 									Name:  "MYSQL_USER",
-									Value: ServiceUserName,
+									Value: DatabaseServiceUserName,
 								}, {
 									Name: "MYSQL_PASSWORD",
 									ValueFrom: &corev1.EnvVarSource{
 										SecretKeyRef: &corev1.SecretKeySelector{
 											LocalObjectReference: corev1.LocalObjectReference{
-												Name: GetSecretName(dbServer.Name),
+												Name: dbServer.GetSecretName(),
 											},
-											Key: ServiceUserName,
+											Key: DatabaseServiceUserName,
 										},
 									},
 								}},

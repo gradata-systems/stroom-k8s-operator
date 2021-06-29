@@ -3,6 +3,7 @@ module github.com/p-kimberley/stroom-k8s-operator
 go 1.16
 
 require (
+	github.com/go-logr/logr v0.3.0 // indirect
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
 	github.com/sethvargo/go-password v0.2.0

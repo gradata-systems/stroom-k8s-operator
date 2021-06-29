@@ -1,4 +1,4 @@
-package common
+package controllers
 
 type Port struct {
 	Name   string

@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -70,6 +71,27 @@ type DatabaseServer struct {
 	// Set by the controller when a StroomCluster binds to the DatabaseServer.
 	// This is used to prevent the DatabaseServer from being deleted while its paired StroomCluster still exists.
 	StroomClusterRef ResourceRef `json:"stroomClusterRef,omitempty"`
+}
+
+// GetBaseName creates a name incorporating the name of the database. For Example: stroom-prod-db
+func (in *DatabaseServer) GetBaseName() string {
+	return fmt.Sprintf("stroom-%v-db", in.Name)
+}
+
+func (in *DatabaseServer) GetServiceName() string {
+	return fmt.Sprintf("%v-headless", in.GetBaseName())
+}
+
+func (in *DatabaseServer) GetSecretName() string {
+	return fmt.Sprintf("%v", in.GetBaseName())
+}
+
+func (in *DatabaseServer) GetConfigMapName() string {
+	return fmt.Sprintf("%v", in.GetBaseName())
+}
+
+func (in *DatabaseServer) GetInitConfigMapName() string {
+	return fmt.Sprintf("%v-init", in.GetBaseName())
 }
 
 //+kubebuilder:object:root=true
