@@ -8,7 +8,6 @@ spec:
     repository: docker.intranet.gradata.com.au/gchq/stroom
     tag: v7
   imagePullPolicy: Always
-  maxClientBodySize: 1g
   extraEnv: []
   configMapName: stroom-dev
   appDatabaseRef:

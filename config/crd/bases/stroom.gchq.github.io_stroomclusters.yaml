@@ -858,12 +858,6 @@ spec:
                           default: 5
                           format: int32
                           type: integer
-                      required:
-                      - failureThreshold
-                      - initialDelaySeconds
-                      - periodSeconds
-                      - successThreshold
-                      - timeoutSeconds
                       type: object
                     localDataVolumeClaim:
                       description: PersistentVolumeClaimSpec describes the common
@@ -2841,12 +2835,6 @@ spec:
                           default: 5
                           format: int32
                           type: integer
-                      required:
-                      - failureThreshold
-                      - initialDelaySeconds
-                      - periodSeconds
-                      - successThreshold
-                      - timeoutSeconds
                       type: object
                     tolerations:
                       items:

@@ -7,15 +7,15 @@ import (
 
 type ProbeTimings struct {
 	// +kubebuilder:default:=5
-	InitialDelaySeconds int32 `json:"initialDelaySeconds"`
+	InitialDelaySeconds int32 `json:"initialDelaySeconds,omitempty"`
 	// +kubebuilder:default:=5
-	TimeoutSeconds int32 `json:"timeoutSeconds"`
+	TimeoutSeconds int32 `json:"timeoutSeconds,omitempty"`
 	// +kubebuilder:default:=5
-	PeriodSeconds int32 `json:"periodSeconds"`
+	PeriodSeconds int32 `json:"periodSeconds,omitempty"`
 	// +kubebuilder:default:=1
-	SuccessThreshold int32 `json:"successThreshold"`
+	SuccessThreshold int32 `json:"successThreshold,omitempty"`
 	// +kubebuilder:default:=10
-	FailureThreshold int32 `json:"failureThreshold"`
+	FailureThreshold int32 `json:"failureThreshold,omitempty"`
 }
 
 type Image struct {

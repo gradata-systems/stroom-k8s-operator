@@ -185,7 +185,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							},
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_URL",
-							Value: appDatabase.ToConnectionString(),
+							Value: appDatabase.ToJdbcConnectionString(),
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_CLASS_NAME",
 							Value: "com.mysql.cj.jdbc.Driver",
@@ -204,7 +204,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							},
 						}, {
 							Name:  "STROOM_STATISTICS_JDBC_DRIVER_URL",
-							Value: statsDatabase.ToConnectionString(),
+							Value: statsDatabase.ToJdbcConnectionString(),
 						}, {
 							Name:  "STROOM_STATISTICS_JDBC_DRIVER_CLASS_NAME",
 							Value: "com.mysql.cj.jdbc.Driver",

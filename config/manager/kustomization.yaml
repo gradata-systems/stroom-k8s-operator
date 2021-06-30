@@ -11,4 +11,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: docker.intranet.gradata.com.au/gchq.github.io/stroom-operator-bundle
-  newTag: v0.0.7
+  newTag: v0.0.8

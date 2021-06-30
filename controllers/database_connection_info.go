@@ -11,7 +11,7 @@ type DatabaseConnectionInfo struct {
 	DatabaseName string
 }
 
-func (dbInfo *DatabaseConnectionInfo) ToConnectionString() string {
+func (dbInfo *DatabaseConnectionInfo) ToJdbcConnectionString() string {
 	return fmt.Sprintf("jdbc:mysql://%v:%v/%v?useUnicode=yes&characterEncoding=UTF-8",
 		dbInfo.Address, dbInfo.Port, dbInfo.DatabaseName)
 }

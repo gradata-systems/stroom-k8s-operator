@@ -2131,12 +2131,6 @@ spec:
                     default: 5
                     format: int32
                     type: integer
-                required:
-                - failureThreshold
-                - initialDelaySeconds
-                - periodSeconds
-                - successThreshold
-                - timeoutSeconds
                 type: object
               nodeSelector:
                 additionalProperties:
@@ -2314,12 +2308,6 @@ spec:
                     default: 5
                     format: int32
                     type: integer
-                required:
-                - failureThreshold
-                - initialDelaySeconds
-                - periodSeconds
-                - successThreshold
-                - timeoutSeconds
                 type: object
               resources:
                 description: ResourceRequirements describes the compute resource requirements.

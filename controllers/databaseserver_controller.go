@@ -89,7 +89,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -102,7 +102,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -115,7 +115,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -128,7 +128,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -141,7 +141,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	})
 	if err != nil {
 		return result, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -155,7 +155,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		})
 		if err != nil {
 			return result, err
-		} else if result != (ctrl.Result{}) {
+		} else if !result.IsZero() {
 			return result, nil
 		}
 	}
@@ -169,7 +169,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer *stroomv1.DatabaseServer) (bool, error) {
 	logger := log.FromContext(ctx)
 
-	if dbServer.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !dbServer.IsBeingDeleted() {
 		if !controllerutil.ContainsFinalizer(dbServer, stroomv1.StroomClusterFinalizerName) {
 			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
 			controllerutil.AddFinalizer(dbServer, stroomv1.StroomClusterFinalizerName)
@@ -209,13 +209,12 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 func (r *DatabaseServerReconciler) getOrCreateObject(ctx context.Context, name string, namespace string, objectType string, foundObject client.Object, onCreate func() error) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 
-	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, foundObject)
-	if err != nil && errors.IsNotFound(err) {
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, foundObject); err != nil && errors.IsNotFound(err) {
 		// Attempt to create the object, as it doesn't exist
 		err = onCreate()
 
 		if err != nil {
-			logger.Error(err, fmt.Sprintf("Failed to create new %v: %v/%v", objectType, namespace, name))
+			logger.Error(err, fmt.Sprintf("Failed to create new %v: '%v/%v'", objectType, namespace, name))
 			return ctrl.Result{}, err
 		}
 

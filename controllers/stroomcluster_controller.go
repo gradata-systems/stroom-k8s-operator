@@ -84,7 +84,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo); err != nil {
 		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", appDatabaseRef.DatabaseServerRef))
 		return ctrl.Result{}, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -93,7 +93,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	statsDatabaseConnectionInfo := DatabaseConnectionInfo{}
 	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &statsDatabaseRef, &statsDatabaseConnectionInfo); err != nil {
 		return ctrl.Result{}, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -106,7 +106,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	})
 	if err != nil {
 		return result, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -116,7 +116,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		logger.Error(err, fmt.Sprintf("ConfigMap '%v' referenced by StroomCluster '%v' was not found", stroomCluster.Spec.ConfigMapName, stroomCluster.Name))
 		return ctrl.Result{}, err
-	} else if result != (ctrl.Result{}) {
+	} else if !result.IsZero() {
 		return result, nil
 	}
 
@@ -131,11 +131,27 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		})
 		if err != nil {
 			return result, err
-		} else if result != (ctrl.Result{}) {
+		} else if !result.IsZero() {
 			return result, nil
 		}
 
-		// TODO: Update the replica count if different to the request
+		// Update the NodeSet replica count if different to the spec
+		currentReplicaCount := foundStatefulSet.Spec.Replicas
+		newReplicaCount := nodeSet.Count
+		if currentReplicaCount != &newReplicaCount {
+			foundStatefulSet.Spec.Replicas = &nodeSet.Count
+			if err := r.Update(ctx, &foundStatefulSet); err != nil {
+				logger.Error(err, fmt.Sprintf("NodeSet replica count could not be scaled from %v to %v", currentReplicaCount, newReplicaCount))
+				return ctrl.Result{}, err
+			}
+		}
+
+		// Disable all server tasks for nodes within the NodeSet
+		if nodeSet.Role == stroomv1.Frontend {
+			if err := r.enableNodeSetServerTasks(ctx, &appDatabaseConnectionInfo, &stroomCluster, &nodeSet, false); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 
 		foundService := corev1.Service{}
 		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetServiceName(nodeSet.Name), stroomCluster.Namespace, "Service", &foundService, func() error {
@@ -146,7 +162,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		})
 		if err != nil {
 			return result, err
-		} else if result != (ctrl.Result{}) {
+		} else if !result.IsZero() {
 			return result, nil
 		}
 	}
@@ -176,7 +192,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomCluster *stroomv1.StroomCluster) (bool, error) {
 	logger := log.FromContext(ctx)
 
-	if stroomCluster.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !stroomCluster.IsBeingDeleted() {
 		if !controllerutil.ContainsFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName) {
 			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
 			controllerutil.AddFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName)
@@ -276,7 +292,7 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 			return ctrl.Result{}, err
 		}
 
-		// Object does not exist, so create it
+		// Object created successfully, so return and requeue
 		return ctrl.Result{Requeue: true}, nil
 	} else if err != nil {
 		logger.Error(err, fmt.Sprintf("Failed to get %v", objectType))
@@ -363,4 +379,31 @@ func (r *StroomClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&stroomv1.StroomCluster{}).
 		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
+}
+
+func (r *StroomClusterReconciler) enableNodeSetServerTasks(ctx context.Context, dbInfo *DatabaseConnectionInfo, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, enabled bool) error {
+	logger := log.FromContext(ctx)
+
+	db, err := r.openDatabase(ctx, dbInfo, stroomCluster)
+	if err != nil {
+		return err
+	}
+
+	nodeName := stroomCluster.GetNodeSetName(nodeSet.Name)
+	if result, err := db.Exec("update job_node set enabled=0 where node_name like ?", nodeName+"%"); err != nil {
+		logger.Error(err, fmt.Sprintf("Could not set job enabled state to %v for NodeSet '%v'", enabled, nodeSet.Name))
+		r.closeDatabase(db)
+		return err
+	} else {
+		if rows, err := result.RowsAffected(); err != nil {
+			logger.Error(err, "Failed to get number of rows affected")
+			r.closeDatabase(db)
+			return err
+		} else {
+			logger.Info(fmt.Sprintf("Set %v server tasks for node name '%v' to '%v'", rows, nodeName, enabled))
+			r.closeDatabase(db)
+		}
+	}
+
+	return nil
 }

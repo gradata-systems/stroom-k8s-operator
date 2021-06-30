@@ -2,16 +2,34 @@ apiVersion: stroom.gchq.github.io/v1
 kind: DatabaseServer
 metadata:
   name: dev
+  namespace: stroom-7
 spec:
   image:
     repository: mysql/mysql-server
     tag: 8.0.23
-  databaseNames: [] # Names of the databases to create during initialisation
+  databaseNames:
+    - stroom
+    - stats
   additionalConfig: []
-  resources: {}
-  volumeClaim: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 500m
+      memory: 500Mi
+  volumeClaim:
+    volumeName: stroom-db
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: ""
+    resources:
+      requests:
+        storage: 100Mi
+      limits:
+        storage: 200Mi
   backup:
-    schedule: "* * * * *"
+    schedule: "*/5 * * * *"
     databaseNames:
       - stroom
       - stats
@@ -19,6 +37,18 @@ spec:
       nfs:
         path: /volume2/stroom
         server: gs-fs01.internal
+  readinessProbeTimings:
+    initialDelaySeconds: 5
+    periodSeconds: 1
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 10
+  livenessProbeTimings:
+    initialDelaySeconds: 5
+    periodSeconds: 1
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 10
   podAnnotations: {}
   podSecurityContext: {}
   securityContext: {}
