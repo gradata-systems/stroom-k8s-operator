@@ -263,7 +263,7 @@ func (r *DatabaseServerReconciler) createLivenessProbe(timings stroomv1.ProbeTim
 		Handler: corev1.Handler{
 			Exec: &corev1.ExecAction{
 				Command: []string{
-					"mysqladmin -u healthcheck ping",
+					"mysqladmin", "-u", "healthcheck", "ping",
 				},
 			},
 		},
