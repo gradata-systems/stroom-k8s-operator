@@ -44,3 +44,7 @@ func (in ResourceRef) NamespacedName() types.NamespacedName {
 		Name:      in.Name,
 	}
 }
+
+func (in ResourceRef) IsZero() bool {
+	return in.Name == "" && in.Namespace == ""
+}

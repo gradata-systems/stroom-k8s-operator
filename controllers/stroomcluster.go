@@ -23,6 +23,7 @@ const (
 	AdminPortName        = "admin"
 	AdminPortNumber      = 8081
 	StroomNodeApiKeyPath = "/stroom/auth/api_key"
+	StroomNodePvcName    = "data"
 )
 
 func (r *StroomClusterReconciler) createLabels(stroomCluster *stroomv1.StroomCluster) map[string]string {
@@ -39,6 +40,13 @@ func (r *StroomClusterReconciler) createNodeSetSelectorLabels(stroomCluster *str
 		"stroom/nodeSet":     nodeSet.Name,
 		"stroom/nodeSetRole": string(nodeSet.Role),
 	}
+}
+
+func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
+	labels := r.createLabels(stroomCluster)
+	labels["stroom/nodeSet"] = nodeSet.Name
+
+	return labels
 }
 
 func (r *StroomClusterReconciler) createServiceAccount(stroomCluster *stroomv1.StroomCluster) *corev1.ServiceAccount {
@@ -135,27 +143,27 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		MountPath: StroomNodeApiKeyPath,
 		ReadOnly:  true,
 	}, {
-		Name:      "data",
+		Name:      StroomNodePvcName,
 		SubPath:   "logs",
 		MountPath: "/stroom/logs",
 	}, {
-		Name:      "data",
+		Name:      StroomNodePvcName,
 		SubPath:   "output",
 		MountPath: "/stroom/output",
 	}, {
-		Name:      "data",
+		Name:      StroomNodePvcName,
 		SubPath:   "tmp",
 		MountPath: "/stroom/tmp",
 	}, {
-		Name:      "data",
+		Name:      StroomNodePvcName,
 		SubPath:   "proxy-repo",
 		MountPath: "/stroom/proxy_repo",
 	}, {
-		Name:      "data",
+		Name:      StroomNodePvcName,
 		SubPath:   "reference-data",
 		MountPath: "/stroom/reference_data",
 	}, {
-		Name:      "data",
+		Name:      StroomNodePvcName,
 		SubPath:   "search-results",
 		MountPath: "/stroom/search_results",
 	}}
@@ -339,7 +347,8 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			},
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "data",
+					Name:   StroomNodePvcName,
+					Labels: r.createNodeSetPvcLabels(stroomCluster, nodeSet),
 				},
 				Spec: nodeSet.LocalDataVolumeClaim,
 			}},

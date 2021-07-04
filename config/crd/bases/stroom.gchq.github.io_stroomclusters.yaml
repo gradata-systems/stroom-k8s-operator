@@ -2883,8 +2883,6 @@ spec:
                             type: string
                         type: object
                       type: array
-                    volumeClaimDeletePolicy:
-                      type: string
                   required:
                   - count
                   - localDataVolumeClaim
@@ -2932,6 +2930,8 @@ spec:
                 required:
                 - databaseName
                 type: object
+              volumeClaimDeletePolicy:
+                type: string
             required:
             - appDatabaseRef
             - image

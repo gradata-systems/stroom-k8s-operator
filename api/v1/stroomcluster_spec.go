@@ -17,7 +17,8 @@ type StroomClusterSpec struct {
 	Ingress IngressSettings `json:"ingress"`
 	// Amount of time granted to nodes to drain their active tasks before being terminated
 	// +kubebuilder:validation:Default=60
-	NodeTerminationPeriodSecs int64 `json:"nodeTerminationPeriodSecs"`
+	NodeTerminationPeriodSecs int64                   `json:"nodeTerminationPeriodSecs"`
+	VolumeClaimDeletePolicy   VolumeClaimDeletePolicy `json:"volumeClaimDeletePolicy,omitempty"`
 
 	// Each NodeSet is a functional grouping of Stroom nodes with a particular role, within the cluster.
 	// It is recommended two NodeSets should be provided: one for storing and processing data and a separate one for
