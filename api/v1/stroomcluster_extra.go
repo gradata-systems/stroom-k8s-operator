@@ -13,20 +13,17 @@ type IngressSettings struct {
 	ClassName  string `json:"className,omitempty"`
 }
 
-type DatabaseRef struct {
+type DatabaseServerRef struct {
 	// If specified, point to an operator-managed DatabaseServer object
 	// +optional
-	DatabaseServerRef ResourceRef `json:"databaseServerRef,omitempty"`
+	ServerRef ResourceRef `json:"serverRef,omitempty"`
 
 	// Alternatively, if the following parameters are provided, point directly to a DB by its TCP address.
 	// This allows external database instances to be used in place of an operator-managed one.
-	ConnectionSpec DatabaseAddress `json:"connectionSpec,omitempty"`
-
-	// +kubebuilder:validation:MinLength=1
-	DatabaseName string `json:"databaseName"`
+	ServerAddress ServerAddress `json:"serverAddress,omitempty"`
 }
 
-type DatabaseAddress struct {
+type ServerAddress struct {
 	Address    string `json:"address,omitempty"`
 	Port       int32  `json:"port,omitempty"`
 	SecretName string `json:"secretName,omitempty"`

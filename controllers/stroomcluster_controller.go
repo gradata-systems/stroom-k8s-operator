@@ -85,19 +85,10 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Retrieve app database connection info
-	appDatabaseRef := stroomCluster.Spec.AppDatabaseRef
-	appDatabaseConnectionInfo := DatabaseConnectionInfo{}
-	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &appDatabaseRef, &appDatabaseConnectionInfo); err != nil {
-		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", appDatabaseRef.DatabaseServerRef))
-		return ctrl.Result{}, err
-	} else if !result.IsZero() {
-		return result, nil
-	}
-
-	// Retrieve stats database connection info
-	statsDatabaseRef := stroomCluster.Spec.StatsDatabaseRef
-	statsDatabaseConnectionInfo := DatabaseConnectionInfo{}
-	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &statsDatabaseRef, &statsDatabaseConnectionInfo); err != nil {
+	dbServerRef := stroomCluster.Spec.DatabaseServerRef
+	dbInfo := DatabaseConnectionInfo{}
+	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &dbServerRef, &dbInfo); err != nil {
+		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", dbServerRef.ServerRef))
 		return ctrl.Result{}, err
 	} else if !result.IsZero() {
 		return result, nil
@@ -105,7 +96,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// If StroomCluster is deleted or an error occurs when adding a finalizer, do not proceed with child item creation
 	var requeue, clusterDeleted bool
-	if err := r.checkIfDeleted(ctx, &stroomCluster, &appDatabaseConnectionInfo, &statsDatabaseConnectionInfo, &requeue, &clusterDeleted); err != nil {
+	if err := r.checkIfDeleted(ctx, &stroomCluster, &dbInfo, &requeue, &clusterDeleted); err != nil {
 		return ctrl.Result{}, err
 	} else if requeue {
 		// Waiting for Stroom task completion, so check again in a minute
@@ -131,7 +122,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Get the API key of the Stroom internal processing user, so it can be used to query the API in lifecycle scripts
 	apiKey := ""
-	if err := r.getApiKey(ctx, &stroomCluster, &appDatabaseConnectionInfo, &apiKey); err != nil {
+	if err := r.getApiKey(ctx, &stroomCluster, &dbInfo, &apiKey); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -183,7 +174,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		foundStatefulSet := appsv1.StatefulSet{}
 		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetName(nodeSet.Name), stroomCluster.Namespace, "StatefulSet", &foundStatefulSet, func() error {
 			// Create a StatefulSet for the NodeSet
-			resource := r.createStatefulSet(&stroomCluster, &nodeSet, &appDatabaseConnectionInfo, &statsDatabaseConnectionInfo)
+			resource := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
 			logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
 			return r.Create(ctx, resource)
 		})
@@ -314,7 +305,7 @@ func (r *StroomClusterReconciler) deletePvcs(ctx context.Context, stroomCluster 
 
 // checkIfDeleted returns whether the object is being deleted and if any error occurred during finalisation
 func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomCluster *stroomv1.StroomCluster, appDatabase *DatabaseConnectionInfo,
-	statsDatabase *DatabaseConnectionInfo, requeue *bool, clusterDeleted *bool) error {
+	requeue *bool, clusterDeleted *bool) error {
 	logger := log.FromContext(ctx)
 
 	*clusterDeleted = false
@@ -324,9 +315,6 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 		// Add finalizers to database server objects to prevent them from being removed while the StroomCluster
 		// still exists
 		if err := r.addFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
-			return err
-		}
-		if err := r.addFinalizer(ctx, statsDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
 			return err
 		}
 
@@ -341,6 +329,8 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 		// Disable node task processing, allowing nodes to drain
 		if err := r.disableTaskProcessing(ctx, stroomCluster, appDatabase); err != nil {
 			return err
+		} else {
+			logger.Info("Task processing disabled, nodes draining", "StroomCluster", stroomCluster.Name)
 		}
 
 		// Check whether there are any active Stroom node tasks. Only allow deletion once they are completed.
@@ -352,7 +342,7 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 			// Requeue so we can check again after some time, to allow node server tasks to finish
 			remainingTaskSummary := fmt.Sprintf("StroomCluster deletion waiting on task completion for %v nodes: ", len(remainingTasks))
 			for nodeName, taskCount := range remainingTasks {
-				remainingTaskSummary += fmt.Sprintf("%v (%v)", nodeName, taskCount)
+				remainingTaskSummary += fmt.Sprintf("%v (%v) ", nodeName, taskCount)
 			}
 			logger.Info(remainingTaskSummary, "StroomCluster", stroomCluster.Name)
 			*requeue = true
@@ -369,11 +359,6 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 		if err := r.removeFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
 			logger.Error(err, "Finalizer could not be removed from DatabaseServer",
 				"Namespace", appDatabase.DatabaseServer.Namespace, "Name", appDatabase.DatabaseServer.Name)
-			return err
-		}
-		if err := r.removeFinalizer(ctx, statsDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
-			logger.Error(err, "Finalizer could not be removed from DatabaseServer",
-				"Namespace", statsDatabase.DatabaseServer.Namespace, "Name", statsDatabase.DatabaseServer.Name)
 			return err
 		}
 
@@ -415,21 +400,14 @@ func (r *StroomClusterReconciler) removeFinalizer(ctx context.Context, obj clien
 func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) error {
 	logger := log.FromContext(ctx)
 
-	var podList corev1.PodList
-	if err := r.getPods(ctx, stroomCluster, &podList); err != nil {
+	if db, err := r.openDatabase(ctx, dbInfo, stroomCluster); err != nil {
 		return err
 	} else {
-		if db, err := r.openDatabase(ctx, dbInfo, stroomCluster); err != nil {
-			return err
-		} else {
-			defer r.closeDatabase(db)
+		defer r.closeDatabase(db)
 
-			for _, pod := range podList.Items {
-				if _, err := db.Exec("update job_node set enabled = 0 where node_name = ?", pod.Name); err != nil {
-					logger.Error(err, "Failed to disable Stroom node task processing", "NodeName", pod.Name)
-					return err
-				}
-			}
+		if _, err := db.Exec("update job_node set enabled = 0 where node_name like ?", stroomCluster.GetBaseName()+"%"); err != nil {
+			logger.Error(err, "Failed to disable Stroom node task processing", "StroomCluster", stroomCluster.Name)
+			return err
 		}
 	}
 
@@ -552,20 +530,20 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 	return ctrl.Result{}, nil
 }
 
-func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseRef, dbConnectionInfo *DatabaseConnectionInfo) (ctrl.Result, error) {
+func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseServerRef, dbConnectionInfo *DatabaseConnectionInfo) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	if dbRef.DatabaseServerRef == (stroomv1.ResourceRef{}) {
+	if dbRef.ServerRef == (stroomv1.ResourceRef{}) {
 		// This is an external database connection
-		dbConnectionInfo.Address = dbRef.ConnectionSpec.Address
-		dbConnectionInfo.Port = dbRef.ConnectionSpec.Port
-		dbConnectionInfo.SecretName = dbRef.ConnectionSpec.SecretName
+		dbConnectionInfo.Address = dbRef.ServerAddress.Address
+		dbConnectionInfo.Port = dbRef.ServerAddress.Port
+		dbConnectionInfo.SecretName = dbRef.ServerAddress.SecretName
 	} else {
 		// Get or create an operator-managed database instance
 		dbServer := stroomv1.DatabaseServer{}
-		dbReference := dbRef.DatabaseServerRef
+		dbReference := dbRef.ServerRef
 
-		// If the DatabaseRef namespace is empty, try to find the DatabaseServer in the same namespace as StroomCluster
+		// If the ServerRef namespace is empty, try to find the DatabaseServer in the same namespace as StroomCluster
 		if dbReference.Namespace == "" {
 			dbReference.Namespace = stroomCluster.Namespace
 		}
@@ -588,8 +566,6 @@ func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context,
 			dbConnectionInfo.SecretName = dbServer.GetSecretName()
 		}
 	}
-
-	dbConnectionInfo.DatabaseName = dbRef.DatabaseName
 
 	return ctrl.Result{}, nil
 }

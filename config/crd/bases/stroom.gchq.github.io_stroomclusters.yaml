@@ -36,9 +36,12 @@ spec:
           spec:
             description: StroomClusterSpec defines the desired state of StroomCluster
             properties:
-              appDatabaseRef:
+              appDatabaseName:
+                minLength: 1
+                type: string
+              databaseServerRef:
                 properties:
-                  connectionSpec:
+                  serverAddress:
                     description: Alternatively, if the following parameters are provided,
                       point directly to a DB by its TCP address. This allows external
                       database instances to be used in place of an operator-managed
@@ -52,10 +55,7 @@ spec:
                       secretName:
                         type: string
                     type: object
-                  databaseName:
-                    minLength: 1
-                    type: string
-                  databaseServerRef:
+                  serverRef:
                     description: If specified, point to an operator-managed DatabaseServer
                       object
                     properties:
@@ -66,8 +66,6 @@ spec:
                     required:
                     - name
                     type: object
-                required:
-                - databaseName
                 type: object
               extraEnv:
                 description: Additional environment variables provided to NodeSet
@@ -2897,48 +2895,19 @@ spec:
                   tasks before being terminated
                 format: int64
                 type: integer
-              statsDatabaseRef:
-                properties:
-                  connectionSpec:
-                    description: Alternatively, if the following parameters are provided,
-                      point directly to a DB by its TCP address. This allows external
-                      database instances to be used in place of an operator-managed
-                      one.
-                    properties:
-                      address:
-                        type: string
-                      port:
-                        format: int32
-                        type: integer
-                      secretName:
-                        type: string
-                    type: object
-                  databaseName:
-                    minLength: 1
-                    type: string
-                  databaseServerRef:
-                    description: If specified, point to an operator-managed DatabaseServer
-                      object
-                    properties:
-                      name:
-                        type: string
-                      namespace:
-                        type: string
-                    required:
-                    - name
-                    type: object
-                required:
-                - databaseName
-                type: object
+              statsDatabaseName:
+                minLength: 1
+                type: string
               volumeClaimDeletePolicy:
                 type: string
             required:
-            - appDatabaseRef
+            - appDatabaseName
+            - databaseServerRef
             - image
             - ingress
             - nodeSets
             - nodeTerminationPeriodSecs
-            - statsDatabaseRef
+            - statsDatabaseName
             type: object
           status:
             description: StroomClusterStatus defines the observed state of StroomCluster

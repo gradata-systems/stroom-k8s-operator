@@ -14,6 +14,8 @@ import (
 func (r *StroomClusterReconciler) openDatabase(ctx context.Context, dbInfo *DatabaseConnectionInfo, stroomCluster *stroomv1.StroomCluster) (*sql.DB, error) {
 	logger := log.FromContext(ctx)
 
+	databaseName := stroomCluster.Spec.AppDatabaseName
+
 	// Get password from secret
 	dbSecret := v1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: stroomCluster.Namespace, Name: dbInfo.SecretName}, &dbSecret); err != nil {
@@ -23,9 +25,9 @@ func (r *StroomClusterReconciler) openDatabase(ctx context.Context, dbInfo *Data
 
 	fqdn := fmt.Sprintf("%v.%v.svc.cluster.local", dbInfo.Address, stroomCluster.Namespace)
 	password := string(dbSecret.Data[DatabaseServiceUserName])
-	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", DatabaseServiceUserName, password, fqdn, dbInfo.Port, dbInfo.DatabaseName)
+	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", DatabaseServiceUserName, password, fqdn, dbInfo.Port, databaseName)
 	if db, err := sql.Open("mysql", dataSourceName); err != nil {
-		logger.Error(err, "Could not connect to database", "HostName", fqdn, "Database", dbInfo.DatabaseName, "User", DatabaseServiceUserName)
+		logger.Error(err, "Could not connect to database", "HostName", fqdn, "Database", databaseName, "User", DatabaseServiceUserName)
 		return nil, err
 	} else {
 		return db, nil

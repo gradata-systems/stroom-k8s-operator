@@ -33,13 +33,10 @@ var _ = Describe("StroomCluster", func() {
 					Image: Image{
 						Repository: "gchq/stroom",
 					},
-					AppDatabaseRef: DatabaseRef{
-						DatabaseName: "stroom",
-					},
-					StatsDatabaseRef: DatabaseRef{
-						DatabaseName: "stats",
-					},
-					Ingress: IngressSettings{},
+					DatabaseServerRef: DatabaseServerRef{},
+					AppDatabaseName:   "stroom",
+					StatsDatabaseName: "stats",
+					Ingress:           IngressSettings{},
 					NodeSets: []NodeSet{{
 						Name:  "nodeset-1",
 						Count: 1,

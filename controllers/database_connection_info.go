@@ -7,11 +7,10 @@ import (
 
 type DatabaseConnectionInfo struct {
 	DatabaseServer *v1.DatabaseServer
-	v1.DatabaseAddress
-	DatabaseName string
+	v1.ServerAddress
 }
 
-func (dbInfo *DatabaseConnectionInfo) ToJdbcConnectionString() string {
+func (dbInfo *DatabaseConnectionInfo) ToJdbcConnectionString(databaseName string) string {
 	return fmt.Sprintf("jdbc:mysql://%v:%v/%v?useUnicode=yes&characterEncoding=UTF-8",
-		dbInfo.Address, dbInfo.Port, dbInfo.DatabaseName)
+		dbInfo.Address, dbInfo.Port, databaseName)
 }

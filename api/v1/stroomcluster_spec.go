@@ -10,9 +10,13 @@ type StroomClusterSpec struct {
 	// Additional environment variables provided to NodeSet pods
 	ExtraEnv []corev1.EnvVar `json:"extraEnv,omitempty"`
 	// +kubebuilder:validation:Required
-	AppDatabaseRef DatabaseRef `json:"appDatabaseRef"`
-	// +kubebuilder:validation:Required
-	StatsDatabaseRef DatabaseRef `json:"statsDatabaseRef"`
+	DatabaseServerRef DatabaseServerRef `json:"databaseServerRef"`
+	// +kubebuilder:validation:Default="stroom"
+	// +kubebuilder:validation:MinLength=1
+	AppDatabaseName string `json:"appDatabaseName"`
+	// +kubebuilder:validation:Default="stats"
+	// +kubebuilder:validation:MinLength=1
+	StatsDatabaseName string `json:"statsDatabaseName"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
 	// Amount of time granted to nodes to drain their active tasks before being terminated

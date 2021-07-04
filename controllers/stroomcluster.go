@@ -94,8 +94,7 @@ func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.Stroom
 	return &configMap
 }
 
-func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet,
-	appDatabase *DatabaseConnectionInfo, statsDatabase *DatabaseConnectionInfo) *appsv1.StatefulSet {
+func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
 	selectorLabels := r.createNodeSetSelectorLabels(stroomCluster, nodeSet)
 	secretFileMode := stroomv1.SecretFileMode
 
@@ -262,7 +261,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							Value: string(nodeSet.Role),
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_URL",
-							Value: appDatabase.ToJdbcConnectionString(),
+							Value: dbInfo.ToJdbcConnectionString(stroomCluster.Spec.AppDatabaseName),
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_CLASS_NAME",
 							Value: "com.mysql.cj.jdbc.Driver",
@@ -274,14 +273,14 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							ValueFrom: &corev1.EnvVarSource{
 								SecretKeyRef: &corev1.SecretKeySelector{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: appDatabase.SecretName,
+										Name: dbInfo.SecretName,
 									},
 									Key: DatabaseServiceUserName,
 								},
 							},
 						}, {
 							Name:  "STROOM_STATISTICS_JDBC_DRIVER_URL",
-							Value: statsDatabase.ToJdbcConnectionString(),
+							Value: dbInfo.ToJdbcConnectionString(stroomCluster.Spec.StatsDatabaseName),
 						}, {
 							Name:  "STROOM_STATISTICS_JDBC_DRIVER_CLASS_NAME",
 							Value: "com.mysql.cj.jdbc.Driver",
@@ -293,7 +292,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							ValueFrom: &corev1.EnvVarSource{
 								SecretKeyRef: &corev1.SecretKeySelector{
 									LocalObjectReference: corev1.LocalObjectReference{
-										Name: statsDatabase.SecretName,
+										Name: dbInfo.SecretName,
 									},
 									Key: DatabaseServiceUserName,
 								},
