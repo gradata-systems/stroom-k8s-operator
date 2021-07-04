@@ -3,7 +3,10 @@ package v1
 import corev1 "k8s.io/api/core/v1"
 
 type NodeSet struct {
-	Name                    string                           `json:"name"`
+	// Unique identity of the NodeSet. Should be a short name like "prod".
+	Name string `json:"name"`
+	// Number of replicas (discrete Stroom nodes) in the NodeSet
+	// +kubebuilder:validation:Minimum=1
 	Count                   int32                            `json:"count"`
 	Role                    NodeRole                         `json:"role,omitempty"`
 	LocalDataVolumeClaim    corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
@@ -11,9 +14,8 @@ type NodeSet struct {
 	VolumeClaimDeletePolicy VolumeClaimDeletePolicy          `json:"volumeClaimDeletePolicy,omitempty"`
 	Resources               corev1.ResourceRequirements      `json:"resources"`
 	IngressEnabled          bool                             `json:"ingressEnabled,omitempty"`
-	StartupProbeTimings     ProbeTimings                     `json:"startupProbeTimings,omitempty"`
+	ReadinessProbeTimings   ProbeTimings                     `json:"readinessProbeTimings,omitempty"`
 	LivenessProbeTimings    ProbeTimings                     `json:"livenessProbeTimings,omitempty"`
-	JavaOpts                string                           `json:"javaOpts,omitempty"`
 	PodAnnotations          map[string]string                `json:"podAnnotations,omitempty"`
 	PodSecurityContext      corev1.PodSecurityContext        `json:"podSecurityContext,omitempty"`
 	SecurityContext         corev1.SecurityContext           `json:"securityContext,omitempty"`

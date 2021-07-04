@@ -18,15 +18,21 @@ package controllers
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"github.com/go-logr/logr"
+	controllers "github.com/p-kimberley/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"path"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,13 +49,18 @@ type StroomClusterReconciler struct {
 	Log    logr.Logger
 }
 
+//go:embed static_content
+var StaticFiles embed.FS
+
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters/finalizers,verbs=update
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
 
@@ -73,11 +84,6 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, err
 	}
 
-	// If item is deleted or an error occurs when adding a finalizer, bail out
-	if deleted, err := r.checkIfDeleted(ctx, &stroomCluster); deleted || err != nil {
-		return ctrl.Result{}, err
-	}
-
 	// Retrieve app database connection info
 	appDatabaseRef := stroomCluster.Spec.AppDatabaseRef
 	appDatabaseConnectionInfo := DatabaseConnectionInfo{}
@@ -97,6 +103,25 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return result, nil
 	}
 
+	// If StroomCluster is deleted or an error occurs when adding a finalizer, do not proceed with child item creation
+	var requeue, clusterDeleted bool
+	if err := r.checkIfDeleted(ctx, &stroomCluster, &appDatabaseConnectionInfo, &statsDatabaseConnectionInfo, &requeue, &clusterDeleted); err != nil {
+		return ctrl.Result{}, err
+	} else if requeue {
+		// Waiting for Stroom task completion, so check again in a minute
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	} else if clusterDeleted {
+		return ctrl.Result{}, err
+	}
+
+	// Get the API key of the Stroom internal processing user, so it can be used to query the API in lifecycle scripts
+	apiKey := ""
+	if err := r.getApiKey(ctx, &stroomCluster, &appDatabaseConnectionInfo, &apiKey); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Create child objects
+
 	foundServiceAccount := corev1.ServiceAccount{}
 	result, err := r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "ServiceAccount", &foundServiceAccount, func() error {
 		// Create a new ServiceAccount
@@ -110,12 +135,46 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return result, nil
 	}
 
-	// Check the StroomCluster ConfigMap exists
-	foundConfigMap := corev1.ConfigMap{}
-	err = r.Get(ctx, types.NamespacedName{Name: stroomCluster.Spec.ConfigMapName, Namespace: stroomCluster.Namespace}, &foundConfigMap)
+	// Create a Secret containing the Stroom API key
+	foundSecret := corev1.Secret{}
+	result, err = r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "Secret", &foundSecret, func() error {
+		// Create the Secret
+		resource := r.createSecret(&stroomCluster, apiKey)
+		logger.Info("Creating new Secret", "Namespace", resource.Namespace, "Name", resource.Name)
+		return r.Create(ctx, resource)
+	})
 	if err != nil {
-		logger.Error(err, fmt.Sprintf("ConfigMap '%v' referenced by StroomCluster '%v' was not found", stroomCluster.Spec.ConfigMapName, stroomCluster.Name))
-		return ctrl.Result{}, err
+		return result, err
+	} else if !result.IsZero() {
+		return result, nil
+	}
+
+	// Create a ConfigMap containing Stroom configuration and lifecycle scripts
+	foundConfigMap := corev1.ConfigMap{}
+	result, err = r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
+		if files, err := StaticFiles.ReadDir("static_content"); err != nil {
+			logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
+			return err
+		} else {
+			allFileData := make(map[string]string)
+			for _, file := range files {
+				logger.Info("Found static file", "Filename", file.Name())
+				if data, err := StaticFiles.ReadFile(path.Join("static_content", file.Name())); err != nil {
+					logger.Error(err, "Could not read static file", "Filename", file.Name())
+					return err
+				} else {
+					allFileData[file.Name()] = string(data)
+				}
+			}
+
+			// Create the ConfigMap
+			resource := r.createConfigMap(&stroomCluster, allFileData)
+			logger.Info("Creating new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
+			return r.Create(ctx, resource)
+		}
+	})
+	if err != nil {
+		return result, err
 	} else if !result.IsZero() {
 		return result, nil
 	}
@@ -136,9 +195,9 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		// Update the NodeSet replica count if different to the spec
-		currentReplicaCount := foundStatefulSet.Spec.Replicas
+		currentReplicaCount := *foundStatefulSet.Spec.Replicas
 		newReplicaCount := nodeSet.Count
-		if currentReplicaCount != &newReplicaCount {
+		if currentReplicaCount != newReplicaCount {
 			foundStatefulSet.Spec.Replicas = &nodeSet.Count
 			if err := r.Update(ctx, &foundStatefulSet); err != nil {
 				logger.Error(err, fmt.Sprintf("NodeSet replica count could not be scaled from %v to %v", currentReplicaCount, newReplicaCount))
@@ -146,12 +205,16 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 
-		// Disable all server tasks for nodes within the NodeSet
-		if nodeSet.Role == stroomv1.Frontend {
-			if err := r.enableNodeSetServerTasks(ctx, &appDatabaseConnectionInfo, &stroomCluster, &nodeSet, false); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
+		// Ensure all NodeSet nodes are enabled, as a node is disabled when it's being deleted
+		//if err := r.enableNodeSet(ctx, &appDatabaseConnectionInfo, &stroomCluster, &nodeSet, true); err != nil {
+		//	return ctrl.Result{}, err
+		//}
+
+		// Disable node server task processing for UI-only nodes and enable them for all others
+		//enableNodeServerTasks := nodeSet.Role != stroomv1.Frontend
+		//if err := r.enableNodeSetServerTasks(ctx, &appDatabaseConnectionInfo, &stroomCluster, &nodeSet, enableNodeServerTasks); err != nil {
+		//	return ctrl.Result{}, err
+		//}
 
 		foundService := corev1.Service{}
 		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetServiceName(nodeSet.Name), stroomCluster.Namespace, "Service", &foundService, func() error {
@@ -189,44 +252,180 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomCluster *stroomv1.StroomCluster) (bool, error) {
+// checkIfDeleted returns whether the object is being deleted and if any error occurred during finalisation
+func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomCluster *stroomv1.StroomCluster, appDatabase *DatabaseConnectionInfo, statsDatabase *DatabaseConnectionInfo, requeue *bool, clusterDeleted *bool) error {
 	logger := log.FromContext(ctx)
 
+	*clusterDeleted = false
+	*requeue = false
+
 	if !stroomCluster.IsBeingDeleted() {
-		if !controllerutil.ContainsFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName) {
-			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
-			controllerutil.AddFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName)
-			if err := r.Update(ctx, stroomCluster); err != nil {
-				return false, err
-			}
+		// Add finalizers to database server objects to prevent them from being removed while the StroomCluster
+		// still exists
+		if err := r.addFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
+			return err
 		}
+		if err := r.addFinalizer(ctx, statsDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
+			return err
+		}
+
+		// Add finalizer to all pods, to prevent each from being removed till all its server tasks have completed
+		//if _, err := r.updatePodFinalizers(ctx, stroomCluster, appDatabase, stroomv1.WaitNodeTasksFinalizerName); err != nil {
+		//	return err
+		//}
 	} else {
+		// Cluster is being deleted
+		*clusterDeleted = true
+
+		// Check whether StroomCluster nodes have active Stroom tasks. Where they do, ensure a finalizer is added to prevent
+		// node deletion. If they don't, remove the finalizer to allow deletion.
+		//if tasksRemain, err := r.updatePodFinalizers(ctx, stroomCluster, appDatabase, stroomv1.WaitNodeTasksFinalizerName); err != nil {
+		//	return err
+		//} else if tasksRemain {
+		//	// Requeue so we can check again after some time, to allow node server tasks to finish
+		//	*requeue = true
+		//	return nil
+		//}
+
 		if controllerutil.ContainsFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName) {
-			// TODO: Add deletion blocking logic
-
 			// Remove finalizer from the linked DatabaseServers
-			appDbResult := r.removeDatabaseFinalizer(ctx, stroomCluster, stroomCluster.Spec.AppDatabaseRef.DatabaseServerRef)
-			statsDbResult := r.removeDatabaseFinalizer(ctx, stroomCluster, stroomCluster.Spec.StatsDatabaseRef.DatabaseServerRef)
-			if appDbResult != nil && statsDbResult != nil {
-				// A failure occurred, so block deletion until this resolves
-				return true, nil
+			if err := r.removeFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
+				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v/%v'",
+					appDatabase.DatabaseServer.Namespace, appDatabase.DatabaseServer.Name))
+				return err
 			}
-
-			// Remove the finalizer, allowing the StroomCluster to be removed
-			controllerutil.RemoveFinalizer(stroomCluster, stroomv1.StroomClusterFinalizerName)
-			if err := r.Update(ctx, stroomCluster); err != nil {
-				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from StroomCluster '%v/%v'", stroomCluster.Namespace, stroomCluster.Name))
-				return true, err
+			if err := r.removeFinalizer(ctx, statsDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
+				logger.Error(err, fmt.Sprintf("Finalizer could not be removed from DatabaseServer '%v/%v'",
+					statsDatabase.DatabaseServer.Namespace, statsDatabase.DatabaseServer.Name))
+				return err
 			}
 
 			logger.Info(fmt.Sprintf("StroomCluster '%v/%v' deleted", stroomCluster.Namespace, stroomCluster.Name))
 		}
 
 		r.cleanup(ctx, stroomCluster)
-		return true, nil
+		return nil
+	}
+
+	return nil
+}
+
+func (r *StroomClusterReconciler) addFinalizer(ctx context.Context, obj client.Object, finalizerName string) error {
+	if obj != nil {
+		if !controllerutil.ContainsFinalizer(obj, finalizerName) {
+			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
+			controllerutil.AddFinalizer(obj, finalizerName)
+			return r.Update(ctx, obj)
+		}
+	}
+
+	return nil
+}
+
+func (r *StroomClusterReconciler) removeFinalizer(ctx context.Context, obj client.Object, finalizerName string) error {
+	if obj != nil {
+		if controllerutil.ContainsFinalizer(obj, finalizerName) {
+			controllerutil.RemoveFinalizer(obj, finalizerName)
+			return r.Update(ctx, obj)
+		}
+	}
+
+	return nil
+}
+
+// addFinalizerToPods adds a finalizer to each Pod owned by the StroomCluster StatefulSet, to prevent it from being deleted
+// while it has server tasks active
+func (r *StroomClusterReconciler) addFinalizerToPods(ctx context.Context, stroomCluster *stroomv1.StroomCluster, finalizerName string) error {
+	logger := log.FromContext(ctx)
+
+	pods := corev1.PodList{}
+	if err := r.getPods(ctx, stroomCluster, &pods); err != nil {
+		return err
+	}
+
+	for _, pod := range pods.Items {
+		if err := r.addFinalizer(ctx, &pod, finalizerName); err != nil {
+			logger.Error(err, fmt.Sprintf("Failed to add finalizer to pod '%v/%v'", pod.Namespace, pod.Name))
+			return err
+		}
+	}
+
+	return nil
+}
+
+// updatePodFinalizers removes the finalizer from StroomCluster pods that have no active Stroom tasks.
+// Returns whether tasks are still running on any node.
+func (r *StroomClusterReconciler) updatePodFinalizers(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, finalizerName string) (bool, error) {
+	logger := log.FromContext(ctx)
+
+	// Get the current active server tasks
+	if db, err := r.openDatabase(ctx, dbInfo, stroomCluster); err != nil {
+		return false, err
+	} else {
+		defer r.closeDatabase(db)
+
+		pods := corev1.PodList{}
+		if err := r.getPods(ctx, stroomCluster, &pods); err != nil {
+			return false, err
+		}
+
+		// For each pod in the StroomCluster determine whether any active Stroom tasks are running
+		for _, pod := range pods.Items {
+			// Stop Stroom node task processing for this pod, so any remaining tasks can drain
+			if err := r.enableNodeServerTasks(ctx, dbInfo, stroomCluster, pod.Name, false); err != nil {
+				return false, err
+			}
+
+			row, err := db.Query("select count(*) as task_count "+
+				"from processor_task pt inner join node n on n.id = pt.fk_processor_node_id "+
+				"where n.name = ? and pt.status = ?", pod.Name, controllers.NodeTaskStatusProcessing)
+
+			if err != nil {
+				logger.Error(err, fmt.Sprintf("Failed to query the active Stroom processor tasks for cluster '%v'", stroomCluster.Name))
+				return false, err
+			}
+
+			var taskCount int
+			if err := row.Scan(&taskCount); err != nil {
+				logger.Error(err, fmt.Sprintf("Could not parse task count"))
+				return false, err
+			}
+
+			if taskCount == 0 {
+				// No active tasks, so remove finalizer
+				if err := r.removeFinalizer(ctx, &pod, finalizerName); err != nil {
+					logger.Error(err, fmt.Sprintf("Could not remove finalizer from Pod '%v'", pod.Name))
+					return false, err
+				}
+			} else {
+				if err := r.addFinalizer(ctx, &pod, finalizerName); err != nil {
+					logger.Error(err, fmt.Sprintf("Could not add finalizer to Pod '%v'", pod.Name))
+					return true, err
+				}
+
+				logger.Info(fmt.Sprintf("Node '%v' not permitted to shut down as %v tasks are still running", pod.Name, taskCount))
+				return true, nil
+			}
+		}
 	}
 
 	return false, nil
+}
+
+func (r *StroomClusterReconciler) getPods(ctx context.Context, stroomCluster *stroomv1.StroomCluster, podList *corev1.PodList) error {
+	logger := log.FromContext(ctx)
+
+	listOptions := []client.ListOption{
+		client.InNamespace(stroomCluster.Namespace),
+		client.MatchingLabels(r.createLabels(stroomCluster)),
+	}
+
+	if err := r.List(ctx, podList, listOptions...); err != nil {
+		logger.Error(err, fmt.Sprintf("Failed to list pods for '%v/%v'", stroomCluster.Namespace, stroomCluster.Name))
+		return err
+	}
+
+	return nil
 }
 
 // cleanup performs post-deletion actions like removing Ingress resources created by the operator
@@ -249,34 +448,6 @@ func (r *StroomClusterReconciler) cleanup(ctx context.Context, stroomCluster *st
 				logger.Error(err, fmt.Sprintf("Could not delete Ingress '%v'", err))
 			}
 		}
-	}
-}
-
-func (r *StroomClusterReconciler) removeDatabaseFinalizer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef) error {
-	logger := log.FromContext(ctx)
-	dbServer := stroomv1.DatabaseServer{}
-
-	if dbRef == (stroomv1.ResourceRef{}) {
-		return nil
-	}
-
-	// Use the StroomCluster namespace if none specified
-	if dbRef.Namespace == "" {
-		dbRef.Namespace = stroomCluster.Namespace
-	}
-
-	if err := r.Get(ctx, dbRef.NamespacedName(), &dbServer); err == nil {
-		controllerutil.RemoveFinalizer(&dbServer, stroomv1.StroomClusterFinalizerName)
-		if err := r.Update(ctx, &dbServer); err == nil {
-			return nil
-		} else {
-			logger.Error(err, fmt.Sprintf("Could not remove finalizer from DatabaseServer '%v'", dbRef))
-			return err
-		}
-	} else {
-		logger.Error(err, fmt.Sprintf("Could not find DatabaseServer '%v' in order to remove finalizer", dbRef))
-		// Return `nil` to allow deletion of StroomCluster to continue. DatabaseServer may have been deleted manually.
-		return nil
 	}
 }
 
@@ -373,12 +544,30 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 	return nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *StroomClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&stroomv1.StroomCluster{}).
-		Owns(&appsv1.StatefulSet{}).
-		Complete(r)
+func (r *StroomClusterReconciler) enableNodeSet(ctx context.Context, dbInfo *DatabaseConnectionInfo, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, enabled bool) error {
+	logger := log.FromContext(ctx)
+
+	db, err := r.openDatabase(ctx, dbInfo, stroomCluster)
+	if err != nil {
+		return err
+	}
+
+	defer r.closeDatabase(db)
+
+	nodeSetName := stroomCluster.GetNodeSetName(nodeSet.Name)
+	if result, err := db.Exec("update node set enabled = ? where name like ?", enabled, nodeSetName+"%"); err != nil {
+		logger.Error(err, fmt.Sprintf("Could not set enabled state to %v for NodeSet '%v'", enabled, nodeSet.Name))
+		return err
+	} else {
+		if rows, err := result.RowsAffected(); err != nil {
+			logger.Error(err, "Failed to get number of rows affected")
+			return err
+		} else {
+			logger.Info(fmt.Sprintf("Set %v NodeSet enabled state '%v' to '%v'", rows, nodeSetName, enabled))
+		}
+	}
+
+	return nil
 }
 
 func (r *StroomClusterReconciler) enableNodeSetServerTasks(ctx context.Context, dbInfo *DatabaseConnectionInfo, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, enabled bool) error {
@@ -389,21 +578,73 @@ func (r *StroomClusterReconciler) enableNodeSetServerTasks(ctx context.Context, 
 		return err
 	}
 
-	nodeName := stroomCluster.GetNodeSetName(nodeSet.Name)
-	if result, err := db.Exec("update job_node set enabled=0 where node_name like ?", nodeName+"%"); err != nil {
+	defer r.closeDatabase(db)
+
+	nodeSetName := stroomCluster.GetNodeSetName(nodeSet.Name)
+	if result, err := db.Exec("update job_node set enabled = ? where node_name like ?", enabled, nodeSetName+"%"); err != nil {
 		logger.Error(err, fmt.Sprintf("Could not set job enabled state to %v for NodeSet '%v'", enabled, nodeSet.Name))
-		r.closeDatabase(db)
 		return err
 	} else {
 		if rows, err := result.RowsAffected(); err != nil {
 			logger.Error(err, "Failed to get number of rows affected")
-			r.closeDatabase(db)
 			return err
 		} else {
-			logger.Info(fmt.Sprintf("Set %v server tasks for node name '%v' to '%v'", rows, nodeName, enabled))
-			r.closeDatabase(db)
+			logger.Info(fmt.Sprintf("Set %v server tasks for node name '%v' to '%v'", rows, nodeSetName, enabled))
 		}
 	}
 
 	return nil
+}
+
+func (r *StroomClusterReconciler) enableNodeServerTasks(ctx context.Context, dbInfo *DatabaseConnectionInfo, stroomCluster *stroomv1.StroomCluster, nodeName string, enabled bool) error {
+	logger := log.FromContext(ctx)
+
+	db, err := r.openDatabase(ctx, dbInfo, stroomCluster)
+	if err != nil {
+		return err
+	}
+
+	defer r.closeDatabase(db)
+
+	if result, err := db.Exec("update job_node set enabled = ? where node_name = ?", enabled, nodeName); err != nil {
+		logger.Error(err, fmt.Sprintf("Could not set job enabled state to %v for node '%v'", enabled, nodeName))
+		return err
+	} else {
+		if rows, err := result.RowsAffected(); err != nil {
+			logger.Error(err, "Failed to get number of rows affected")
+			return err
+		} else {
+			logger.Info(fmt.Sprintf("Set %v server tasks for node '%v' to '%v'", rows, nodeName, enabled))
+		}
+	}
+
+	return nil
+}
+
+// getApiKey retrieves the first active API key created by the Stroom internal processing user
+func (r *StroomClusterReconciler) getApiKey(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, apiKey *string) error {
+	logger := log.FromContext(ctx)
+
+	if db, err := r.openDatabase(ctx, dbInfo, stroomCluster); err != nil {
+		return err
+	} else {
+		defer r.closeDatabase(db)
+
+		row := db.QueryRow("select data from token where create_user = ? and enabled = 1 limit 1", stroomv1.StroomInternalUserName)
+		if err := row.Scan(apiKey); err != nil {
+			logger.Error(err, "Could not retrieve API key from database", "User", stroomv1.StroomInternalUserName)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *StroomClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&stroomv1.StroomCluster{}).
+		Owns(&appsv1.StatefulSet{}).
+		Watches(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForObject{}).
+		Complete(r)
 }

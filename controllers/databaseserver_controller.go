@@ -170,13 +170,7 @@ func (r *DatabaseServerReconciler) checkIfDeleted(ctx context.Context, dbServer 
 	logger := log.FromContext(ctx)
 
 	if !dbServer.IsBeingDeleted() {
-		if !controllerutil.ContainsFinalizer(dbServer, stroomv1.StroomClusterFinalizerName) {
-			// Finalizer hasn't been added, so add it to prevent the DatabaseServer from being deleted while the dependent StroomCluster still exists
-			controllerutil.AddFinalizer(dbServer, stroomv1.StroomClusterFinalizerName)
-			if err := r.Update(ctx, dbServer); err != nil {
-				return false, err
-			}
-		}
+
 	} else {
 		if controllerutil.ContainsFinalizer(dbServer, stroomv1.StroomClusterFinalizerName) {
 			// Finalizer is present, so check whether the DatabaseServer is claimed by a StroomCluster

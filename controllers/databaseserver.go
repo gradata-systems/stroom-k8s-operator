@@ -119,7 +119,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 	var replicas int32 = 1
 
 	// DefaultSecretFileMode is the file mode to use for Secret volume mounts
-	var secretFileMode int32 = 0400
+	secretFileMode := stroomv1.SecretFileMode
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{

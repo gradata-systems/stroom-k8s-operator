@@ -69,10 +69,9 @@ spec:
                 required:
                 - databaseName
                 type: object
-              configMapName:
-                minLength: 1
-                type: string
               extraEnv:
+                description: Additional environment variables provided to NodeSet
+                  pods
                 items:
                   description: EnvVar represents an environment variable present in
                     a Container.
@@ -201,6 +200,10 @@ spec:
                 - secretName
                 type: object
               nodeSets:
+                description: 'Each NodeSet is a functional grouping of Stroom nodes
+                  with a particular role, within the cluster. It is recommended two
+                  NodeSets should be provided: one for storing and processing data
+                  and a separate one for serving the Stroom front-end.'
                 items:
                   properties:
                     affinity:
@@ -830,12 +833,13 @@ spec:
                           type: object
                       type: object
                     count:
+                      description: Number of replicas (discrete Stroom nodes) in the
+                        NodeSet
                       format: int32
+                      minimum: 1
                       type: integer
                     ingressEnabled:
                       type: boolean
-                    javaOpts:
-                      type: string
                     livenessProbeTimings:
                       properties:
                         failureThreshold:
@@ -987,6 +991,8 @@ spec:
                           type: string
                       type: object
                     name:
+                      description: Unique identity of the NodeSet. Should be a short
+                        name like "prod".
                       type: string
                     nodeSelector:
                       additionalProperties:
@@ -1151,6 +1157,29 @@ spec:
                                 takes precedence.
                               type: string
                           type: object
+                      type: object
+                    readinessProbeTimings:
+                      properties:
+                        failureThreshold:
+                          default: 10
+                          format: int32
+                          type: integer
+                        initialDelaySeconds:
+                          default: 5
+                          format: int32
+                          type: integer
+                        periodSeconds:
+                          default: 5
+                          format: int32
+                          type: integer
+                        successThreshold:
+                          default: 1
+                          format: int32
+                          type: integer
+                        timeoutSeconds:
+                          default: 5
+                          format: int32
+                          type: integer
                       type: object
                     resources:
                       description: ResourceRequirements describes the compute resource
@@ -2813,29 +2842,6 @@ spec:
                           - volumePath
                           type: object
                       type: object
-                    startupProbeTimings:
-                      properties:
-                        failureThreshold:
-                          default: 10
-                          format: int32
-                          type: integer
-                        initialDelaySeconds:
-                          default: 5
-                          format: int32
-                          type: integer
-                        periodSeconds:
-                          default: 5
-                          format: int32
-                          type: integer
-                        successThreshold:
-                          default: 1
-                          format: int32
-                          type: integer
-                        timeoutSeconds:
-                          default: 5
-                          format: int32
-                          type: integer
-                      type: object
                     tolerations:
                       items:
                         description: The pod this Toleration is attached to tolerates
@@ -2888,6 +2894,11 @@ spec:
                   type: object
                 minItems: 1
                 type: array
+              nodeTerminationPeriodSecs:
+                description: Amount of time granted to nodes to drain their active
+                  tasks before being terminated
+                format: int64
+                type: integer
               statsDatabaseRef:
                 properties:
                   connectionSpec:
@@ -2923,10 +2934,10 @@ spec:
                 type: object
             required:
             - appDatabaseRef
-            - configMapName
             - image
             - ingress
             - nodeSets
+            - nodeTerminationPeriodSecs
             - statsDatabaseRef
             type: object
           status:

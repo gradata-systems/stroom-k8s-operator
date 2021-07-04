@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,10 +18,11 @@ import (
 )
 
 const (
-	AppPortName     = "app"
-	AppPortNumber   = 8080
-	AdminPortName   = "admin"
-	AdminPortNumber = 8081
+	AppPortName          = "app"
+	AppPortNumber        = 8080
+	AdminPortName        = "admin"
+	AdminPortNumber      = 8081
+	StroomNodeApiKeyPath = "/stroom/auth/api_key"
 )
 
 func (r *StroomClusterReconciler) createLabels(stroomCluster *stroomv1.StroomCluster) map[string]string {
@@ -52,25 +54,85 @@ func (r *StroomClusterReconciler) createServiceAccount(stroomCluster *stroomv1.S
 	return &serviceAccount
 }
 
+func (r *StroomClusterReconciler) createSecret(stroomCluster *stroomv1.StroomCluster, apiKey string) *corev1.Secret {
+	secret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      stroomCluster.GetBaseName(),
+			Namespace: stroomCluster.Namespace,
+			Labels:    stroomCluster.GetLabels(),
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"api_key": []byte(apiKey),
+		},
+	}
+
+	// Do not set the controller reference, as we want the Secret to persist if the StroomCluster is deleted
+
+	return &secret
+}
+
+func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.StroomCluster, data map[string]string) *corev1.ConfigMap {
+	configMap := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      stroomCluster.GetBaseName(),
+			Namespace: stroomCluster.Namespace,
+			Labels:    stroomCluster.GetLabels(),
+		},
+		Data: data,
+	}
+
+	ctrl.SetControllerReference(stroomCluster, &configMap, r.Scheme)
+	return &configMap
+}
+
 func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet,
 	appDatabase *DatabaseConnectionInfo, statsDatabase *DatabaseConnectionInfo) *appsv1.StatefulSet {
 	selectorLabels := r.createNodeSetSelectorLabels(stroomCluster, nodeSet)
+	secretFileMode := stroomv1.SecretFileMode
 
 	volumes := []corev1.Volume{{
-		Name: "config",
+		Name: "static-content",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: stroomCluster.Spec.ConfigMapName,
+					Name: stroomCluster.GetBaseName(),
 				},
+			},
+		},
+	}, {
+		Name: "api-key",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: stroomCluster.GetBaseName(),
+				Items: []corev1.KeyToPath{{
+					Key:  "api_key",
+					Path: "api_key",
+					Mode: &secretFileMode,
+				}},
 			},
 		},
 	}}
 
 	volumeMounts := []corev1.VolumeMount{{
-		Name:      "config",
-		SubPath:   "config.yml",
+		Name:      "static-content",
+		SubPath:   "stroomcluster-config.yaml",
 		MountPath: "/stroom/config/config.yml",
+		ReadOnly:  true,
+	}, {
+		Name:      "static-content",
+		SubPath:   "node-start.sh",
+		MountPath: "/stroom/scripts/node-start.sh",
+		ReadOnly:  true,
+	}, {
+		Name:      "static-content",
+		SubPath:   "pre-stop.sh",
+		MountPath: "/stroom/scripts/pre-stop.sh",
+		ReadOnly:  true,
+	}, {
+		Name:      "api-key",
+		SubPath:   "api_key",
+		MountPath: StroomNodeApiKeyPath,
 		ReadOnly:  true,
 	}, {
 		Name:      "data",
@@ -128,8 +190,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					Labels:      selectorLabels,
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName: stroomCluster.GetBaseName(),
-					SecurityContext:    &nodeSet.PodSecurityContext,
+					ServiceAccountName:            stroomCluster.GetBaseName(),
+					SecurityContext:               &nodeSet.PodSecurityContext,
+					TerminationGracePeriodSeconds: &stroomCluster.Spec.NodeTerminationPeriodSecs,
 					Containers: []corev1.Container{{
 						Name:            "stroom-node",
 						Image:           stroomCluster.Spec.Image.String(),
@@ -137,6 +200,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 						Env: []corev1.EnvVar{{
 							Name:  "API_GATEWAY_HOST",
 							Value: stroomCluster.Spec.Ingress.HostName,
+						}, {
+							Name:  "API_KEY",
+							Value: StroomNodeApiKeyPath,
 						}, {
 							Name:  "ADMIN_CONTEXT_PATH",
 							Value: "/stroomAdmin",
@@ -183,6 +249,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 									FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
 								},
 							},
+						}, {
+							Name:  "STROOM_NODE_ROLE",
+							Value: string(nodeSet.Role),
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_URL",
 							Value: appDatabase.ToJdbcConnectionString(),
@@ -233,9 +302,34 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							ContainerPort: AdminPortNumber,
 							Protocol:      corev1.ProtocolTCP,
 						}},
-						StartupProbe:  r.createProbe(&nodeSet.StartupProbeTimings, AdminPortName),
-						LivenessProbe: r.createProbe(&nodeSet.LivenessProbeTimings, AdminPortName),
-						Resources:     nodeSet.Resources,
+						StartupProbe: &corev1.Probe{
+							Handler: corev1.Handler{
+								Exec: &corev1.ExecAction{
+									Command: []string{
+										"bash",
+										"/stroom/scripts/node-start.sh",
+									},
+								},
+							},
+							InitialDelaySeconds: 10,
+							PeriodSeconds:       5,
+							TimeoutSeconds:      3,
+							SuccessThreshold:    1,
+							FailureThreshold:    10,
+						},
+						ReadinessProbe: r.createProbe(&nodeSet.ReadinessProbeTimings, AdminPortName),
+						LivenessProbe:  r.createProbe(&nodeSet.LivenessProbeTimings, AdminPortName),
+						Resources:      nodeSet.Resources,
+						Lifecycle: &corev1.Lifecycle{
+							PreStop: &corev1.Handler{
+								Exec: &corev1.ExecAction{
+									Command: []string{
+										"bash",
+										"/stroom/scripts/pre-stop.sh",
+									},
+								},
+							},
+						},
 					}},
 					Volumes:      volumes,
 					NodeSelector: nodeSet.NodeSelector,

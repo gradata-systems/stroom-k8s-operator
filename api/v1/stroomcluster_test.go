@@ -36,13 +36,13 @@ var _ = Describe("StroomCluster", func() {
 					AppDatabaseRef: DatabaseRef{
 						DatabaseName: "stroom",
 					},
-					ConfigMapName: "config",
 					StatsDatabaseRef: DatabaseRef{
 						DatabaseName: "stats",
 					},
 					Ingress: IngressSettings{},
 					NodeSets: []NodeSet{{
-						Name: "nodeset-1",
+						Name:  "nodeset-1",
+						Count: 1,
 					}},
 				},
 			}

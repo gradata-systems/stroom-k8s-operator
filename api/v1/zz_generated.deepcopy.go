@@ -252,7 +252,7 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 	in.LocalDataVolumeClaim.DeepCopyInto(&out.LocalDataVolumeClaim)
 	in.SharedDataVolume.DeepCopyInto(&out.SharedDataVolume)
 	in.Resources.DeepCopyInto(&out.Resources)
-	out.StartupProbeTimings = in.StartupProbeTimings
+	out.ReadinessProbeTimings = in.ReadinessProbeTimings
 	out.LivenessProbeTimings = in.LivenessProbeTimings
 	if in.PodAnnotations != nil {
 		in, out := &in.PodAnnotations, &out.PodAnnotations
