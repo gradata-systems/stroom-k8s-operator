@@ -10,15 +10,15 @@ function log() {
 
 function call_api() {
   sub_path=$1
-  extra_params=$2
+  shift 1
+
   url="$base_url/$sub_path"
-  # shellcheck disable=SC2086
   response="$(curl -s "$url" \
     -H 'Accept: application/json' \
     -H 'Content-Type: application/json' \
     -H "Authorization:Bearer $(cat "${API_KEY}")" \
     -w '\nhttp_code=%{http_code}' \
-    $extra_params)"
+    "$@")"
 
   response_pattern='^(.+?)\s*http_code=([0-9]+)$'
   if [[ $response =~ $response_pattern ]]; then
@@ -37,7 +37,7 @@ function call_api() {
 mkdir -p "$(dirname $log_file)"
 
 # Enable the node
-call_api node/v1/enabled/"${STROOM_NODE}" "-X PUT -d true"
+call_api node/v1/enabled/"${STROOM_NODE}" -X PUT -d true
 log "Node ${STROOM_NODE} enabled"
 
 # Enable all node tasks (except if this is a dedicated UI nodes)
@@ -45,7 +45,7 @@ enabled='true'
 if [[ "${STROOM_NODE_ROLE}" == 'Frontend' ]]; then
   enabled='false'
 fi
-call_api node/v1/setJobsEnabled/"${STROOM_NODE}" "-X PUT -d $enabled"
+call_api node/v1/setJobsEnabled/"${STROOM_NODE}" -X PUT -d "{ \"enabled\": $enabled }"
 if [[ $enabled == 'true' ]]; then
   log "Node ${STROOM_NODE} jobs enabled"
 else

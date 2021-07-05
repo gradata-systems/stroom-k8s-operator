@@ -10,15 +10,15 @@ function log() {
 
 function call_api() {
   sub_path=$1
-  extra_params=$2
+  shift 1
+
   url="$base_url/$sub_path"
-  # shellcheck disable=SC2086
   response="$(curl -s "$url" \
     -H 'Accept: application/json' \
     -H 'Content-Type: application/json' \
     -H "Authorization:Bearer $(cat "${API_KEY}")" \
     -w '\nhttp_code=%{http_code}' \
-    $extra_params)"
+    "$@")"
 
   response_pattern='^(.+?)\s*http_code=([0-9]+)$'
   if [[ $response =~ $response_pattern ]]; then
@@ -37,11 +37,11 @@ function call_api() {
 mkdir -p "$(dirname $log_file)"
 
 # Disable all node tasks, so the node can drain
-call_api node/v1/setJobsEnabled/"${STROOM_NODE}" "-X PUT -d false"
+call_api node/v1/setJobsEnabled/"${STROOM_NODE}" -X PUT -d '{ "enabled": false }'
 log "Node ${STROOM_NODE} jobs enabled"
 
 # Disable the node so the cluster doesn't attempt to contact it while it's unresponsive
-call_api node/v1/enabled/"${STROOM_NODE}" "-X PUT -d false"
+call_api node/v1/enabled/"${STROOM_NODE}" -X PUT -d false
 log "Node ${STROOM_NODE} disabled"
 
 task_count=-1
