@@ -25,4 +25,9 @@ resources:
   kind: DatabaseServer
   path: github.com/p-kimberley/stroom-k8s-operator/api/v1
   version: v1
+- controller: true
+  domain: gchq.github.io
+  group: stroom
+  kind: StroomTaskAutoscaler
+  version: v1
 version: "3"

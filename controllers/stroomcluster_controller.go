@@ -63,6 +63,7 @@ var StaticFiles embed.FS
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=metrics.k8s.io,resources=podmetrics,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -420,7 +421,7 @@ func (r *StroomClusterReconciler) getPods(ctx context.Context, stroomCluster *st
 
 	listOptions := []client.ListOption{
 		client.InNamespace(stroomCluster.Namespace),
-		client.MatchingLabels(r.createLabels(stroomCluster)),
+		client.MatchingLabels(stroomCluster.GetLabels()),
 	}
 
 	if err := r.List(ctx, podList, listOptions...); err != nil {
@@ -476,7 +477,7 @@ func (r *StroomClusterReconciler) cleanup(ctx context.Context, stroomCluster *st
 	// Both Ingress and PVC objects share the same labels and namespace
 	listOptions := []client.ListOption{
 		client.InNamespace(stroomCluster.Namespace),
-		client.MatchingLabels(r.createLabels(stroomCluster)),
+		client.MatchingLabels(stroomCluster.GetLabels()),
 	}
 
 	// Remove any Ingress objects created by the operator

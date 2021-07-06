@@ -26,24 +26,8 @@ const (
 	StroomNodePvcName    = "data"
 )
 
-func (r *StroomClusterReconciler) createLabels(stroomCluster *stroomv1.StroomCluster) map[string]string {
-	return map[string]string{
-		"app.kubernetes.io/name":      "stroom",
-		"app.kubernetes.io/component": "stroom-cluster",
-		"stroom/cluster":              stroomCluster.Name,
-	}
-}
-
-func (r *StroomClusterReconciler) createNodeSetSelectorLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
-	return map[string]string{
-		"stroom/cluster":     stroomCluster.Name,
-		"stroom/nodeSet":     nodeSet.Name,
-		"stroom/nodeSetRole": string(nodeSet.Role),
-	}
-}
-
 func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
-	labels := r.createLabels(stroomCluster)
+	labels := stroomCluster.GetLabels()
 	labels["stroom/nodeSet"] = nodeSet.Name
 
 	return labels
@@ -54,7 +38,7 @@ func (r *StroomClusterReconciler) createServiceAccount(stroomCluster *stroomv1.S
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stroomCluster.GetBaseName(),
 			Namespace: stroomCluster.Namespace,
-			Labels:    r.createLabels(stroomCluster),
+			Labels:    stroomCluster.GetLabels(),
 		},
 	}
 
@@ -95,7 +79,6 @@ func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.Stroom
 }
 
 func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
-	selectorLabels := r.createNodeSetSelectorLabels(stroomCluster, nodeSet)
 	secretFileMode := stroomv1.SecretFileMode
 
 	volumes := []corev1.Volume{{
@@ -183,18 +166,18 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stroomCluster.GetNodeSetName(nodeSet.Name),
 			Namespace: stroomCluster.Namespace,
-			Labels:    r.createLabels(stroomCluster),
+			Labels:    stroomCluster.GetLabels(),
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &nodeSet.Count,
 			ServiceName: stroomCluster.GetNodeSetServiceName(nodeSet.Name),
 			Selector: &metav1.LabelSelector{
-				MatchLabels: selectorLabels,
+				MatchLabels: stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: nodeSet.PodAnnotations,
-					Labels:      selectorLabels,
+					Labels:      stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName:            stroomCluster.GetBaseName(),
@@ -414,12 +397,12 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stroomCluster.GetNodeSetServiceName(nodeSet.Name),
 			Namespace: stroomCluster.Namespace,
-			Labels:    r.createLabels(stroomCluster),
+			Labels:    stroomCluster.GetLabels(),
 		},
 		Spec: corev1.ServiceSpec{
 			Type:      corev1.ServiceTypeClusterIP,
 			ClusterIP: corev1.ClusterIPNone,
-			Selector:  r.createNodeSetSelectorLabels(stroomCluster, nodeSet),
+			Selector:  stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			Ports: []corev1.ServicePort{{
 				Name:     AppPortName,
 				Port:     AppPortNumber,
@@ -438,7 +421,6 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 
 func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomCluster *stroomv1.StroomCluster) []v1.Ingress {
 	logger := log.FromContext(ctx)
-	labels := r.createLabels(stroomCluster)
 	ingressSettings := stroomCluster.Spec.Ingress
 	var ingresses []v1.Ingress
 
@@ -467,7 +449,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      clusterName,
 						Namespace: stroomCluster.Namespace,
-						Labels:    labels,
+						Labels:    stroomCluster.GetLabels(),
 						Annotations: map[string]string{
 							"kubernetes.io/ingress.class":                 "nginx",
 							"nginx.ingress.kubernetes.io/affinity":        "cookie",
@@ -493,7 +475,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      clusterName + "-clustercall",
 						Namespace: stroomCluster.Namespace,
-						Labels:    labels,
+						Labels:    stroomCluster.GetLabels(),
 						Annotations: map[string]string{
 							"kubernetes.io/ingress.class":                "nginx",
 							"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
@@ -517,7 +499,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      clusterName + "-datafeed",
 					Namespace: stroomCluster.Namespace,
-					Labels:    labels,
+					Labels:    stroomCluster.GetLabels(),
 					Annotations: map[string]string{
 						"kubernetes.io/ingress.class":                "nginx",
 						"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed",

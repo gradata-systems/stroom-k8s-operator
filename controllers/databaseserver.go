@@ -24,22 +24,12 @@ func (r *DatabaseServerReconciler) getInitConfigName(dbServer *stroomv1.Database
 	return fmt.Sprintf("%v-init", dbServer.GetBaseName())
 }
 
-func (r *DatabaseServerReconciler) createLabels(dbName string) map[string]string {
-	return map[string]string{
-		"app.kubernetes.io/name":      "stroom",
-		"app.kubernetes.io/component": "database-server",
-		"app.kubernetes.io/instance":  dbName,
-	}
-}
-
 func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServer) *corev1.Secret {
-	labels := r.createLabels(dbServer.Name)
-
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetSecretName(),
 			Namespace: dbServer.Namespace,
-			Labels:    labels,
+			Labels:    dbServer.GetLabels(),
 		},
 		Type: corev1.SecretTypeOpaque,
 		Data: map[string][]byte{
@@ -54,8 +44,6 @@ func (r *DatabaseServerReconciler) createSecret(dbServer *stroomv1.DatabaseServe
 }
 
 func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseServer) *corev1.ConfigMap {
-	labels := r.createLabels(dbServer.Name)
-
 	additionalConfig := ""
 	if dbServer.Spec.AdditionalConfig != nil {
 		additionalConfig = strings.Join(dbServer.Spec.AdditionalConfig, "\n")
@@ -65,7 +53,7 @@ func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseSe
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetBaseName(),
 			Namespace: dbServer.Namespace,
-			Labels:    labels,
+			Labels:    dbServer.GetLabels(),
 		},
 		Data: map[string]string{
 			"my.cnf": "" +
@@ -82,8 +70,6 @@ func (r *DatabaseServerReconciler) createConfigMap(dbServer *stroomv1.DatabaseSe
 }
 
 func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.DatabaseServer) *corev1.ConfigMap {
-	labels := r.createLabels(dbServer.Name)
-
 	databaseCreateStatements := ""
 	for _, databaseName := range dbServer.Spec.DatabaseNames {
 		databaseCreateStatements += "" +
@@ -95,7 +81,7 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.getInitConfigName(dbServer),
 			Namespace: dbServer.Namespace,
-			Labels:    labels,
+			Labels:    dbServer.GetLabels(),
 		},
 		Data: map[string]string{
 			"create-service-user.sql": "" +
@@ -115,7 +101,6 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 }
 
 func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.DatabaseServer) *appsv1.StatefulSet {
-	labels := r.createLabels(dbServer.Name)
 	var replicas int32 = 1
 
 	// DefaultSecretFileMode is the file mode to use for Secret volume mounts
@@ -125,18 +110,18 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetBaseName(),
 			Namespace: dbServer.Namespace,
-			Labels:    labels,
+			Labels:    dbServer.GetLabels(),
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &replicas,
 			ServiceName: dbServer.GetServiceName(),
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
+				MatchLabels: dbServer.GetLabels(),
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: dbServer.Annotations,
-					Labels:      labels,
+					Labels:      dbServer.GetLabels(),
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -276,7 +261,7 @@ func (r *DatabaseServerReconciler) createLivenessProbe(timings stroomv1.ProbeTim
 }
 
 func (r *DatabaseServerReconciler) createService(dbServer *stroomv1.DatabaseServer) *corev1.Service {
-	labels := r.createLabels(dbServer.Name)
+	labels := dbServer.GetLabels()
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -301,7 +286,6 @@ func (r *DatabaseServerReconciler) createService(dbServer *stroomv1.DatabaseServ
 }
 
 func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServer) *v1beta1.CronJob {
-	labels := r.createLabels(dbServer.Name)
 	backupSettings := dbServer.Spec.Backup
 	const targetDirectory = "/var/lib/mysql/backup"
 	const datePattern = "%Y-%m-%d_%H-%M-%S"
@@ -323,7 +307,7 @@ func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServ
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetBaseName(),
 			Namespace: dbServer.Namespace,
-			Labels:    labels,
+			Labels:    dbServer.GetLabels(),
 		},
 		Spec: v1beta1.CronJobSpec{
 			Schedule:          backupSettings.Schedule,

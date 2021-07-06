@@ -49,6 +49,14 @@ func (in *DatabaseServer) GetBaseName() string {
 	return fmt.Sprintf("stroom-%v-db", in.Name)
 }
 
+func (in *DatabaseServer) GetLabels() map[string]string {
+	return map[string]string{
+		"app.kubernetes.io/name":      "stroom",
+		"app.kubernetes.io/component": "database-server",
+		"app.kubernetes.io/instance":  in.Name,
+	}
+}
+
 func (in *DatabaseServer) GetServiceName() string {
 	return fmt.Sprintf("%v-headless", in.GetBaseName())
 }

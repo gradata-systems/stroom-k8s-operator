@@ -46,6 +46,21 @@ func (in *StroomCluster) GetNodeSetName(nodeSetName string) string {
 	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSetName)
 }
 
+func (in *StroomCluster) GetLabels() map[string]string {
+	return map[string]string{
+		"app.kubernetes.io/name":      "stroom",
+		"app.kubernetes.io/component": "stroom-cluster",
+		"stroom/cluster":              in.Name,
+	}
+}
+
+func (in *StroomCluster) GetNodeSetSelectorLabels(nodeSet *NodeSet) map[string]string {
+	return map[string]string{
+		"stroom/cluster": in.Name,
+		"stroom/nodeSet": nodeSet.Name,
+	}
+}
+
 func (in *StroomCluster) GetNodeSetServiceName(nodeSetName string) string {
 	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSetName))
 }
