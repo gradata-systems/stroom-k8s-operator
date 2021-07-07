@@ -24,8 +24,16 @@ type Image struct {
 	Tag        string `json:"tag,omitempty"`
 }
 
-func (in Image) String() string {
-	return fmt.Sprintf("%v:%v", in.Repository, in.Tag)
+func (in *Image) String() string {
+	if in.Tag == "" {
+		return fmt.Sprintf("%v:latest", in.Repository)
+	} else {
+		return fmt.Sprintf("%v:%v", in.Repository, in.Tag)
+	}
+}
+
+func (in *Image) IsZero() bool {
+	return in.Repository == "" && in.Tag == ""
 }
 
 type ResourceRef struct {
@@ -34,17 +42,17 @@ type ResourceRef struct {
 }
 
 // String returns the general purpose string representation
-func (in ResourceRef) String() string {
+func (in *ResourceRef) String() string {
 	return fmt.Sprintf("%v/%v", in.Namespace, in.Name)
 }
 
-func (in ResourceRef) NamespacedName() types.NamespacedName {
+func (in *ResourceRef) NamespacedName() types.NamespacedName {
 	return types.NamespacedName{
 		Namespace: in.Namespace,
 		Name:      in.Name,
 	}
 }
 
-func (in ResourceRef) IsZero() bool {
+func (in *ResourceRef) IsZero() bool {
 	return in.Name == "" && in.Namespace == ""
 }

@@ -41,6 +41,11 @@ var _ = Describe("StroomCluster", func() {
 						Name:  "nodeset-1",
 						Count: 1,
 					}},
+					LogSender: LogSenderSettings{
+						Image: Image{
+							Repository: "gchq/stroom-log-sender",
+						},
+					},
 				},
 			}
 

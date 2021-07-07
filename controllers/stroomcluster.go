@@ -15,6 +15,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -79,8 +80,28 @@ func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.Stroom
 	return &configMap
 }
 
+func (r *StroomClusterReconciler) createLogSenderConfigMap(stroomCluster *stroomv1.StroomCluster) *corev1.ConfigMap {
+	configMap := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      stroomCluster.GetLogSenderConfigMapName(),
+			Namespace: stroomCluster.Namespace,
+			Labels:    stroomCluster.GetLabels(),
+		},
+		Data: map[string]string{
+			"crontab.txt": "" +
+				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/access STROOM-ACCESS-EVENTS ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/app    STROOM-APP-EVENTS    ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/user   STROOM-USER-EVENTS   ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
+		},
+	}
+
+	ctrl.SetControllerReference(stroomCluster, &configMap, r.Scheme)
+	return &configMap
+}
+
 func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
 	secretFileMode := stroomv1.SecretFileMode
+	logSender := stroomCluster.Spec.LogSender
 
 	volumes := []corev1.Volume{{
 		Name: "static-content",
@@ -104,6 +125,18 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			},
 		},
 	}}
+	if logSender.Enabled {
+		volumes = append(volumes, corev1.Volume{
+			Name: "log-sender-configmap",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: stroomCluster.GetLogSenderConfigMapName(),
+					},
+				},
+			},
+		})
+	}
 
 	volumeMounts := []corev1.VolumeMount{{
 		Name:      "static-content",
@@ -163,6 +196,192 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		})
 	}
 
+	containers := []corev1.Container{{
+		Name:            StroomNodeContainerName,
+		Image:           stroomCluster.Spec.Image.String(),
+		ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
+		Env: []corev1.EnvVar{{
+			Name:  "API_GATEWAY_HOST",
+			Value: stroomCluster.Spec.Ingress.HostName,
+		}, {
+			Name:  "API_KEY",
+			Value: StroomNodeApiKeyPath,
+		}, {
+			Name:  "ADMIN_CONTEXT_PATH",
+			Value: "/stroomAdmin",
+		}, {
+			Name:  "APPLICATION_CONTEXT_PATH",
+			Value: "/",
+		}, {
+			Name: "DOCKER_HOST_HOSTNAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
+				},
+			},
+		}, {
+			Name: "DOCKER_HOST_IP",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "status.podIP",
+				},
+			},
+		}, {
+			Name: "POD_HOSTNAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
+				},
+			},
+		}, {
+			Name:  "POD_SUBDOMAIN",
+			Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetServiceName(nodeSet), stroomCluster.Namespace),
+		}, {
+			Name:  "JAVA_OPTS",
+			Value: r.getJvmOptions(stroomCluster, nodeSet),
+		}, {
+			Name:  "STROOM_APP_PORT",
+			Value: strconv.Itoa(AppPortNumber),
+		}, {
+			Name:  "STROOM_ADMIN_PORT",
+			Value: strconv.Itoa(AdminPortNumber),
+		}, {
+			Name: "STROOM_NODE",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
+				},
+			},
+		}, {
+			Name:  "STROOM_NODE_ROLE",
+			Value: string(nodeSet.Role),
+		}, {
+			Name:  "STROOM_JDBC_DRIVER_URL",
+			Value: dbInfo.ToJdbcConnectionString(stroomCluster.Spec.AppDatabaseName),
+		}, {
+			Name:  "STROOM_JDBC_DRIVER_CLASS_NAME",
+			Value: "com.mysql.cj.jdbc.Driver",
+		}, {
+			Name:  "STROOM_JDBC_DRIVER_USERNAME",
+			Value: DatabaseServiceUserName,
+		}, {
+			Name: "STROOM_JDBC_DRIVER_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: dbInfo.SecretName,
+					},
+					Key: DatabaseServiceUserName,
+				},
+			},
+		}, {
+			Name:  "STROOM_STATISTICS_JDBC_DRIVER_URL",
+			Value: dbInfo.ToJdbcConnectionString(stroomCluster.Spec.StatsDatabaseName),
+		}, {
+			Name:  "STROOM_STATISTICS_JDBC_DRIVER_CLASS_NAME",
+			Value: "com.mysql.cj.jdbc.Driver",
+		}, {
+			Name:  "STROOM_STATISTICS_JDBC_DRIVER_USERNAME",
+			Value: DatabaseServiceUserName,
+		}, {
+			Name: "STROOM_STATISTICS_JDBC_DRIVER_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: dbInfo.SecretName,
+					},
+					Key: DatabaseServiceUserName,
+				},
+			},
+		}},
+		VolumeMounts:    volumeMounts,
+		SecurityContext: &nodeSet.SecurityContext,
+		Ports: []corev1.ContainerPort{{
+			Name:          AppPortName,
+			ContainerPort: AppPortNumber,
+			Protocol:      corev1.ProtocolTCP,
+		}, {
+			Name:          AdminPortName,
+			ContainerPort: AdminPortNumber,
+			Protocol:      corev1.ProtocolTCP,
+		}},
+		StartupProbe: &corev1.Probe{
+			Handler: corev1.Handler{
+				Exec: &corev1.ExecAction{
+					Command: []string{
+						"bash",
+						"/stroom/scripts/node-start.sh",
+					},
+				},
+			},
+			InitialDelaySeconds: 10,
+			PeriodSeconds:       5,
+			TimeoutSeconds:      3,
+			SuccessThreshold:    1,
+			FailureThreshold:    10,
+		},
+		ReadinessProbe: r.createProbe(&nodeSet.ReadinessProbeTimings, AdminPortName),
+		LivenessProbe:  r.createProbe(&nodeSet.LivenessProbeTimings, AdminPortName),
+		Resources:      nodeSet.Resources,
+		Lifecycle: &corev1.Lifecycle{
+			PreStop: &corev1.Handler{
+				Exec: &corev1.ExecAction{
+					Command: []string{
+						"bash",
+						"/stroom/scripts/pre-stop.sh",
+					},
+				},
+			},
+		},
+	}}
+
+	if logSender.Enabled {
+		destinationUrl := logSender.DestinationUrl
+		if destinationUrl == "" {
+			destinationUrl = stroomCluster.GetDatafeedUrl()
+		}
+
+		environmentName := logSender.EnvironmentName
+		if environmentName == "" {
+			environmentName = strings.ToUpper(stroomCluster.Name)
+		}
+
+		containers = append(containers, corev1.Container{
+			Name:            "log-sender",
+			Image:           logSender.Image.String(),
+			ImagePullPolicy: logSender.ImagePullPolicy,
+			SecurityContext: &logSender.SecurityContext,
+			Env: []corev1.EnvVar{{
+				Name:  "LOG_SENDER_SCRIPT",
+				Value: "/stroom-log-sender/send_to_stroom.sh",
+			}, {
+				Name:  "DATAFEED_URL",
+				Value: destinationUrl,
+			}, {
+				Name:  "STROOM_BASE_LOGS_DIR",
+				Value: "/stroom-log-sender/log-volumes/stroom",
+			}, {
+				Name:  "DEFAULT_FILE_REGEX",
+				Value: `.*/[a-z]+-[0-9]+-[0-9]+-[0-9]+T[0-9]+:[0-9]+\.log(\.gz)?$`,
+			}, {
+				Name:  "DEFAULT_ENVIRONMENT",
+				Value: environmentName,
+			}, {
+				Name:  "MAX_DELAY_SECS",
+				Value: "15",
+			}},
+			VolumeMounts: []corev1.VolumeMount{{
+				Name:      StroomNodePvcName,
+				SubPath:   "logs",
+				MountPath: "/stroom-log-sender/log-volumes/stroom",
+			}, {
+				Name:      "log-sender-configmap",
+				MountPath: "/stroom-log-sender/config",
+				ReadOnly:  true,
+			}},
+		})
+	}
+
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stroomCluster.GetNodeSetName(nodeSet),
@@ -184,148 +403,11 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					ServiceAccountName:            stroomCluster.GetBaseName(),
 					SecurityContext:               &nodeSet.PodSecurityContext,
 					TerminationGracePeriodSeconds: &stroomCluster.Spec.NodeTerminationPeriodSecs,
-					Containers: []corev1.Container{{
-						Name:            StroomNodeContainerName,
-						Image:           stroomCluster.Spec.Image.String(),
-						ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
-						Env: []corev1.EnvVar{{
-							Name:  "API_GATEWAY_HOST",
-							Value: stroomCluster.Spec.Ingress.HostName,
-						}, {
-							Name:  "API_KEY",
-							Value: StroomNodeApiKeyPath,
-						}, {
-							Name:  "ADMIN_CONTEXT_PATH",
-							Value: "/stroomAdmin",
-						}, {
-							Name:  "APPLICATION_CONTEXT_PATH",
-							Value: "/",
-						}, {
-							Name: "DOCKER_HOST_HOSTNAME",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
-								},
-							},
-						}, {
-							Name: "DOCKER_HOST_IP",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "status.podIP",
-								},
-							},
-						}, {
-							Name: "POD_HOSTNAME",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
-								},
-							},
-						}, {
-							Name:  "POD_SUBDOMAIN",
-							Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetServiceName(nodeSet), stroomCluster.Namespace),
-						}, {
-							Name:  "JAVA_OPTS",
-							Value: r.getJvmOptions(stroomCluster, nodeSet),
-						}, {
-							Name:  "STROOM_APP_PORT",
-							Value: strconv.Itoa(AppPortNumber),
-						}, {
-							Name:  "STROOM_ADMIN_PORT",
-							Value: strconv.Itoa(AdminPortNumber),
-						}, {
-							Name: "STROOM_NODE",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "metadata.labels['statefulset.kubernetes.io/pod-name']",
-								},
-							},
-						}, {
-							Name:  "STROOM_NODE_ROLE",
-							Value: string(nodeSet.Role),
-						}, {
-							Name:  "STROOM_JDBC_DRIVER_URL",
-							Value: dbInfo.ToJdbcConnectionString(stroomCluster.Spec.AppDatabaseName),
-						}, {
-							Name:  "STROOM_JDBC_DRIVER_CLASS_NAME",
-							Value: "com.mysql.cj.jdbc.Driver",
-						}, {
-							Name:  "STROOM_JDBC_DRIVER_USERNAME",
-							Value: DatabaseServiceUserName,
-						}, {
-							Name: "STROOM_JDBC_DRIVER_PASSWORD",
-							ValueFrom: &corev1.EnvVarSource{
-								SecretKeyRef: &corev1.SecretKeySelector{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: dbInfo.SecretName,
-									},
-									Key: DatabaseServiceUserName,
-								},
-							},
-						}, {
-							Name:  "STROOM_STATISTICS_JDBC_DRIVER_URL",
-							Value: dbInfo.ToJdbcConnectionString(stroomCluster.Spec.StatsDatabaseName),
-						}, {
-							Name:  "STROOM_STATISTICS_JDBC_DRIVER_CLASS_NAME",
-							Value: "com.mysql.cj.jdbc.Driver",
-						}, {
-							Name:  "STROOM_STATISTICS_JDBC_DRIVER_USERNAME",
-							Value: DatabaseServiceUserName,
-						}, {
-							Name: "STROOM_STATISTICS_JDBC_DRIVER_PASSWORD",
-							ValueFrom: &corev1.EnvVarSource{
-								SecretKeyRef: &corev1.SecretKeySelector{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: dbInfo.SecretName,
-									},
-									Key: DatabaseServiceUserName,
-								},
-							},
-						}},
-						VolumeMounts:    volumeMounts,
-						SecurityContext: &nodeSet.SecurityContext,
-						Ports: []corev1.ContainerPort{{
-							Name:          AppPortName,
-							ContainerPort: AppPortNumber,
-							Protocol:      corev1.ProtocolTCP,
-						}, {
-							Name:          AdminPortName,
-							ContainerPort: AdminPortNumber,
-							Protocol:      corev1.ProtocolTCP,
-						}},
-						StartupProbe: &corev1.Probe{
-							Handler: corev1.Handler{
-								Exec: &corev1.ExecAction{
-									Command: []string{
-										"bash",
-										"/stroom/scripts/node-start.sh",
-									},
-								},
-							},
-							InitialDelaySeconds: 10,
-							PeriodSeconds:       5,
-							TimeoutSeconds:      3,
-							SuccessThreshold:    1,
-							FailureThreshold:    10,
-						},
-						ReadinessProbe: r.createProbe(&nodeSet.ReadinessProbeTimings, AdminPortName),
-						LivenessProbe:  r.createProbe(&nodeSet.LivenessProbeTimings, AdminPortName),
-						Resources:      nodeSet.Resources,
-						Lifecycle: &corev1.Lifecycle{
-							PreStop: &corev1.Handler{
-								Exec: &corev1.ExecAction{
-									Command: []string{
-										"bash",
-										"/stroom/scripts/pre-stop.sh",
-									},
-								},
-							},
-						},
-					}},
-					Volumes:      volumes,
-					NodeSelector: nodeSet.NodeSelector,
-					Affinity:     &nodeSet.Affinity,
-					Tolerations:  nodeSet.Tolerations,
+					Containers:                    containers,
+					Volumes:                       volumes,
+					NodeSelector:                  nodeSet.NodeSelector,
+					Affinity:                      &nodeSet.Affinity,
+					Tolerations:                   nodeSet.Tolerations,
 				},
 			},
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{{

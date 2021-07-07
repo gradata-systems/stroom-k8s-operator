@@ -51,6 +51,10 @@ func (in *StroomCluster) GetNodeSetName(nodeSet *NodeSet) string {
 	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSet.Name)
 }
 
+func (in *StroomCluster) GetLogSenderConfigMapName() string {
+	return fmt.Sprintf("stroom-%v-log-sender", in.Name)
+}
+
 func (in *StroomCluster) GetLabels() map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":      "stroom",
@@ -68,6 +72,10 @@ func (in *StroomCluster) GetNodeSetSelectorLabels(nodeSet *NodeSet) map[string]s
 
 func (in *StroomCluster) GetNodeSetServiceName(nodeSet *NodeSet) string {
 	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSet))
+}
+
+func (in *StroomCluster) GetDatafeedUrl() string {
+	return fmt.Sprintf("https://%v/stroom/datafeeddirect", in.Spec.Ingress.HostName)
 }
 
 func (in *StroomCluster) IsBeingDeleted() bool {

@@ -29,4 +29,21 @@ type StroomClusterSpec struct {
 	// serving the Stroom front-end.
 	// +kubebuilder:validation:MinItems=1
 	NodeSets []NodeSet `json:"nodeSets"`
+
+	// Configures the mechanism that posts internal audit and logging to Stroom
+	LogSender LogSenderSettings `json:"logSender,omitempty"`
+}
+
+type LogSenderSettings struct {
+	// +kubebuilder:default:=false
+	Enabled bool `json:"enabled"`
+	// +kubebuilder:validation:Required
+	Image           Image             `json:"image"`
+	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	// Override the container security context
+	SecurityContext corev1.SecurityContext `json:"securityContext,omitempty"`
+	// Configure an alternate destination for events to be shipped to. If omitted, events are posted to the local cluster.
+	DestinationUrl string `json:"destinationUrl,omitempty"`
+	// Name of the `Environment` to set in feed metadata. If omitted, the cluster name is used (converted to UPPERCASE).
+	EnvironmentName string `json:"environmentName,omitempty"`
 }
