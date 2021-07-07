@@ -99,6 +99,14 @@ rules:
   - update
   - watch
 - apiGroups:
+  - metrics.k8s.io
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses
@@ -158,6 +166,32 @@ rules:
   - stroom.gchq.github.io
   resources:
   - stroomclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers/status
   verbs:
   - get
   - patch

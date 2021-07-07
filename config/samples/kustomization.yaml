@@ -2,4 +2,5 @@
 resources:
 - stroom_v1_stroomcluster.yaml
 - stroom_v1_databaseserver.yaml
+- stroom_v1_stroomtaskautoscaler.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

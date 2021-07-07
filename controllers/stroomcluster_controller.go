@@ -63,7 +63,6 @@ var StaticFiles embed.FS
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=metrics.k8s.io,resources=podmetrics,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -88,11 +87,13 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Retrieve app database connection info
 	dbServerRef := stroomCluster.Spec.DatabaseServerRef
 	dbInfo := DatabaseConnectionInfo{}
-	if result, err := r.getDatabaseConnectionInfo(ctx, &stroomCluster, &dbServerRef, &dbInfo); err != nil {
+	if err := GetDatabaseConnectionInfo(r.Client, ctx, &stroomCluster, &dbServerRef, &dbInfo); err != nil {
 		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", dbServerRef.ServerRef))
 		return ctrl.Result{}, err
-	} else if !result.IsZero() {
-		return result, nil
+	} else if dbInfo.DatabaseServer != nil {
+		if err := r.claimDatabaseServer(ctx, &stroomCluster, dbServerRef.ServerRef, dbInfo.DatabaseServer); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	// If StroomCluster is deleted or an error occurs when adding a finalizer, do not proceed with child item creation
@@ -401,32 +402,15 @@ func (r *StroomClusterReconciler) removeFinalizer(ctx context.Context, obj clien
 func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := r.openDatabase(ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
 		return err
 	} else {
-		defer r.closeDatabase(db)
+		defer CloseDatabase(db)
 
 		if _, err := db.Exec("update job_node set enabled = 0 where node_name like ?", stroomCluster.GetBaseName()+"%"); err != nil {
 			logger.Error(err, "Failed to disable Stroom node task processing", "StroomCluster", stroomCluster.Name)
 			return err
 		}
-	}
-
-	return nil
-}
-
-// getPods returns a list of all Pods associated with a StroomCluster StatefulSet
-func (r *StroomClusterReconciler) getPods(ctx context.Context, stroomCluster *stroomv1.StroomCluster, podList *corev1.PodList) error {
-	logger := log.FromContext(ctx)
-
-	listOptions := []client.ListOption{
-		client.InNamespace(stroomCluster.Namespace),
-		client.MatchingLabels(stroomCluster.GetLabels()),
-	}
-
-	if err := r.List(ctx, podList, listOptions...); err != nil {
-		logger.Error(err, "Failed to list pods", "Namespace", stroomCluster.Namespace, "Name", stroomCluster.Name)
-		return err
 	}
 
 	return nil
@@ -438,10 +422,10 @@ func (r *StroomClusterReconciler) countRemainingTasks(ctx context.Context, stroo
 	logger := log.FromContext(ctx)
 
 	// Get the current active server tasks
-	if db, err := r.openDatabase(ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
 		return err
 	} else {
-		defer r.closeDatabase(db)
+		defer CloseDatabase(db)
 
 		// Get a summary of active tasks by node
 		rows, err := db.Query("select n.name as node_name, count(*) as task_count "+
@@ -531,46 +515,6 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 	return ctrl.Result{}, nil
 }
 
-func (r *StroomClusterReconciler) getDatabaseConnectionInfo(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseServerRef, dbConnectionInfo *DatabaseConnectionInfo) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-
-	if dbRef.ServerRef == (stroomv1.ResourceRef{}) {
-		// This is an external database connection
-		dbConnectionInfo.Address = dbRef.ServerAddress.Address
-		dbConnectionInfo.Port = dbRef.ServerAddress.Port
-		dbConnectionInfo.SecretName = dbRef.ServerAddress.SecretName
-	} else {
-		// Get or create an operator-managed database instance
-		dbServer := stroomv1.DatabaseServer{}
-		dbReference := dbRef.ServerRef
-
-		// If the ServerRef namespace is empty, try to find the DatabaseServer in the same namespace as StroomCluster
-		if dbReference.Namespace == "" {
-			dbReference.Namespace = stroomCluster.Namespace
-		}
-
-		if err := r.Get(ctx, dbReference.NamespacedName(), &dbServer); err != nil {
-			if errors.IsNotFound(err) {
-				logger.Error(err, "DatabaseServer was not found", "Reference", dbReference)
-			} else {
-				logger.Error(err, "Error accessing DatabaseServer", "Reference", dbReference)
-			}
-			return ctrl.Result{}, err
-		} else {
-			if err := r.claimDatabaseServer(ctx, stroomCluster, dbReference, &dbServer); err != nil {
-				return ctrl.Result{}, err
-			}
-
-			dbConnectionInfo.DatabaseServer = &dbServer
-			dbConnectionInfo.Address = dbServer.GetServiceName()
-			dbConnectionInfo.Port = DatabasePort
-			dbConnectionInfo.SecretName = dbServer.GetSecretName()
-		}
-	}
-
-	return ctrl.Result{}, nil
-}
-
 func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef, db *stroomv1.DatabaseServer) error {
 	logger := log.FromContext(ctx)
 
@@ -603,10 +547,10 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 func (r *StroomClusterReconciler) getApiKey(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, apiKey *string) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := r.openDatabase(ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
 		return err
 	} else {
-		defer r.closeDatabase(db)
+		defer CloseDatabase(db)
 
 		row := db.QueryRow("select data from token where create_user = ? and enabled = 1 limit 1", stroomv1.StroomInternalUserName)
 		if err := row.Scan(apiKey); err != nil {

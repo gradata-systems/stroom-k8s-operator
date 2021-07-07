@@ -18,17 +18,18 @@ import (
 )
 
 const (
-	AppPortName          = "app"
-	AppPortNumber        = 8080
-	AdminPortName        = "admin"
-	AdminPortNumber      = 8081
-	StroomNodeApiKeyPath = "/stroom/auth/api_key"
-	StroomNodePvcName    = "data"
+	AppPortName             = "app"
+	AppPortNumber           = 8080
+	AdminPortName           = "admin"
+	AdminPortNumber         = 8081
+	StroomNodeApiKeyPath    = "/stroom/auth/api_key"
+	StroomNodePvcName       = "data"
+	StroomNodeContainerName = "stroom-node"
 )
 
 func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
 	labels := stroomCluster.GetLabels()
-	labels["stroom/nodeSet"] = nodeSet.Name
+	labels[stroomv1.NodeSetLabel] = nodeSet.Name
 
 	return labels
 }
@@ -184,7 +185,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					SecurityContext:               &nodeSet.PodSecurityContext,
 					TerminationGracePeriodSeconds: &stroomCluster.Spec.NodeTerminationPeriodSecs,
 					Containers: []corev1.Container{{
-						Name:            "stroom-node",
+						Name:            StroomNodeContainerName,
 						Image:           stroomCluster.Spec.Image.String(),
 						ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
 						Env: []corev1.EnvVar{{

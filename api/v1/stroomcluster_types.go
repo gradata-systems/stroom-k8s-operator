@@ -21,6 +21,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	StroomClusterLabel = "stroom/cluster"
+	NodeSetLabel       = "stroom/nodeSet"
+)
+
 // StroomClusterStatus defines the observed state of StroomCluster
 type StroomClusterStatus struct {
 	Nodes []string `json:"nodes,omitempty"`
@@ -50,14 +55,14 @@ func (in *StroomCluster) GetLabels() map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/name":      "stroom",
 		"app.kubernetes.io/component": "stroom-cluster",
-		"stroom/cluster":              in.Name,
+		StroomClusterLabel:            in.Name,
 	}
 }
 
 func (in *StroomCluster) GetNodeSetSelectorLabels(nodeSet *NodeSet) map[string]string {
 	return map[string]string{
-		"stroom/cluster": in.Name,
-		"stroom/nodeSet": nodeSet.Name,
+		StroomClusterLabel: in.Name,
+		NodeSetLabel:       nodeSet.Name,
 	}
 }
 
