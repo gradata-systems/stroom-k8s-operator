@@ -80,7 +80,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, nil
 		}
 
-		logger.Error(err, fmt.Sprintf("Unable to fetch StroomCluster %v", req.NamespacedName.String()))
+		logger.Error(err, fmt.Sprintf("Unable to fetch StroomCluster %v", req.NamespacedName))
 		return ctrl.Result{}, err
 	}
 
@@ -174,7 +174,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		foundStatefulSet := appsv1.StatefulSet{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetName(nodeSet.Name), stroomCluster.Namespace, "StatefulSet", &foundStatefulSet, func() error {
+		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetName(&nodeSet), stroomCluster.Namespace, "StatefulSet", &foundStatefulSet, func() error {
 			// Create a StatefulSet for the NodeSet
 			resource := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
 			logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -193,7 +193,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		foundService := corev1.Service{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetServiceName(nodeSet.Name), stroomCluster.Namespace, "Service", &foundService, func() error {
+		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetServiceName(&nodeSet), stroomCluster.Namespace, "Service", &foundService, func() error {
 			// Create a headless service for the NodeSet
 			resource := r.createService(&stroomCluster, &nodeSet)
 			logger.Info("Creating a new Service", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -287,7 +287,7 @@ func (r *StroomClusterReconciler) deletePvcs(ctx context.Context, stroomCluster 
 		for podOrdinal := newReplicaCount + 1; podOrdinal <= oldReplicaCount; podOrdinal++ {
 			// Attempt to delete PVC named in accordance with convention:
 			// <PVC name>-<NodeSet name>-<ordinal>
-			pvcName := fmt.Sprintf("%v-%v-%v", StroomNodePvcName, stroomCluster.GetNodeSetName(nodeSet.Name), podOrdinal-1)
+			pvcName := fmt.Sprintf("%v-%v-%v", StroomNodePvcName, stroomCluster.GetNodeSetName(nodeSet), podOrdinal-1)
 			foundPvc := corev1.PersistentVolumeClaim{}
 			if err := r.Get(ctx, types.NamespacedName{Namespace: stroomCluster.Namespace, Name: pvcName}, &foundPvc); err != nil {
 				logger.Error(err, "Could not find PVC in order to delete it", "Namespace", stroomCluster.Namespace, "Name", pvcName)
@@ -526,8 +526,8 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 		}
 
 		// Already owned by another cluster, so we can't claim it
-		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v'. Cannot be claimed by StroomCluster '%v/%v'",
-			db.Namespace, db.Name, db.StroomClusterRef, stroomCluster.Namespace, stroomCluster.Name))
+		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v/%v'. Cannot be claimed by StroomCluster '%v/%v'",
+			db.Namespace, db.Name, db.StroomClusterRef.Namespace, db.StroomClusterRef.Name, stroomCluster.Namespace, stroomCluster.Name))
 		logger.Error(err, "Cannot claim DatabaseServer")
 		return err
 	} else {

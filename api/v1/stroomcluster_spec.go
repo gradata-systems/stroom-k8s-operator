@@ -11,16 +11,16 @@ type StroomClusterSpec struct {
 	ExtraEnv []corev1.EnvVar `json:"extraEnv,omitempty"`
 	// +kubebuilder:validation:Required
 	DatabaseServerRef DatabaseServerRef `json:"databaseServerRef"`
-	// +kubebuilder:validation:Default="stroom"
+	// +kubebuilder:default:="stroom"
 	// +kubebuilder:validation:MinLength=1
 	AppDatabaseName string `json:"appDatabaseName"`
-	// +kubebuilder:validation:Default="stats"
+	// +kubebuilder:default:="stats"
 	// +kubebuilder:validation:MinLength=1
 	StatsDatabaseName string `json:"statsDatabaseName"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
 	// Amount of time granted to nodes to drain their active tasks before being terminated
-	// +kubebuilder:validation:Default=60
+	// +kubebuilder:default:=60
 	NodeTerminationPeriodSecs int64                   `json:"nodeTerminationPeriodSecs"`
 	VolumeClaimDeletePolicy   VolumeClaimDeletePolicy `json:"volumeClaimDeletePolicy,omitempty"`
 

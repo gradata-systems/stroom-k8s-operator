@@ -165,13 +165,13 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      stroomCluster.GetNodeSetName(nodeSet.Name),
+			Name:      stroomCluster.GetNodeSetName(nodeSet),
 			Namespace: stroomCluster.Namespace,
 			Labels:    stroomCluster.GetLabels(),
 		},
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:    &nodeSet.Count,
-			ServiceName: stroomCluster.GetNodeSetServiceName(nodeSet.Name),
+			ServiceName: stroomCluster.GetNodeSetServiceName(nodeSet),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			},
@@ -223,7 +223,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 							},
 						}, {
 							Name:  "POD_SUBDOMAIN",
-							Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetServiceName(nodeSet.Name), stroomCluster.Namespace),
+							Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetServiceName(nodeSet), stroomCluster.Namespace),
 						}, {
 							Name:  "JAVA_OPTS",
 							Value: r.getJvmOptions(stroomCluster, nodeSet),
@@ -396,7 +396,7 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) *corev1.Service {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      stroomCluster.GetNodeSetServiceName(nodeSet.Name),
+			Name:      stroomCluster.GetNodeSetServiceName(nodeSet),
 			Namespace: stroomCluster.Namespace,
 			Labels:    stroomCluster.GetLabels(),
 		},
@@ -428,8 +428,8 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 	// Find out the first non-UI NodeSet so we know where to route datafeed traffic to
 	firstNonUiServiceName := ""
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		if nodeSet.Role != stroomv1.Frontend {
-			firstNonUiServiceName = stroomCluster.GetNodeSetServiceName(nodeSet.Name)
+		if nodeSet.Role != stroomv1.FrontendNodeRole {
+			firstNonUiServiceName = stroomCluster.GetNodeSetServiceName(&nodeSet)
 			break
 		}
 	}
@@ -437,13 +437,13 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 	// Create an Ingress for each route in each NodeSet, where Ingress is enabled
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		clusterName := stroomCluster.GetBaseName()
-		serviceName := stroomCluster.GetNodeSetServiceName(nodeSet.Name)
+		serviceName := stroomCluster.GetNodeSetServiceName(&nodeSet)
 
 		if nodeSet.IngressEnabled != true {
 			continue
 		}
 
-		if nodeSet.Role != stroomv1.Processing {
+		if nodeSet.Role != stroomv1.ProcessingNodeRole {
 			ingresses = append(ingresses,
 				v1.Ingress{
 					// Default route (/)
@@ -494,7 +494,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				})
 		}
 
-		if nodeSet.Role != stroomv1.Frontend {
+		if nodeSet.Role != stroomv1.FrontendNodeRole {
 			ingresses = append(ingresses, v1.Ingress{
 				// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
 				ObjectMeta: metav1.ObjectMeta{

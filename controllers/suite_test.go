@@ -17,23 +17,25 @@ limitations under the License.
 package controllers
 
 import (
-	"github.com/onsi/gomega/gexec"
 	"os"
 	"path/filepath"
-	ctrl "sigs.k8s.io/controller-runtime"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"testing"
 	"time"
 
+	"github.com/onsi/gomega/gexec"
+	ctrl "sigs.k8s.io/controller-runtime"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
+
+	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -68,6 +70,9 @@ var _ = BeforeSuite(func(done Done) {
 	cfg, err := testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
+
+	err = stroomv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	err = stroomv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())

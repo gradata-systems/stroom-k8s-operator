@@ -47,8 +47,8 @@ func (in *StroomCluster) GetBaseName() string {
 	return fmt.Sprintf("stroom-%v", in.Name)
 }
 
-func (in *StroomCluster) GetNodeSetName(nodeSetName string) string {
-	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSetName)
+func (in *StroomCluster) GetNodeSetName(nodeSet *NodeSet) string {
+	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSet.Name)
 }
 
 func (in *StroomCluster) GetLabels() map[string]string {
@@ -66,8 +66,8 @@ func (in *StroomCluster) GetNodeSetSelectorLabels(nodeSet *NodeSet) map[string]s
 	}
 }
 
-func (in *StroomCluster) GetNodeSetServiceName(nodeSetName string) string {
-	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSetName))
+func (in *StroomCluster) GetNodeSetServiceName(nodeSet *NodeSet) string {
+	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSet))
 }
 
 func (in *StroomCluster) IsBeingDeleted() bool {

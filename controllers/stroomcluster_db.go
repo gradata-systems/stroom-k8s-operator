@@ -23,15 +23,14 @@ func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, stroom
 		dbConnectionInfo.Port = dbRef.ServerAddress.Port
 		dbConnectionInfo.SecretName = dbRef.ServerAddress.SecretName
 	} else {
-		// Get or create an operator-managed database instance
-		dbServer := stroomv1.DatabaseServer{}
-		dbReference := dbRef.ServerRef
-
 		// If the ServerRef namespace is empty, try to find the DatabaseServer in the same namespace as StroomCluster
+		dbReference := &dbRef.ServerRef
 		if dbReference.Namespace == "" {
 			dbReference.Namespace = stroomCluster.Namespace
 		}
 
+		// Get or create an operator-managed database instance
+		dbServer := stroomv1.DatabaseServer{}
 		if err := client.Get(ctx, dbReference.NamespacedName(), &dbServer); err != nil {
 			if errors.IsNotFound(err) {
 				logger.Error(err, "DatabaseServer was not found", "Reference", dbReference)
