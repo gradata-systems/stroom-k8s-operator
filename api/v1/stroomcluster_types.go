@@ -51,7 +51,7 @@ func (in *StroomCluster) GetNodeSetName(nodeSet *NodeSet) string {
 	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSet.Name)
 }
 
-func (in *StroomCluster) GetLogSenderConfigMapName() string {
+func (in *StroomCluster) GetLogSenderCronJobName() string {
 	return fmt.Sprintf("stroom-%v-log-sender", in.Name)
 }
 

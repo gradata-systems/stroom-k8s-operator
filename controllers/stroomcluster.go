@@ -6,6 +6,8 @@ import (
 	"fmt"
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -80,23 +82,86 @@ func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.Stroom
 	return &configMap
 }
 
-func (r *StroomClusterReconciler) createLogSenderConfigMap(stroomCluster *stroomv1.StroomCluster) *corev1.ConfigMap {
-	configMap := corev1.ConfigMap{
+func (r *StroomClusterReconciler) createLogSenderCronJob(stroomCluster *stroomv1.StroomCluster) *v1beta1.CronJob {
+	logSenderSettings := stroomCluster.Spec.LogSender
+
+	destinationUrl := logSenderSettings.DestinationUrl
+	if destinationUrl == "" {
+		destinationUrl = stroomCluster.GetDatafeedUrl()
+	}
+
+	environmentName := logSenderSettings.EnvironmentName
+	if environmentName == "" {
+		environmentName = strings.ToUpper(stroomCluster.Name)
+	}
+
+	cronJob := v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      stroomCluster.GetLogSenderConfigMapName(),
+			Name:      stroomCluster.GetLogSenderCronJobName(),
 			Namespace: stroomCluster.Namespace,
 			Labels:    stroomCluster.GetLabels(),
 		},
-		Data: map[string]string{
-			"crontab.txt": "" +
-				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/access STROOM-ACCESS-EVENTS ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/app    STROOM-APP-EVENTS    ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/user   STROOM-USER-EVENTS   ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
+		Spec: v1beta1.CronJobSpec{
+			Schedule: logSenderSettings.Schedule,
+			JobTemplate: v1beta1.JobTemplateSpec{
+				Spec: batchv1.JobSpec{
+					Template: corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							SecurityContext: &logSenderSettings.PodSecurityContext,
+							Containers: []corev1.Container{{
+								Name:            "log-sender",
+								Image:           logSenderSettings.Image.String(),
+								ImagePullPolicy: logSenderSettings.ImagePullPolicy,
+								Command: []string{
+									"sh",
+									"-c",
+									"${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/access STROOM-ACCESS-EVENTS ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress\n" +
+										"${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/app STROOM-APP-EVENTS ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress\n" +
+										"${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/user STROOM-USER-EVENTS ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress",
+								},
+								Env: []corev1.EnvVar{{
+									Name:  "LOG_SENDER_SCRIPT",
+									Value: "/stroom-log-sender/send_to_stroom.sh",
+								}, {
+									Name:  "DATAFEED_URL",
+									Value: destinationUrl,
+								}, {
+									Name:  "STROOM_BASE_LOGS_DIR",
+									Value: "/stroom-log-sender/log-volumes/stroom",
+								}, {
+									Name:  "DEFAULT_FILE_REGEX",
+									Value: `.*/[a-z]+-[0-9]+-[0-9]+-[0-9]+T[0-9]+:[0-9]+\.log(\.gz)?$`,
+								}, {
+									Name:  "DEFAULT_ENVIRONMENT",
+									Value: environmentName,
+								}, {
+									Name:  "MAX_DELAY_SECS",
+									Value: "15",
+								}},
+								VolumeMounts: []corev1.VolumeMount{{
+									Name:      "data",
+									MountPath: "/stroom-log-sender/log-volumes/stroom",
+								}, {
+									Name:      "log-sender-configmap",
+									MountPath: "/stroom-log-sender/config",
+									ReadOnly:  true,
+								}},
+							}},
+							Volumes: []corev1.Volume{{
+								Name: "data",
+								VolumeSource: corev1.VolumeSource{
+									PersistentVolumeClaim: &logSenderSettings.VolumeClaim,
+								},
+							}},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	ctrl.SetControllerReference(stroomCluster, &configMap, r.Scheme)
-	return &configMap
+	ctrl.SetControllerReference(stroomCluster, &cronJob, r.Scheme)
+	return &cronJob
 }
 
 func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
@@ -131,7 +196,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: stroomCluster.GetLogSenderConfigMapName(),
+						Name: stroomCluster.GetLogSenderCronJobName(),
 					},
 				},
 			},
@@ -334,53 +399,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			},
 		},
 	}}
-
-	if logSender.Enabled {
-		destinationUrl := logSender.DestinationUrl
-		if destinationUrl == "" {
-			destinationUrl = stroomCluster.GetDatafeedUrl()
-		}
-
-		environmentName := logSender.EnvironmentName
-		if environmentName == "" {
-			environmentName = strings.ToUpper(stroomCluster.Name)
-		}
-
-		containers = append(containers, corev1.Container{
-			Name:            "log-sender",
-			Image:           logSender.Image.String(),
-			ImagePullPolicy: logSender.ImagePullPolicy,
-			SecurityContext: &logSender.SecurityContext,
-			Env: []corev1.EnvVar{{
-				Name:  "LOG_SENDER_SCRIPT",
-				Value: "/stroom-log-sender/send_to_stroom.sh",
-			}, {
-				Name:  "DATAFEED_URL",
-				Value: destinationUrl,
-			}, {
-				Name:  "STROOM_BASE_LOGS_DIR",
-				Value: "/stroom-log-sender/log-volumes/stroom",
-			}, {
-				Name:  "DEFAULT_FILE_REGEX",
-				Value: `.*/[a-z]+-[0-9]+-[0-9]+-[0-9]+T[0-9]+:[0-9]+\.log(\.gz)?$`,
-			}, {
-				Name:  "DEFAULT_ENVIRONMENT",
-				Value: environmentName,
-			}, {
-				Name:  "MAX_DELAY_SECS",
-				Value: "15",
-			}},
-			VolumeMounts: []corev1.VolumeMount{{
-				Name:      StroomNodePvcName,
-				SubPath:   "logs",
-				MountPath: "/stroom-log-sender/log-volumes/stroom",
-			}, {
-				Name:      "log-sender-configmap",
-				MountPath: "/stroom-log-sender/config",
-				ReadOnly:  true,
-			}},
-		})
-	}
 
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{

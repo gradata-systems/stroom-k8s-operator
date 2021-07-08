@@ -174,9 +174,11 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Create a ConfigMap for stroom-log-sender
 	if stroomCluster.Spec.LogSender.Enabled {
 		foundLogSenderConfigMap := corev1.ConfigMap{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetLogSenderConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundLogSenderConfigMap, func() error {
-			// Create the ConfigMap
-			resource := r.createLogSenderConfigMap(&stroomCluster)
+		result, err = r.getOrCreateObject(ctx, stroomCluster.GetLogSenderCronJobName(), stroomCluster.Namespace, "ConfigMap", &foundLogSenderConfigMap, func() error {
+			// Create the CronJob
+			// TODO: We need the CronJob to somehow have access to all deployed Stroom nodes
+			// Maybe use a DaemonSet? Or some other system of log harvesting (like Filebeat)
+			resource := r.createLogSenderCronJob(&stroomCluster)
 			logger.Info("Creating stroom-log-sender ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
 			return r.Create(ctx, resource)
 		})

@@ -40,8 +40,12 @@ type LogSenderSettings struct {
 	// +kubebuilder:validation:Required
 	Image           Image             `json:"image"`
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	// PersistentVolumeClaim providing access to the target Stroom node `logs` directory
+	VolumeClaim corev1.PersistentVolumeClaimVolumeSource `json:"volumeClaim"`
 	// Override the container security context
-	SecurityContext corev1.SecurityContext `json:"securityContext,omitempty"`
+	PodSecurityContext corev1.PodSecurityContext `json:"securityContext,omitempty"`
+	// Cron schedule that determines when the job should run
+	Schedule string `json:"schedule"`
 	// Configure an alternate destination for events to be shipped to. If omitted, events are posted to the local cluster.
 	DestinationUrl string `json:"destinationUrl,omitempty"`
 	// Name of the `Environment` to set in feed metadata. If omitted, the cluster name is used (converted to UPPERCASE).
