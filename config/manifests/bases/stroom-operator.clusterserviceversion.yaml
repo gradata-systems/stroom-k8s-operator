@@ -3,7 +3,7 @@ kind: ClusterServiceVersion
 metadata:
   annotations:
     alm-examples: '[]'
-    capabilities: Basic Install
+    capabilities: Auto Pilot
   name: stroom-operator.v0.0.0
   namespace: placeholder
 spec:
@@ -20,7 +20,12 @@ spec:
       kind: StroomCluster
       name: stroomclusters.stroom.gchq.github.io
       version: v1
-  description: Stroom
+    - description: StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers API
+      displayName: Stroom Task Autoscaler
+      kind: StroomTaskAutoscaler
+      name: stroomtaskautoscalers.stroom.gchq.github.io
+      version: v1
+  description: Kubernetes operator for deploying and managing a Stroom cluster
   displayName: stroom-k8s-operator
   icon:
   - base64data: ""
@@ -41,9 +46,14 @@ spec:
   keywords:
   - stroom
   links:
-  - name: Stroom Operator
-    url: https://stroom-operator.domain
-  maturity: alpha
+  - name: Repository (GitHub)
+    url: https://github.com/p-kimberley/stroom-k8s-operator
+  - name: Stroom repository (GitHub)
+    url: https://github.com/gchq/stroom
+  maturity: beta
   provider:
-    name: p.kimberley@gmail.com
+    name: GCHQ
+  maintainers:
+    - name: Peter Kimberley
+      email: peter@gradata.com.au
   version: 0.0.0
