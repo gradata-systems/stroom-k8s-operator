@@ -4,7 +4,7 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Auto Pilot
-  name: stroom-operator.v0.0.0
+  name: stroom-k8s-operator.v0.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -20,7 +20,8 @@ spec:
       kind: StroomCluster
       name: stroomclusters.stroom.gchq.github.io
       version: v1
-    - description: StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers API
+    - description: StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers
+        API
       displayName: Stroom Task Autoscaler
       kind: StroomTaskAutoscaler
       name: stroomtaskautoscalers.stroom.gchq.github.io
@@ -50,10 +51,10 @@ spec:
     url: https://github.com/p-kimberley/stroom-k8s-operator
   - name: Stroom repository (GitHub)
     url: https://github.com/gchq/stroom
+  maintainers:
+  - email: peter@gradata.com.au
+    name: Peter Kimberley
   maturity: beta
   provider:
     name: GCHQ
-  maintainers:
-    - name: Peter Kimberley
-      email: peter@gradata.com.au
   version: 0.0.0

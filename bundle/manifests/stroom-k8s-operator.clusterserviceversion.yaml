@@ -201,12 +201,24 @@ metadata:
               }
             }
           }
+        },
+        {
+          "apiVersion": "stroom.gchq.github.io/v1",
+          "kind": "StroomTaskAutoscaler",
+          "metadata": {
+            "name": "dev"
+          },
+          "spec": {
+            "stroomClusterRef": {
+              "name": "dev"
+            }
+          }
         }
       ]
-    capabilities: Basic Install
+    capabilities: Auto Pilot
     operators.operatorframework.io/builder: operator-sdk-v1.8.0+git
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
-  name: stroom-operator.v0.0.7
+  name: stroom-k8s-operator.v0.0.15
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -222,7 +234,13 @@ spec:
       kind: StroomCluster
       name: stroomclusters.stroom.gchq.github.io
       version: v1
-  description: Stroom
+    - description: StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers
+        API
+      displayName: Stroom Task Autoscaler
+      kind: StroomTaskAutoscaler
+      name: stroomtaskautoscalers.stroom.gchq.github.io
+      version: v1
+  description: Kubernetes operator for deploying and managing a Stroom cluster
   displayName: stroom-k8s-operator
   icon:
   - base64data: ""
@@ -270,6 +288,26 @@ spec:
         - apiGroups:
           - ""
           resources:
+          - persistentvolumeclaims
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
           - secrets
           verbs:
           - create
@@ -303,6 +341,13 @@ spec:
           - patch
           - update
           - watch
+        - apiGroups:
+          - metrics.k8s.io
+          resources:
+          - pods
+          verbs:
+          - get
+          - list
         - apiGroups:
           - networking.k8s.io
           resources:
@@ -368,6 +413,32 @@ spec:
           - patch
           - update
         - apiGroups:
+          - stroom.gchq.github.io
+          resources:
+          - stroomtaskautoscalers
+          verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - stroom.gchq.github.io
+          resources:
+          - stroomtaskautoscalers/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - stroom.gchq.github.io
+          resources:
+          - stroomtaskautoscalers/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
           - authentication.k8s.io
           resources:
           - tokenreviews
@@ -411,7 +482,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: docker.intranet.gradata.com.au/gchq.github.io/stroom-operator-bundle:v0.0.7
+                image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator-bundle:v0.0.15
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -435,8 +506,6 @@ spec:
                     memory: 50Mi
                 securityContext:
                   allowPrivilegeEscalation: false
-              securityContext:
-                runAsNonRoot: true
               serviceAccountName: stroom-operator-controller-manager
               terminationGracePeriodSeconds: 10
       permissions:
@@ -486,9 +555,14 @@ spec:
   keywords:
   - stroom
   links:
-  - name: Stroom Operator
-    url: https://stroom-operator.domain
-  maturity: alpha
+  - name: Repository (GitHub)
+    url: https://github.com/p-kimberley/stroom-k8s-operator
+  - name: Stroom repository (GitHub)
+    url: https://github.com/gchq/stroom
+  maintainers:
+  - email: peter@gradata.com.au
+    name: Peter Kimberley
+  maturity: beta
   provider:
-    name: p.kimberley@gmail.com
-  version: 0.0.7
+    name: GCHQ
+  version: 0.0.15
