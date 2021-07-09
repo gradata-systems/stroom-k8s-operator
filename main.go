@@ -20,6 +20,8 @@ import (
 	"flag"
 	"os"
 
+	"github.com/p-kimberley/stroom-k8s-operator/controllers"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -27,12 +29,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	metrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	stroomv1alpha1 "github.com/p-kimberley/stroom-k8s-operator/api/v1alpha1"
-	"github.com/p-kimberley/stroom-k8s-operator/controllers"
+	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -43,8 +45,9 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(metrics.AddToScheme(scheme))
 
-	utilruntime.Must(stroomv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(stroomv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -83,6 +86,20 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "StroomCluster")
+		os.Exit(1)
+	}
+	if err = (&controllers.DatabaseServerReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DatabaseServer")
+		os.Exit(1)
+	}
+	if err = (&controllers.StroomTaskAutoscalerReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "StroomTaskAutoscaler")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

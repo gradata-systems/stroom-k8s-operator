@@ -1,0 +1,85 @@
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: dev
+  namespace: stroom-7
+spec:
+  image:
+    repository: docker.intranet.gradata.com.au/gchq/stroom
+    tag: v7
+  imagePullPolicy: Always
+  extraEnv: []
+  configMapName: stroom-dev
+  appDatabaseRef:
+    databaseName: stroom
+    databaseServerRef:
+      name: dev
+  statsDatabaseRef:
+    databaseName: stats
+    databaseServerRef:
+      name: dev
+  ingress:
+    hostName: stroom-7.internal
+    secretName: stroom-7-tls
+
+  nodeSets:
+    - name: data
+      count: 2
+      role: Processing
+      localDataVolumeClaim:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+          limits:
+            storage: 1Gi
+        selector:
+          matchLabels:
+            app: stroom-7
+            component: stroom-node
+      sharedDataVolume:
+        nfs:
+          server: gs-fs01.internal
+          path: /volume2/AppData/stroom-7/stroom-shared
+      ingressEnabled: true
+      startupProbeTimings: {}
+      livenessProbeTimings: {}
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 8Gi
+      podAnnotations: {}
+      podSecurityContext: {}
+      securityContext: {}
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+    - name: ui
+      count: 1
+      role: Frontend
+      localDataVolumeClaim:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+          limits:
+            storage: 1Gi
+        selector:
+          matchLabels:
+            app: stroom-7
+            component: stroom-node
+      ingressEnabled: true
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi

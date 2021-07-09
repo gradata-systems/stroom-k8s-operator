@@ -1,0 +1,52 @@
+# Default values for stroom.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  # Override any common repositories, such as when using a private Docker registry
+  repositories:
+    busybox: busybox
+
+  # Identifies this Stroom cluster
+  clusterName: stroom-dev
+
+  # Set the advertised host (could be a FQDN or hostname)
+  advertisedHost: stroom.example.com
+
+  kafka:
+    chartId: kafka
+
+    # Override the service name. Defaults to: (Release name)-kafka
+    serviceName: ""
+    port: 9092
+    connectorVersion: 2.1.1
+
+  mysql:
+    # User databases to create on startup
+    databases:
+      annotations: annotations
+      auth: auth
+      config: config
+      datameta: datameta
+      explorer: explorer
+      process: process
+      stats: stats
+      stroom: stroom
+
+  stroomNode:
+    chartId: node
+
+    ports:
+      app: 8080
+      admin: 8081
+      debug: 10765
+
+  zookeeper:
+    chartId: zookeeper
+
+    replicaCount: 3
+    ports:
+      client: 2181
+      follower: 2888
+      election: 3888
+      admin: 8080

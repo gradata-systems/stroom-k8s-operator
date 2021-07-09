@@ -7,6 +7,143 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databaseservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databaseservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databaseservers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - stroom.gchq.github.io
   resources:
   - stroomclusters
@@ -28,6 +165,32 @@ rules:
   - stroom.gchq.github.io
   resources:
   - stroomclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers/status
   verbs:
   - get
   - patch

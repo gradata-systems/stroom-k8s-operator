@@ -14,28 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 import (
+	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// StroomClusterSpec defines the desired state of StroomCluster
-type StroomClusterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of StroomCluster. Edit stroomcluster_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
-}
+const (
+	StroomClusterLabel = "stroom/cluster"
+	NodeSetLabel       = "stroom/nodeSet"
+)
 
 // StroomClusterStatus defines the observed state of StroomCluster
 type StroomClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Nodes []string `json:"nodes,omitempty"`
 }
 
 //+kubebuilder:object:root=true
@@ -48,6 +41,45 @@ type StroomCluster struct {
 
 	Spec   StroomClusterSpec   `json:"spec,omitempty"`
 	Status StroomClusterStatus `json:"status,omitempty"`
+}
+
+func (in *StroomCluster) GetBaseName() string {
+	return fmt.Sprintf("stroom-%v", in.Name)
+}
+
+func (in *StroomCluster) GetNodeSetName(nodeSet *NodeSet) string {
+	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSet.Name)
+}
+
+func (in *StroomCluster) GetLogSenderConfigMapName() string {
+	return fmt.Sprintf("stroom-%v-log-sender", in.Name)
+}
+
+func (in *StroomCluster) GetLabels() map[string]string {
+	return map[string]string{
+		"app.kubernetes.io/name":      "stroom",
+		"app.kubernetes.io/component": "stroom-cluster",
+		StroomClusterLabel:            in.Name,
+	}
+}
+
+func (in *StroomCluster) GetNodeSetSelectorLabels(nodeSet *NodeSet) map[string]string {
+	return map[string]string{
+		StroomClusterLabel: in.Name,
+		NodeSetLabel:       nodeSet.Name,
+	}
+}
+
+func (in *StroomCluster) GetNodeSetServiceName(nodeSet *NodeSet) string {
+	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSet))
+}
+
+func (in *StroomCluster) GetDatafeedUrl() string {
+	return fmt.Sprintf("https://%v/stroom/datafeeddirect", in.Spec.Ingress.HostName)
+}
+
+func (in *StroomCluster) IsBeingDeleted() bool {
+	return !in.ObjectMeta.DeletionTimestamp.IsZero()
 }
 
 //+kubebuilder:object:root=true
