@@ -482,7 +482,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator-bundle:v0.0.15
+                image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:0.0.15
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -506,6 +506,8 @@ spec:
                     memory: 50Mi
                 securityContext:
                   allowPrivilegeEscalation: false
+              securityContext:
+                runAsNonRoot: true
               serviceAccountName: stroom-operator-controller-manager
               terminationGracePeriodSeconds: 10
       permissions:
