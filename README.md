@@ -130,3 +130,6 @@ Bear in mind that the CPU percentages are based on a rolling average, so be care
 1. In particularly large deployments (i.e. involving many Stroom nodes), it may be necessary to increase the resources allocated to `stroom-operator-controller-manager` `Pod`. This can be done by editing the `all-in-one.yaml` prior to deployment.
 The need for more resources is due to the Operator maintaining a finite collection of `StroomCluster` `Pod` metrics in-memory.
 1. `DatabaseServer` backups are performed as a single transaction. As this can cause issues with concurrent schema changes, Stroom upgrades (which sometimes modify the DB schema) should not be performed while a database backup is in progress.
+1. If a Stroom `Pod` hangs and you do not want to wait for it to be deleted (and are comfortable accepting the risk of the loss of processing tasks), you can force its deletion by:
+   1. Deleting the `Pod` (e.g. using `kubectl`)
+   1. Terminating the Stroom Java process within the running container (named `stroom-node`)
