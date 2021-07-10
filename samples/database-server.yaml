@@ -1,0 +1,39 @@
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseServer
+metadata:
+  name: dev
+  namespace: stroom-7
+spec:
+  image:
+    repository: mysql/mysql-server
+    tag: 8.0.23
+  databaseNames:
+    - stroom
+    - stats
+  additionalConfig: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 500m
+      memory: 500Mi
+  volumeClaim:
+    volumeName: stroom-db
+    accessModes:
+      - ReadWriteOnce
+    storageClassName: ""
+    resources:
+      requests:
+        storage: 100Mi
+      limits:
+        storage: 200Mi
+  backup:
+    schedule: "*/5 * * * *"
+    databaseNames:
+      - stroom
+      - stats
+    volume:
+      nfs:
+        path: /data/stroom
+        server: backup.fs.example.com

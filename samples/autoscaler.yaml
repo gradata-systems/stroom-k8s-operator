@@ -1,0 +1,16 @@
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomTaskAutoscaler
+metadata:
+  name: dev
+  namespace: stroom-7
+spec:
+  stroomClusterRef:
+    name: dev
+  taskName: Data Processor
+  adjustmentIntervalMins: 1
+  metricsSlidingWindowMins: 1
+  minCpuPercent: 50
+  maxCpuPercent: 90
+  minTaskLimit: 1
+  maxTaskLimit: 20
+  stepAmount: 1

@@ -1,0 +1,103 @@
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: dev
+  namespace: stroom
+spec:
+  image:
+    repository: gchq/stroom
+    tag: master-SNAPSHOT
+  imagePullPolicy: Always
+  databaseServerRef:
+    serverRef:
+      name: dev
+  appDatabaseName: stroom
+  statsDatabaseName: stats
+  ingress:
+    hostName: stroom.example.com
+    secretName: stroom-tls
+  nodeTerminationPeriodSecs: 300
+  volumeClaimDeletePolicy: DeleteOnScaledownOnly
+  logSender:
+    enabled: true
+    image:
+      repository: gchq/stroom-log-sender
+      tag: v2.2.0
+    securityContext:
+      runAsNonRoot: false
+      privileged: true
+      runAsUser: 0
+      runAsGroup: 0
+  nodeSets:
+    - name: data
+      count: 3
+      role: Processing
+      localDataVolumeClaim:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+          limits:
+            storage: 1Gi
+        selector:
+          matchLabels:
+            app: stroom
+            component: stroom-node
+      sharedDataVolume:
+        nfs:
+          server: stroom.fs.example.com
+          path: /data/stroom/stroom-shared
+      ingressEnabled: true
+      readinessProbeTimings: {}
+      livenessProbeTimings: {}
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 8Gi
+      podAnnotations: {}
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+    - name: ui
+      count: 1
+      role: Frontend
+      localDataVolumeClaim:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+          limits:
+            storage: 1Gi
+        selector:
+          matchLabels:
+            app: stroom
+            component: stroom-node
+      sharedDataVolume:
+        nfs:
+          server: stroom.fs.example.com
+          path: /data/stroom/stroom-shared
+      ingressEnabled: true
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
