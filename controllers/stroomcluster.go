@@ -196,11 +196,16 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		})
 	}
 
+	if len(stroomCluster.Spec.ExtraVolumes) > 0 {
+		volumes = append(volumes, stroomCluster.Spec.ExtraVolumes...)
+		volumeMounts = append(volumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
+	}
+
 	containers := []corev1.Container{{
 		Name:            StroomNodeContainerName,
 		Image:           stroomCluster.Spec.Image.String(),
 		ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
-		Env: []corev1.EnvVar{{
+		Env: append([]corev1.EnvVar{{
 			Name:  "API_GATEWAY_HOST",
 			Value: stroomCluster.Spec.Ingress.HostName,
 		}, {
@@ -293,7 +298,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					Key: DatabaseServiceUserName,
 				},
 			},
-		}},
+		}}, stroomCluster.Spec.ExtraEnv...),
 		VolumeMounts:    volumeMounts,
 		SecurityContext: &nodeSet.SecurityContext,
 		Ports: []corev1.ContainerPort{{
