@@ -69,7 +69,7 @@ func (r *StroomClusterReconciler) createSecret(stroomCluster *stroomv1.StroomClu
 func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.StroomCluster, data map[string]string) *corev1.ConfigMap {
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      stroomCluster.GetBaseName(),
+			Name:      stroomCluster.GetStaticContentConfigMapName(),
 			Namespace: stroomCluster.Namespace,
 			Labels:    stroomCluster.GetLabels(),
 		},
@@ -140,11 +140,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	volumeMounts := []corev1.VolumeMount{{
 		Name:      "static-content",
-		SubPath:   "stroomcluster-config.yaml",
-		MountPath: "/stroom/config/config.yml",
-		ReadOnly:  true,
-	}, {
-		Name:      "static-content",
 		SubPath:   "node-start.sh",
 		MountPath: "/stroom/scripts/node-start.sh",
 		ReadOnly:  true,
@@ -183,6 +178,36 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		SubPath:   "search-results",
 		MountPath: "/stroom/search_results",
 	}}
+
+	// If a Stroom node config override is provided, mount the existing ConfigMap
+	configOverride := stroomCluster.Spec.ConfigMapRef
+	const configMountPath = "/stroom/config/config.yml"
+	if !configOverride.IsZero() {
+		volumes = append(volumes, corev1.Volume{
+			Name: "config-override",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: configOverride.Name,
+					},
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "config-override",
+			SubPath:   configOverride.ItemName,
+			MountPath: configMountPath,
+			ReadOnly:  true,
+		})
+	} else {
+		// Use the default config
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "static-content",
+			SubPath:   "stroomcluster-config.yaml",
+			MountPath: configMountPath,
+			ReadOnly:  true,
+		})
+	}
 
 	// Shared volumes are optional and for UI nodes, it makes sense to omit them
 	if nodeSet.SharedDataVolume != (corev1.VolumeSource{}) {
