@@ -47,6 +47,10 @@ func (in *StroomCluster) GetBaseName() string {
 	return fmt.Sprintf("stroom-%v", in.Name)
 }
 
+func (in *StroomCluster) GetStaticContentConfigMapName() string {
+	return fmt.Sprintf("%v-static-content", in.GetBaseName())
+}
+
 func (in *StroomCluster) GetNodeSetName(nodeSet *NodeSet) string {
 	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSet.Name)
 }

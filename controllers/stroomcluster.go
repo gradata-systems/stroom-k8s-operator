@@ -69,7 +69,7 @@ func (r *StroomClusterReconciler) createSecret(stroomCluster *stroomv1.StroomClu
 func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.StroomCluster, data map[string]string) *corev1.ConfigMap {
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      stroomCluster.GetBaseName(),
+			Name:      stroomCluster.GetStaticContentConfigMapName(),
 			Namespace: stroomCluster.Namespace,
 			Labels:    stroomCluster.GetLabels(),
 		},
@@ -108,7 +108,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: stroomCluster.GetBaseName(),
+					Name: stroomCluster.GetStaticContentConfigMapName(),
 				},
 			},
 		},
@@ -139,11 +139,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}
 
 	volumeMounts := []corev1.VolumeMount{{
-		Name:      "static-content",
-		SubPath:   "stroomcluster-config.yaml",
-		MountPath: "/stroom/config/config.yml",
-		ReadOnly:  true,
-	}, {
 		Name:      "static-content",
 		SubPath:   "node-start.sh",
 		MountPath: "/stroom/scripts/node-start.sh",
@@ -184,6 +179,36 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		MountPath: "/stroom/search_results",
 	}}
 
+	// If a Stroom node config override is provided, mount the existing ConfigMap
+	configOverride := stroomCluster.Spec.ConfigMapRef
+	const configMountPath = "/stroom/config/config.yml"
+	if !configOverride.IsZero() {
+		volumes = append(volumes, corev1.Volume{
+			Name: "config-override",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: configOverride.Name,
+					},
+				},
+			},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "config-override",
+			SubPath:   configOverride.ItemName,
+			MountPath: configMountPath,
+			ReadOnly:  true,
+		})
+	} else {
+		// Use the default config
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "static-content",
+			SubPath:   "stroomcluster-config.yaml",
+			MountPath: configMountPath,
+			ReadOnly:  true,
+		})
+	}
+
 	// Shared volumes are optional and for UI nodes, it makes sense to omit them
 	if nodeSet.SharedDataVolume != (corev1.VolumeSource{}) {
 		volumes = append(volumes, corev1.Volume{
@@ -196,11 +221,16 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		})
 	}
 
+	if len(stroomCluster.Spec.ExtraVolumes) > 0 {
+		volumes = append(volumes, stroomCluster.Spec.ExtraVolumes...)
+		volumeMounts = append(volumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
+	}
+
 	containers := []corev1.Container{{
 		Name:            StroomNodeContainerName,
 		Image:           stroomCluster.Spec.Image.String(),
 		ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
-		Env: []corev1.EnvVar{{
+		Env: append([]corev1.EnvVar{{
 			Name:  "API_GATEWAY_HOST",
 			Value: stroomCluster.Spec.Ingress.HostName,
 		}, {
@@ -293,7 +323,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					Key: DatabaseServiceUserName,
 				},
 			},
-		}},
+		}}, stroomCluster.Spec.ExtraEnv...),
 		VolumeMounts:    volumeMounts,
 		SecurityContext: &nodeSet.SecurityContext,
 		Ports: []corev1.ContainerPort{{

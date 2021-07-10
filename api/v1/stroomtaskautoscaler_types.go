@@ -39,7 +39,7 @@ type StroomTaskAutoscalerSpec struct {
 	// +kubebuilder:validation:Minimum:=1
 	MetricsSlidingWindowMins int `json:"metricsSlidingWindowMins,omitempty"`
 
-	// Minimum CPU usage threshold before the number of tasks is adjust upwards
+	// Minimum CPU usage threshold before the number of tasks is adjusted upwards
 	// +kubebuilder:default:=50
 	MinCpuPercent int `json:"minCpuPercent,omitempty"`
 

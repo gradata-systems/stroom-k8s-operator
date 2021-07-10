@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 0.0.15
+VERSION ?= 0.0.17
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -27,9 +27,15 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
+# If a `PRIVATE_REGISTRY` URL is defined, it is prepended to the repository name.
+#
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # gchq.github.io/stroom-k8s-operator-bundle:$VERSION and gchq.github.io/stroom-k8s-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator
+ifneq ($(origin PRIVATE_REGISTRY), undefined)
+IMAGE_TAG_BASE = $(PRIVATE_REGISTRY)/gchq.github.io/stroom-k8s-operator
+else
+IMAGE_TAG_BASE ?= gchq.github.io/stroom-k8s-operator
+endif
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -105,6 +111,18 @@ docker-build: test ## Build docker image with the manager.
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
+# Build the controller, bundle and push both
+# Set PRIVATE_REGISTRY if needing to push to a custom image registry
+build-and-push: build docker-build docker-push bundle bundle-build bundle-push
+
+##@ Build for offline usage
+
+build-offline-bundle: build docker-build docker-push manifests kustomize
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default > deploy/all-in-one.yaml
+	# Write a list of images for use in air-gapped environments
+	sh deploy/get-images.sh > deploy/images.txt
+
 ##@ Deployment
 
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -119,7 +137,6 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
-
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.

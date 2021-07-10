@@ -144,7 +144,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Create a ConfigMap containing Stroom configuration and lifecycle scripts
 	foundConfigMap := corev1.ConfigMap{}
-	result, err = r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
+	result, err = r.getOrCreateObject(ctx, stroomCluster.GetStaticContentConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
 		if files, err := StaticFiles.ReadDir("static_content"); err != nil {
 			logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
 			return err
@@ -161,7 +161,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 			// Create the ConfigMap
 			resource := r.createConfigMap(&stroomCluster, allFileData)
-			logger.Info("Creating StroomCluster ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
+			logger.Info("Creating static content ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
 			return r.Create(ctx, resource)
 		}
 	})
