@@ -108,7 +108,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: stroomCluster.GetBaseName(),
+					Name: stroomCluster.GetStaticContentConfigMapName(),
 				},
 			},
 		},

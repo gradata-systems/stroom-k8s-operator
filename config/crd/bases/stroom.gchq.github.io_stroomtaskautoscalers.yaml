@@ -62,7 +62,7 @@ spec:
               minCpuPercent:
                 default: 50
                 description: Minimum CPU usage threshold before the number of tasks
-                  is adjust upwards
+                  is adjusted upwards
                 type: integer
               minTaskLimit:
                 default: 1
