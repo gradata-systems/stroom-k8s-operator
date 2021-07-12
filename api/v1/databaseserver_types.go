@@ -23,8 +23,9 @@ import (
 
 // DatabaseServerStatus defines the observed state of DatabaseServer
 type DatabaseServerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	State   string `json:"status"`
+	Address string `json:"address"`
+	Port    int32  `json:"port"`
 }
 
 //+kubebuilder:object:root=true

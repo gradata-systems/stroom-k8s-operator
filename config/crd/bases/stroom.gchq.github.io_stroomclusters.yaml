@@ -49,6 +49,8 @@ spec:
                     type: string
                 type: object
               databaseServerRef:
+                description: DatabaseServerRef contains either the details of a DatabaseServer
+                  resource, or the TCP connection details of an external MySQL database
                 properties:
                   serverAddress:
                     description: Alternatively, if the following parameters are provided,
@@ -57,11 +59,18 @@ spec:
                       one.
                     properties:
                       address:
+                        description: Address is the hostname or IP of the database
+                          server
                         type: string
                       port:
+                        default: 3306
+                        description: Port number
                         format: int32
                         type: integer
                       secretName:
+                        description: SecretName is the name of the secret containing
+                          the password of both the `root` and `stroomuser` users in
+                          the database instance
                         type: string
                     type: object
                   serverRef:
@@ -2487,14 +2496,23 @@ spec:
                           type: object
                       type: object
                     count:
-                      description: Number of replicas (discrete Stroom nodes) in the
-                        NodeSet
+                      description: Number of replicas (discrete Stroom nodes) to deploy
+                        in the NodeSet
                       format: int32
                       minimum: 1
                       type: integer
                     ingressEnabled:
+                      default: true
+                      description: IngressEnabled determines whether this node receives
+                        requests via the created Kubernetes Ingresses. Usually this
+                        should be `true`, unless there is a need for a NodeSet to
+                        be pure processing-only nodes, which cannot receive data.
                       type: boolean
                     livenessProbeTimings:
+                      description: LivenessProbeTimings specify poll Pod healthcheck
+                        conditions. Ensure periods of high volume are factored in
+                        when deciding these timings, otherwise nodes will be killed
+                        if they fail the specified parameters.
                       properties:
                         failureThreshold:
                           default: 10
@@ -2518,9 +2536,8 @@ spec:
                           type: integer
                       type: object
                     localDataVolumeClaim:
-                      description: PersistentVolumeClaimSpec describes the common
-                        attributes of storage devices and allows a Source for provider-specific
-                        attributes
+                      description: LocalDataVolumeClaim provides persistent storage
+                        for each Stroom node's data
                       properties:
                         accessModes:
                           description: 'AccessModes contains the desired access modes
@@ -2645,22 +2662,27 @@ spec:
                           type: string
                       type: object
                     name:
-                      description: Unique identity of the NodeSet. Should be a short
-                        name like "prod".
+                      description: "Name uniquely identifies the NodeSet within a
+                        StroomCluster. Should be a short name like \"prod\". \n The
+                        NodeSet name determines the name of the Stroom node, which
+                        follows the format: `stroom-<cluster name>-node-<nodeset name>-<pod
+                        ordinal>`. \n For example, the first Stroom node in StroomCluster
+                        `dev`, NodeSet `data` will be named: `stroom-dev-node-data-0`."
                       type: string
                     nodeSelector:
                       additionalProperties:
                         type: string
+                      description: NodeSelector allows for NodeSet Pods to be deployed
+                        to a particular node, or set of nodes, by the specified labels
                       type: object
                     podAnnotations:
                       additionalProperties:
                         type: string
+                      description: PodAnnotations are additional annotations to set
+                        for each NodeSet Pod
                       type: object
                     podSecurityContext:
-                      description: PodSecurityContext holds pod-level security attributes
-                        and common container settings. Some fields are also present
-                        in container.securityContext.  Field values of container.securityContext
-                        take precedence over field values of PodSecurityContext.
+                      description: PodSecurityContext applies to each NodeSet Pod
                       properties:
                         fsGroup:
                           description: "A special supplemental group that applies
@@ -2813,6 +2835,10 @@ spec:
                           type: object
                       type: object
                     readinessProbeTimings:
+                      description: ReadinessProbeTimings specify the parameters for
+                        Pod initial startup. If a node fails to start up in accordance
+                        with these parameters, it will be killed. Therefore, ensure
+                        sufficient leeway is provided.
                       properties:
                         failureThreshold:
                           default: 10
@@ -2836,8 +2862,12 @@ spec:
                           type: integer
                       type: object
                     resources:
-                      description: ResourceRequirements describes the compute resource
-                        requirements.
+                      description: "Resources determine how much CPU and memory each
+                        individual Stroom node Pod within the NodeSet requests and
+                        is limited to. \n The JVM memory options (Xms and Xmx) are
+                        automatically computed based on the `limits` property. Specifically,
+                        Xms and Xmx are both set to the lesser of 30Gi and half of
+                        the Pod memory limit."
                       properties:
                         limits:
                           additionalProperties:
@@ -2864,12 +2894,15 @@ spec:
                           type: object
                       type: object
                     role:
+                      description: "Role of each node in the NodeSet. ProcessingNodeRole
+                        nodes are limited to receiving and processing data, while
+                        FrontendNodeRole nodes host the Stroom. \n If this property
+                        is omitted, nodes in the NodeSet will assume both Processing
+                        and Frontend roles."
                       type: string
                     securityContext:
-                      description: SecurityContext holds security configuration that
-                        will be applied to a container. Some fields are present in
-                        both SecurityContext and PodSecurityContext.  When both are
-                        set, the values in SecurityContext take precedence.
+                      description: SecurityContext overrides the PodSecurityContext
+                        at the container level
                       properties:
                         allowPrivilegeEscalation:
                           description: 'AllowPrivilegeEscalation controls whether
@@ -3017,8 +3050,10 @@ spec:
                           type: object
                       type: object
                     sharedDataVolume:
-                      description: Represents the source of a volume to mount. Only
-                        one of its members may be specified.
+                      description: SharedDataVolume provides shared storage, accessible
+                        to all Stroom cluster nodes, for storing and retrieving stream
+                        data. Stream volumes should be allocated within Stroom to
+                        point to subdirectories within this volume.
                       properties:
                         awsElasticBlockStore:
                           description: 'AWSElasticBlockStore represents an AWS Disk

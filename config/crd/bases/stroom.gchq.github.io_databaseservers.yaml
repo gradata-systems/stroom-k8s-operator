@@ -2644,6 +2644,18 @@ spec:
             type: object
           status:
             description: DatabaseServerStatus defines the observed state of DatabaseServer
+            properties:
+              address:
+                type: string
+              port:
+                format: int32
+                type: integer
+              status:
+                type: string
+            required:
+            - address
+            - port
+            - status
             type: object
           stroomClusterRef:
             description: Set by the controller when a StroomCluster binds to the DatabaseServer.
