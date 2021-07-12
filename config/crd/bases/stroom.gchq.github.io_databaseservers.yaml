@@ -16,7 +16,14 @@ spec:
     singular: databaseserver
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: DatabaseServer is the Schema for the databases API
@@ -2650,12 +2657,12 @@ spec:
               port:
                 format: int32
                 type: integer
-              status:
+              state:
                 type: string
             required:
             - address
             - port
-            - status
+            - state
             type: object
           stroomClusterRef:
             description: Set by the controller when a StroomCluster binds to the DatabaseServer.
