@@ -26,6 +26,6 @@ type NodeSet struct {
 type NodeRole string
 
 const (
-	ProcessingNodeRole NodeRole = "ProcessingNodeRole"
-	FrontendNodeRole            = "FrontendNodeRole"
+	ProcessingNodeRole NodeRole = "Processing"
+	FrontendNodeRole            = "Frontend"
 )
