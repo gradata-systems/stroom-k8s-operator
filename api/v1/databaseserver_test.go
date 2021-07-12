@@ -37,7 +37,7 @@ var _ = Describe("DatabaseServer", func() {
 					Name:      key.Name,
 					Namespace: key.Namespace,
 				},
-				Spec: &DatabaseServerSpec{
+				Spec: DatabaseServerSpec{
 					Image: Image{
 						Repository: "mysql/mysql-server",
 					},

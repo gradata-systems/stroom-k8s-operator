@@ -23,20 +23,23 @@ import (
 
 // DatabaseServerStatus defines the observed state of DatabaseServer
 type DatabaseServerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	State   string `json:"state"`
+	Address string `json:"address"`
+	Port    int32  `json:"port"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
 
 // DatabaseServer is the Schema for the databases API
 type DatabaseServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   *DatabaseServerSpec   `json:"spec,omitempty"`
-	Status *DatabaseServerStatus `json:"status,omitempty"`
+	Spec   DatabaseServerSpec   `json:"spec,omitempty"`
+	Status DatabaseServerStatus `json:"status,omitempty"`
 
 	// Set by the controller when a StroomCluster binds to the DatabaseServer.
 	// This is used to prevent the DatabaseServer from being deleted while its paired StroomCluster still exists.

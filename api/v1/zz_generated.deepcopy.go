@@ -66,16 +66,8 @@ func (in *DatabaseServer) DeepCopyInto(out *DatabaseServer) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	if in.Spec != nil {
-		in, out := &in.Spec, &out.Spec
-		*out = new(DatabaseServerSpec)
-		(*in).DeepCopyInto(*out)
-	}
-	if in.Status != nil {
-		in, out := &in.Status, &out.Status
-		*out = new(DatabaseServerStatus)
-		**out = **in
-	}
+	in.Spec.DeepCopyInto(&out.Spec)
+	out.Status = in.Status
 	out.StroomClusterRef = in.StroomClusterRef
 }
 

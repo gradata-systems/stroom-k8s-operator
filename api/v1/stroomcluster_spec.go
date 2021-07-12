@@ -7,6 +7,8 @@ type StroomClusterSpec struct {
 	// +kubebuilder:validation:Required
 	Image           Image             `json:"image"`
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+	// DatabaseServerRef contains either the details of a DatabaseServer resource, or the TCP connection details of
+	// an external MySQL database
 	// +kubebuilder:validation:Required
 	DatabaseServerRef DatabaseServerRef `json:"databaseServerRef"`
 	// +kubebuilder:default:="stroom"

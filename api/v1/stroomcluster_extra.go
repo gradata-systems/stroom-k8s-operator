@@ -24,7 +24,12 @@ type DatabaseServerRef struct {
 }
 
 type ServerAddress struct {
-	Address    string `json:"address,omitempty"`
-	Port       int32  `json:"port,omitempty"`
+	// Address is the hostname or IP of the database server
+	Address string `json:"address,omitempty"`
+	// Port number
+	// +kubebuilder:default:=3306
+	Port int32 `json:"port,omitempty"`
+	// SecretName is the name of the secret containing the password of both the `root` and `stroomuser` users
+	// in the database instance
 	SecretName string `json:"secretName,omitempty"`
 }

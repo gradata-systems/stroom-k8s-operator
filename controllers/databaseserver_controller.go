@@ -127,8 +127,10 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return r.Create(ctx, resource)
 	})
 	if err != nil {
+		r.setStatusUndeployed(ctx, &dbServer)
 		return result, err
 	} else if !result.IsZero() {
+		r.setStatusUndeployed(ctx, &dbServer)
 		return result, nil
 	}
 
@@ -140,9 +142,19 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return r.Create(ctx, resource)
 	})
 	if err != nil {
+		r.setStatusUndeployed(ctx, &dbServer)
 		return result, err
 	} else if !result.IsZero() {
+		r.setStatusUndeployed(ctx, &dbServer)
 		return result, nil
+	}
+
+	dbServer.Status.State = "Deployed"
+	dbServer.Status.Address = dbServer.GetServiceName()
+	dbServer.Status.Port = DatabasePort
+	if err := r.Status().Update(ctx, &dbServer); err != nil {
+		logger.Error(err, "Failed to update DatabaseServer status")
+		return ctrl.Result{}, err
 	}
 
 	if !dbServer.Spec.Backup.IsUnset() {
@@ -161,6 +173,17 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *DatabaseServerReconciler) setStatusUndeployed(ctx context.Context, dbServer *stroomv1.DatabaseServer) {
+	logger := log.FromContext(ctx)
+
+	dbServer.Status.State = "Undeployed"
+	dbServer.Status.Address = ""
+	dbServer.Status.Port = 0
+	if err := r.Status().Update(ctx, dbServer); err != nil {
+		logger.Error(err, "Failed to update DatabaseServer status")
+	}
 }
 
 // checkIfDeleted inspects the DatabaseServer to see if a deletion request is pending.
