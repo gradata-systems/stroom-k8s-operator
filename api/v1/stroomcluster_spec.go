@@ -11,20 +11,24 @@ type StroomClusterSpec struct {
 	// an external MySQL database
 	// +kubebuilder:validation:Required
 	DatabaseServerRef DatabaseServerRef `json:"databaseServerRef"`
+	// Name of the main Stroom database, usually `stroom`
 	// +kubebuilder:default:="stroom"
 	// +kubebuilder:validation:MinLength=1
 	AppDatabaseName string `json:"appDatabaseName"`
+	// Name of the statistics database, usually `stats`
 	// +kubebuilder:default:="stats"
 	// +kubebuilder:validation:MinLength=1
 	StatsDatabaseName string `json:"statsDatabaseName"`
-	// Override the Stroom configuration provided to each node
+	// Override the Stroom configuration provided to each node, by providing the name of an existing `ConfigMap`
+	// in the same namespace as the `StroomCluster`
 	ConfigMapRef ConfigMapRef `json:"configMapRef,omitempty"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
 	// Amount of time granted to nodes to drain their active tasks before being terminated
 	// +kubebuilder:default:=60
-	NodeTerminationPeriodSecs int64                   `json:"nodeTerminationPeriodSecs"`
-	VolumeClaimDeletePolicy   VolumeClaimDeletePolicy `json:"volumeClaimDeletePolicy,omitempty"`
+	NodeTerminationPeriodSecs int64 `json:"nodeTerminationPeriodSecs"`
+	// Delete Stroom node `PersistentVolumeClaim`s in accordance with this policy
+	VolumeClaimDeletePolicy VolumeClaimDeletePolicy `json:"volumeClaimDeletePolicy,omitempty"`
 
 	// Each NodeSet is a functional grouping of Stroom nodes with a particular role, within the cluster.
 	// It is recommended two NodeSets should be provided: one for storing and processing data and a separate one for
@@ -43,7 +47,9 @@ type StroomClusterSpec struct {
 }
 
 type ConfigMapRef struct {
-	Name     string `json:"name,omitempty"`
+	// Name of the `ConfigMap`
+	Name string `json:"name,omitempty"`
+	// ConfigMap key containing the Stroom configuration data
 	ItemName string `json:"itemName,omitempty"`
 }
 
@@ -52,6 +58,7 @@ func (in *ConfigMapRef) IsZero() bool {
 }
 
 type LogSenderSettings struct {
+	// If `true`, Stroom internal audit and application logs are sent to the Stroom `Ingress` for ingestion
 	// +kubebuilder:default:=false
 	Enabled bool `json:"enabled"`
 	// +kubebuilder:validation:Required

@@ -44,6 +44,8 @@ spec:
             description: DatabaseServerSpec defines the desired state of DatabaseServer
             properties:
               additionalConfig:
+                description: Any additional configuration lines to append to the MySQL
+                  server configuration file `/etc/my.cnf`
                 items:
                   type: string
                 type: array
@@ -639,16 +641,21 @@ spec:
                     type: object
                 type: object
               backup:
+                description: Configures backup destination, frequency and database
+                  names
                 properties:
                   databaseNames:
+                    description: Backup the specified database names. If unspecified,
+                      all user databases are backed up
                     items:
                       type: string
                     type: array
                   schedule:
+                    description: Cron schedule that determines how often backups are
+                      to be performed
                     type: string
                   volume:
-                    description: Represents the source of a volume to mount. Only
-                      one of its members may be specified.
+                    description: File system location to store the backup files
                     properties:
                       awsElasticBlockStore:
                         description: 'AWSElasticBlockStore represents an AWS Disk
@@ -2094,11 +2101,10 @@ spec:
                         - volumePath
                         type: object
                     type: object
-                required:
-                - schedule
-                - volume
                 type: object
               databaseNames:
+                description: Names of the databases to be created on startup (if they
+                  don't already exist)
                 items:
                   type: string
                 type: array

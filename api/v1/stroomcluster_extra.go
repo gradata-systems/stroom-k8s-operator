@@ -8,9 +8,12 @@ const (
 )
 
 type IngressSettings struct {
-	HostName   string `json:"hostName"`
+	// DNS name at which the application will be reached (e.g. stroom.example.com)
+	HostName string `json:"hostName"`
+	// Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`
 	SecretName string `json:"secretName"`
-	ClassName  string `json:"className,omitempty"`
+	// Ingress class name (e.g. nginx)
+	ClassName string `json:"className,omitempty"`
 }
 
 type DatabaseServerRef struct {
@@ -26,7 +29,7 @@ type DatabaseServerRef struct {
 type ServerAddress struct {
 	// Address is the hostname or IP of the database server
 	Address string `json:"address,omitempty"`
-	// Port number
+	// Port number the database server is listening on
 	// +kubebuilder:default:=3306
 	Port int32 `json:"port,omitempty"`
 	// SecretName is the name of the secret containing the password of both the `root` and `stroomuser` users
