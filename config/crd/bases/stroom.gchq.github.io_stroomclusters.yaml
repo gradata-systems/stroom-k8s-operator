@@ -38,14 +38,20 @@ spec:
             properties:
               appDatabaseName:
                 default: stroom
+                description: Name of the main Stroom database, usually `stroom`
                 minLength: 1
                 type: string
               configMapRef:
-                description: Override the Stroom configuration provided to each node
+                description: Override the Stroom configuration provided to each node,
+                  by providing the name of an existing `ConfigMap` in the same namespace
+                  as the `StroomCluster`
                 properties:
                   itemName:
+                    description: ConfigMap key containing the Stroom configuration
+                      data
                     type: string
                   name:
+                    description: Name of the `ConfigMap`
                     type: string
                 type: object
               databaseServerRef:
@@ -64,7 +70,8 @@ spec:
                         type: string
                       port:
                         default: 3306
-                        description: Port number
+                        description: Port number the database server is listening
+                          on
                         format: int32
                         type: integer
                       secretName:
@@ -1675,10 +1682,15 @@ spec:
               ingress:
                 properties:
                   className:
+                    description: Ingress class name (e.g. nginx)
                     type: string
                   hostName:
+                    description: DNS name at which the application will be reached
+                      (e.g. stroom.example.com)
                     type: string
                   secretName:
+                    description: Name of the TLS `Secret` containing the private key
+                      and server certificate for the `Ingress`
                     type: string
                 required:
                 - hostName
@@ -1694,6 +1706,8 @@ spec:
                     type: string
                   enabled:
                     default: false
+                    description: If `true`, Stroom internal audit and application
+                      logs are sent to the Stroom `Ingress` for ingestion
                     type: boolean
                   environmentName:
                     description: Name of the `Environment` to set in feed metadata.
@@ -4589,9 +4603,12 @@ spec:
                 type: integer
               statsDatabaseName:
                 default: stats
+                description: Name of the statistics database, usually `stats`
                 minLength: 1
                 type: string
               volumeClaimDeletePolicy:
+                description: Delete Stroom node `PersistentVolumeClaim`s in accordance
+                  with this policy
                 type: string
             required:
             - appDatabaseName

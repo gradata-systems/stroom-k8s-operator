@@ -157,7 +157,7 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	if !dbServer.Spec.Backup.IsUnset() {
+	if !dbServer.Spec.Backup.IsZero() {
 		foundCronJob := v1beta1.CronJob{}
 		result, err = r.getOrCreateObject(ctx, dbServer.GetBaseName(), dbServer.Namespace, "CronJob", &foundCronJob, func() error {
 			// Create a CronJob for performing scheduled database backups
