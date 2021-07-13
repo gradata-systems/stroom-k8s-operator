@@ -45,6 +45,7 @@ spec:
             description: DatabaseServerSpec defines the desired state of DatabaseServer
             properties:
               additionalConfig:
+                description: Any additional configuration lines to append to the MySQL server configuration file `/etc/my.cnf`
                 items:
                   type: string
                 type: array
@@ -390,15 +391,18 @@ spec:
                     type: object
                 type: object
               backup:
+                description: Configures backup destination, frequency and database names
                 properties:
                   databaseNames:
+                    description: Backup the specified database names. If unspecified, all user databases are backed up
                     items:
                       type: string
                     type: array
                   schedule:
+                    description: Cron schedule that determines how often backups are to be performed
                     type: string
                   volume:
-                    description: Represents the source of a volume to mount. Only one of its members may be specified.
+                    description: File system location to store the backup files
                     properties:
                       awsElasticBlockStore:
                         description: 'AWSElasticBlockStore represents an AWS Disk resource that is attached to a kubelet''s host machine and then exposed to the pod. More info: https://kubernetes.io/docs/concepts/storage/volumes#awselasticblockstore'
@@ -1292,11 +1296,9 @@ spec:
                         - volumePath
                         type: object
                     type: object
-                required:
-                - schedule
-                - volume
                 type: object
               databaseNames:
+                description: Names of the databases to be created on startup (if they don't already exist)
                 items:
                   type: string
                 type: array
@@ -1742,14 +1744,17 @@ spec:
             properties:
               appDatabaseName:
                 default: stroom
+                description: Name of the main Stroom database, usually `stroom`
                 minLength: 1
                 type: string
               configMapRef:
-                description: Override the Stroom configuration provided to each node
+                description: Override the Stroom configuration provided to each node, by providing the name of an existing `ConfigMap` in the same namespace as the `StroomCluster`
                 properties:
                   itemName:
+                    description: ConfigMap key containing the Stroom configuration data
                     type: string
                   name:
+                    description: Name of the `ConfigMap`
                     type: string
                 type: object
               databaseServerRef:
@@ -1763,7 +1768,7 @@ spec:
                         type: string
                       port:
                         default: 3306
-                        description: Port number
+                        description: Port number the database server is listening on
                         format: int32
                         type: integer
                       secretName:
@@ -2807,10 +2812,13 @@ spec:
               ingress:
                 properties:
                   className:
+                    description: Ingress class name (e.g. nginx)
                     type: string
                   hostName:
+                    description: DNS name at which the application will be reached (e.g. stroom.example.com)
                     type: string
                   secretName:
+                    description: Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`
                     type: string
                 required:
                 - hostName
@@ -2824,6 +2832,7 @@ spec:
                     type: string
                   enabled:
                     default: false
+                    description: If `true`, Stroom internal audit and application logs are sent to the Stroom `Ingress` for ingestion
                     type: boolean
                   environmentName:
                     description: Name of the `Environment` to set in feed metadata. If omitted, the cluster name is used (converted to UPPERCASE).
@@ -4557,9 +4566,11 @@ spec:
                 type: integer
               statsDatabaseName:
                 default: stats
+                description: Name of the statistics database, usually `stats`
                 minLength: 1
                 type: string
               volumeClaimDeletePolicy:
+                description: Delete Stroom node `PersistentVolumeClaim`s in accordance with this policy
                 type: string
             required:
             - appDatabaseName
@@ -5050,7 +5061,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:1.0.0
+        image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:1.0.1
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
