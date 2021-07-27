@@ -582,27 +582,6 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 							r.createIngressRule(ingressSettings.HostName, v1.PathTypePrefix, "/", serviceName),
 						},
 					},
-				},
-				v1.Ingress{
-					// Deny access to the `/stroom/clustercall.rpc` endpoint
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      clusterName + "-clustercall",
-						Namespace: stroomCluster.Namespace,
-						Labels:    stroomCluster.GetLabels(),
-						Annotations: map[string]string{
-							"kubernetes.io/ingress.class":                "nginx",
-							"nginx.ingress.kubernetes.io/server-snippet": "location ~ .*/clustercall.rpc$ { deny all; }",
-						},
-					},
-					Spec: v1.IngressSpec{
-						TLS: []v1.IngressTLS{{
-							Hosts:      []string{ingressSettings.HostName},
-							SecretName: ingressSettings.SecretName,
-						}},
-						Rules: []v1.IngressRule{
-							r.createIngressRule(ingressSettings.HostName, v1.PathTypeExact, "/clustercall.rpc", serviceName),
-						},
-					},
 				})
 		}
 
