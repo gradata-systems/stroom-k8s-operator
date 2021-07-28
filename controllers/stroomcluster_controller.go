@@ -89,7 +89,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	dbInfo := DatabaseConnectionInfo{}
 	if err := GetDatabaseConnectionInfo(r.Client, ctx, &stroomCluster, &dbServerRef, &dbInfo); err != nil {
 		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", dbServerRef.ServerRef))
-		return ctrl.Result{}, err
+		// Try to find the database server again in 10 seconds
+		return ctrl.Result{RequeueAfter: time.Second * 10}, err
 	} else if dbInfo.DatabaseServer != nil {
 		if err := r.claimDatabaseServer(ctx, &stroomCluster, dbServerRef.ServerRef, dbInfo.DatabaseServer); err != nil {
 			return ctrl.Result{}, err
