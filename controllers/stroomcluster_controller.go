@@ -335,8 +335,10 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 	if !stroomCluster.IsBeingDeleted() {
 		// Add finalizers to database server objects to prevent them from being removed while the StroomCluster
 		// still exists
-		if err := r.addFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
-			return err
+		if appDatabase.DatabaseServer != nil {
+			if err := r.addFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
+				return err
+			}
 		}
 
 		// Add a finalizer to the StroomCluster to wait for Stroom node tasks to drain
@@ -377,10 +379,12 @@ func (r *StroomClusterReconciler) checkIfDeleted(ctx context.Context, stroomClus
 		}
 
 		// Remove finalizer from the linked DatabaseServers
-		if err := r.removeFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
-			logger.Error(err, "Finalizer could not be removed from DatabaseServer",
-				"Namespace", appDatabase.DatabaseServer.Namespace, "Name", appDatabase.DatabaseServer.Name)
-			return err
+		if appDatabase.DatabaseServer != nil {
+			if err := r.removeFinalizer(ctx, appDatabase.DatabaseServer, stroomv1.StroomClusterFinalizerName); err != nil {
+				logger.Error(err, "Finalizer could not be removed from DatabaseServer",
+					"Namespace", appDatabase.DatabaseServer.Namespace, "Name", appDatabase.DatabaseServer.Name)
+				return err
+			}
 		}
 
 		logger.Info("StroomCluster deleted", "Namespace", stroomCluster.Namespace, "Name", stroomCluster.Name)
