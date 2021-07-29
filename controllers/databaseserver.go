@@ -303,6 +303,9 @@ func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServ
 		plainTextDatabaseList = "all databases"
 	}
 
+	// Retain the CronJob for 5 minutes after it completes
+	var ttlSecondsAfterFinished int32 = 300
+
 	cronJob := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetBaseName(),
@@ -314,6 +317,7 @@ func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServ
 			ConcurrencyPolicy: v1beta1.ForbidConcurrent,
 			JobTemplate: v1beta1.JobTemplateSpec{
 				Spec: v1.JobSpec{
+					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
 							RestartPolicy: corev1.RestartPolicyOnFailure,
