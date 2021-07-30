@@ -5,3 +5,4 @@ metadata:
 spec:
   stroomClusterRef:
     name: dev
+  taskName: Data Processor

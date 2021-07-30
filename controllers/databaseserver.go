@@ -4,7 +4,7 @@ import (
 	"fmt"
 	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/batch/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -303,6 +303,9 @@ func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServ
 		plainTextDatabaseList = "all databases"
 	}
 
+	// Retain the CronJob for 5 minutes after it completes
+	var ttlSecondsAfterFinished int32 = 300
+
 	cronJob := &v1beta1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetBaseName(),
@@ -313,7 +316,8 @@ func (r *DatabaseServerReconciler) createCronJob(dbServer *stroomv1.DatabaseServ
 			Schedule:          backupSettings.Schedule,
 			ConcurrencyPolicy: v1beta1.ForbidConcurrent,
 			JobTemplate: v1beta1.JobTemplateSpec{
-				Spec: v1.JobSpec{
+				Spec: batchv1.JobSpec{
+					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
 							RestartPolicy: corev1.RestartPolicyOnFailure,

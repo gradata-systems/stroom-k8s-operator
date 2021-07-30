@@ -64,6 +64,10 @@ func (in *DatabaseServer) GetServiceName() string {
 	return fmt.Sprintf("%v-headless", in.GetBaseName())
 }
 
+func (in *DatabaseServer) GetServiceFqdn() string {
+	return fmt.Sprintf("%v.%v.svc.cluster.local", in.GetServiceName(), in.Namespace)
+}
+
 func (in *DatabaseServer) GetSecretName() string {
 	return fmt.Sprintf("%v", in.GetBaseName())
 }

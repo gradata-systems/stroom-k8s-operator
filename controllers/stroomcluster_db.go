@@ -19,7 +19,7 @@ func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, stroom
 	if dbRef.ServerRef == (stroomv1.ResourceRef{}) {
 		// This is an external database connection
 		dbConnectionInfo.DatabaseServer = nil
-		dbConnectionInfo.Address = dbRef.ServerAddress.Address
+		dbConnectionInfo.Host = dbRef.ServerAddress.Host
 		dbConnectionInfo.Port = dbRef.ServerAddress.Port
 		dbConnectionInfo.SecretName = dbRef.ServerAddress.SecretName
 	} else {
@@ -40,7 +40,7 @@ func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, stroom
 			return err
 		} else {
 			dbConnectionInfo.DatabaseServer = &dbServer
-			dbConnectionInfo.Address = dbServer.GetServiceName()
+			dbConnectionInfo.Host = dbServer.GetServiceFqdn()
 			dbConnectionInfo.Port = DatabasePort
 			dbConnectionInfo.SecretName = dbServer.GetSecretName()
 		}
@@ -61,11 +61,10 @@ func OpenDatabase(client client.Reader, ctx context.Context, dbInfo *DatabaseCon
 		return nil, err
 	}
 
-	fqdn := fmt.Sprintf("%v.%v.svc.cluster.local", dbInfo.Address, stroomCluster.Namespace)
 	password := string(dbSecret.Data[DatabaseServiceUserName])
-	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", DatabaseServiceUserName, password, fqdn, dbInfo.Port, databaseName)
+	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", DatabaseServiceUserName, password, dbInfo.Host, dbInfo.Port, databaseName)
 	if db, err := sql.Open("mysql", dataSourceName); err != nil {
-		logger.Error(err, "Could not connect to database", "HostName", fqdn, "Database", databaseName, "User", DatabaseServiceUserName)
+		logger.Error(err, "Could not connect to database", "HostName", dbInfo.Host, "Database", databaseName, "User", DatabaseServiceUserName)
 		return nil, err
 	} else {
 		return db, nil

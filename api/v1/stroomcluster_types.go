@@ -52,11 +52,15 @@ func (in *StroomCluster) GetStaticContentConfigMapName() string {
 }
 
 func (in *StroomCluster) GetNodeSetName(nodeSet *NodeSet) string {
-	return fmt.Sprintf("stroom-%v-node-%v", in.Name, nodeSet.Name)
+	return fmt.Sprintf("%v-node-%v", in.GetBaseName(), nodeSet.Name)
 }
 
 func (in *StroomCluster) GetLogSenderConfigMapName() string {
-	return fmt.Sprintf("stroom-%v-log-sender", in.Name)
+	return fmt.Sprintf("%v-log-sender", in.GetBaseName())
+}
+
+func (in *StroomCluster) GetCliJobName(name string) string {
+	return fmt.Sprintf("%v-cli-%v", in.GetBaseName(), name)
 }
 
 func (in *StroomCluster) GetLabels() map[string]string {
