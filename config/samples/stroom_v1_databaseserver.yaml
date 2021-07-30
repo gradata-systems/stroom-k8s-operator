@@ -6,7 +6,7 @@ metadata:
 spec:
   image:
     repository: mysql/mysql-server
-    tag: 8.0.23
+    tag: 8.0.25
   databaseNames:
     - stroom
     - stats
@@ -35,8 +35,8 @@ spec:
       - stats
     volume:
       nfs:
-        path: /volume2/stroom
-        server: gs-fs01.internal
+        path: /data/mysql
+        server: fs.example.com
   readinessProbeTimings:
     initialDelaySeconds: 5
     periodSeconds: 1

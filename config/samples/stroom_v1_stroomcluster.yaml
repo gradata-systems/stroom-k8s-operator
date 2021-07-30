@@ -5,21 +5,24 @@ metadata:
   namespace: stroom-7
 spec:
   image:
-    repository: docker.intranet.gradata.com.au/gchq/stroom
-    tag: v7
+    repository: gchq/stroom
+    tag: v7.0-LATEST
   imagePullPolicy: Always
   extraEnv: []
-  configMapName: stroom-dev
-  appDatabaseRef:
-    databaseName: stroom
-    databaseServerRef:
+  configMapRef:
+    name: stroom-dev
+  databaseServerRef:
+    serverRef:
       name: dev
-  statsDatabaseRef:
-    databaseName: stats
-    databaseServerRef:
-      name: dev
+#    serverAddress:
+#      host: mysql.example.com
+#      port: 3306
+#      secretName: mysql-stroomuser-password
+  appDatabaseName: stroom
+  statsDatabaseName: stats
+  nodeTerminationPeriodSecs: 300
   ingress:
-    hostName: stroom-7.internal
+    hostName: stroom-7.example.com
     secretName: stroom-7-tls
 
   nodeSets:
@@ -41,10 +44,10 @@ spec:
             component: stroom-node
       sharedDataVolume:
         nfs:
-          server: gs-fs01.internal
-          path: /volume2/AppData/stroom-7/stroom-shared
+          server: fs.example.org
+          path: /data/stroom-shared
       ingressEnabled: true
-      startupProbeTimings: {}
+      readinessProbeTimings: {}
       livenessProbeTimings: {}
       resources:
         requests:
@@ -75,6 +78,10 @@ spec:
           matchLabels:
             app: stroom-7
             component: stroom-node
+      sharedDataVolume:
+        nfs:
+          server: fs.example.org
+          path: /data/stroom-shared
       ingressEnabled: true
       resources:
         requests:
