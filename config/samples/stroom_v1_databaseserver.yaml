@@ -28,15 +28,6 @@ spec:
         storage: 100Mi
       limits:
         storage: 200Mi
-  backup:
-    schedule: "*/5 * * * *"
-    databaseNames:
-      - stroom
-      - stats
-    volume:
-      nfs:
-        path: /data/mysql
-        server: fs.example.com
   readinessProbeTimings:
     initialDelaySeconds: 5
     periodSeconds: 1

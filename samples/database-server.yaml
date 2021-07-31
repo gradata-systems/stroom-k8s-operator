@@ -6,7 +6,7 @@ metadata:
 spec:
   image:
     repository: mysql/mysql-server
-    tag: 8.0.25
+    tag: 8.0.26
   databaseNames:
     - stroom
     - stats
@@ -28,12 +28,3 @@ spec:
         storage: 200Mi
       limits:
         storage: 500Mi
-  backup:
-    schedule: "*/5 * * * *"
-    databaseNames:
-      - stroom
-      - stats
-    volume:
-      nfs:
-        path: /data/stroom
-        server: backup.fs.example.com

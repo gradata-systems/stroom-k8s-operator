@@ -89,7 +89,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Retrieve app database connection info
 	dbServerRef := stroomCluster.Spec.DatabaseServerRef
 	dbInfo := DatabaseConnectionInfo{}
-	if err := GetDatabaseConnectionInfo(r.Client, ctx, &stroomCluster, &dbServerRef, &dbInfo); err != nil {
+	if err := GetDatabaseConnectionInfo(r.Client, ctx, &dbServerRef, stroomCluster.Namespace, &dbInfo); err != nil {
 		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", dbServerRef.ServerRef))
 		// Try to find the database server again in 10 seconds
 		return ctrl.Result{RequeueAfter: time.Second * 10}, err
@@ -597,7 +597,7 @@ func (r *StroomClusterReconciler) removeFinalizer(ctx context.Context, obj clien
 func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)
@@ -617,7 +617,7 @@ func (r *StroomClusterReconciler) countRemainingTasks(ctx context.Context, stroo
 	logger := log.FromContext(ctx)
 
 	// Get the current active server tasks
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)
@@ -741,7 +741,7 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 func (r *StroomClusterReconciler) userExistsAndHasPermissions(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) (bool, error) {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return false, err
 	} else {
 		defer CloseDatabase(db)
@@ -761,7 +761,7 @@ func (r *StroomClusterReconciler) userExistsAndHasPermissions(ctx context.Contex
 func (r *StroomClusterReconciler) accountExists(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) (bool, error) {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return false, err
 	} else {
 		defer CloseDatabase(db)
@@ -781,7 +781,7 @@ func (r *StroomClusterReconciler) accountExists(ctx context.Context, stroomClust
 func (r *StroomClusterReconciler) getApiKey(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, apiKey *string) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)

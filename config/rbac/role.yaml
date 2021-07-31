@@ -133,6 +133,32 @@ rules:
 - apiGroups:
   - stroom.gchq.github.io
   resources:
+  - databasebackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databasebackups/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databasebackups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
   - databaseservers
   verbs:
   - create

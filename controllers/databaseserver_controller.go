@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -155,21 +154,6 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := r.Status().Update(ctx, &dbServer); err != nil {
 		logger.Error(err, "Failed to update DatabaseServer status")
 		return ctrl.Result{}, err
-	}
-
-	if !dbServer.Spec.Backup.IsZero() {
-		foundCronJob := v1beta1.CronJob{}
-		result, err = r.getOrCreateObject(ctx, dbServer.GetBaseName(), dbServer.Namespace, "CronJob", &foundCronJob, func() error {
-			// Create a CronJob for performing scheduled database backups
-			resource := r.createCronJob(&dbServer)
-			logger.Info("Creating a new CronJob", "Namespace", resource.Namespace, "Name", resource.Name)
-			return r.Create(ctx, resource)
-		})
-		if err != nil {
-			return result, err
-		} else if !result.IsZero() {
-			return result, nil
-		}
 	}
 
 	return ctrl.Result{}, nil

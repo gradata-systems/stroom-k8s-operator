@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef *stroomv1.DatabaseServerRef, dbConnectionInfo *DatabaseConnectionInfo) error {
+func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, dbRef *stroomv1.DatabaseServerRef, ownerNamespace string, dbConnectionInfo *DatabaseConnectionInfo) error {
 	logger := log.FromContext(ctx)
 
 	if dbRef.ServerRef == (stroomv1.ResourceRef{}) {
@@ -23,10 +23,11 @@ func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, stroom
 		dbConnectionInfo.Port = dbRef.ServerAddress.Port
 		dbConnectionInfo.SecretName = dbRef.ServerAddress.SecretName
 	} else {
-		// If the ServerRef namespace is empty, try to find the DatabaseServer in the same namespace as StroomCluster
+		// If the ServerRef namespace is empty, try to find the DatabaseServer in the same namespace as the owner
+		// (e.g. StroomCluster)
 		dbReference := &dbRef.ServerRef
 		if dbReference.Namespace == "" {
-			dbReference.Namespace = stroomCluster.Namespace
+			dbReference.Namespace = ownerNamespace
 		}
 
 		// Get or create an operator-managed database instance
@@ -49,14 +50,12 @@ func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, stroom
 	return nil
 }
 
-func OpenDatabase(client client.Reader, ctx context.Context, dbInfo *DatabaseConnectionInfo, stroomCluster *stroomv1.StroomCluster) (*sql.DB, error) {
+func OpenDatabase(client client.Reader, ctx context.Context, dbInfo *DatabaseConnectionInfo, secretNamespace string, databaseName string) (*sql.DB, error) {
 	logger := log.FromContext(ctx)
-
-	databaseName := stroomCluster.Spec.AppDatabaseName
 
 	// Get password from secret
 	dbSecret := v1.Secret{}
-	if err := client.Get(ctx, types.NamespacedName{Namespace: stroomCluster.Namespace, Name: dbInfo.SecretName}, &dbSecret); err != nil {
+	if err := client.Get(ctx, types.NamespacedName{Namespace: secretNamespace, Name: dbInfo.SecretName}, &dbSecret); err != nil {
 		logger.Error(err, fmt.Sprintf("Could not retrieve database password from Secret '%v'", dbInfo.SecretName))
 		return nil, err
 	}
