@@ -126,34 +126,32 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Create a ConfigMap containing Stroom configuration and lifecycle scripts
-	if stroomCluster.Spec.ConfigMapRef.IsZero() {
-		foundConfigMap := corev1.ConfigMap{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetStaticContentConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
-			if files, err := StaticFiles.ReadDir("static_content"); err != nil {
-				logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
-				return err
-			} else {
-				allFileData := make(map[string]string)
-				for _, file := range files {
-					if data, err := StaticFiles.ReadFile(path.Join("static_content", file.Name())); err != nil {
-						logger.Error(err, "Could not read static file", "Filename", file.Name())
-						return err
-					} else {
-						allFileData[file.Name()] = string(data)
-					}
+	foundConfigMap := corev1.ConfigMap{}
+	result, err = r.getOrCreateObject(ctx, stroomCluster.GetStaticContentConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
+		if files, err := StaticFiles.ReadDir("static_content"); err != nil {
+			logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
+			return err
+		} else {
+			allFileData := make(map[string]string)
+			for _, file := range files {
+				if data, err := StaticFiles.ReadFile(path.Join("static_content", file.Name())); err != nil {
+					logger.Error(err, "Could not read static file", "Filename", file.Name())
+					return err
+				} else {
+					allFileData[file.Name()] = string(data)
 				}
-
-				// Create the ConfigMap
-				resource := r.createConfigMap(&stroomCluster, allFileData)
-				logger.Info("Creating static content ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
-				return r.Create(ctx, resource)
 			}
-		})
-		if err != nil {
-			return result, err
-		} else if !result.IsZero() {
-			return result, nil
+
+			// Create the ConfigMap
+			resource := r.createConfigMap(&stroomCluster, allFileData)
+			logger.Info("Creating static content ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
+			return r.Create(ctx, resource)
 		}
+	})
+	if err != nil {
+		return result, err
+	} else if !result.IsZero() {
+		return result, nil
 	}
 
 	// Create a ConfigMap for stroom-log-sender
