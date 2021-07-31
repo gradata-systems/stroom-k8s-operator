@@ -177,7 +177,7 @@ func (r *StroomTaskAutoscalerReconciler) scaleStroomNode(ctx context.Context, st
 				// Query the node's current task limit
 				dbServerRef := stroomCluster.Spec.DatabaseServerRef
 				dbInfo := DatabaseConnectionInfo{}
-				if err := GetDatabaseConnectionInfo(r.Client, ctx, stroomCluster, &dbServerRef, &dbInfo); err != nil {
+				if err := GetDatabaseConnectionInfo(r.Client, ctx, &dbServerRef, stroomCluster.Namespace, &dbInfo); err != nil {
 					return err
 				}
 				taskName := autoScaleOptions.TaskName
@@ -221,7 +221,7 @@ func (r *StroomTaskAutoscalerReconciler) scaleStroomNode(ctx context.Context, st
 func (r *StroomTaskAutoscalerReconciler) getNodeTasks(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, nodeName string, taskName string, activeTasks *int, taskLimit *int) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)
@@ -245,7 +245,7 @@ func (r *StroomTaskAutoscalerReconciler) getNodeTasks(ctx context.Context, stroo
 func (r *StroomTaskAutoscalerReconciler) updateNodeTaskLimit(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, nodeName string, taskName string, taskLimit int) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)

@@ -89,7 +89,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Retrieve app database connection info
 	dbServerRef := stroomCluster.Spec.DatabaseServerRef
 	dbInfo := DatabaseConnectionInfo{}
-	if err := GetDatabaseConnectionInfo(r.Client, ctx, &stroomCluster, &dbServerRef, &dbInfo); err != nil {
+	if err := GetDatabaseConnectionInfo(r.Client, ctx, &dbServerRef, stroomCluster.Namespace, &dbInfo); err != nil {
 		logger.Info(fmt.Sprintf("DatabaseServer '%v' could not be found", dbServerRef.ServerRef))
 		// Try to find the database server again in 10 seconds
 		return ctrl.Result{RequeueAfter: time.Second * 10}, err
@@ -126,34 +126,32 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Create a ConfigMap containing Stroom configuration and lifecycle scripts
-	if !stroomCluster.Spec.ConfigMapRef.IsZero() {
-		foundConfigMap := corev1.ConfigMap{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetStaticContentConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
-			if files, err := StaticFiles.ReadDir("static_content"); err != nil {
-				logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
-				return err
-			} else {
-				allFileData := make(map[string]string)
-				for _, file := range files {
-					if data, err := StaticFiles.ReadFile(path.Join("static_content", file.Name())); err != nil {
-						logger.Error(err, "Could not read static file", "Filename", file.Name())
-						return err
-					} else {
-						allFileData[file.Name()] = string(data)
-					}
+	foundConfigMap := corev1.ConfigMap{}
+	result, err = r.getOrCreateObject(ctx, stroomCluster.GetStaticContentConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
+		if files, err := StaticFiles.ReadDir("static_content"); err != nil {
+			logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
+			return err
+		} else {
+			allFileData := make(map[string]string)
+			for _, file := range files {
+				if data, err := StaticFiles.ReadFile(path.Join("static_content", file.Name())); err != nil {
+					logger.Error(err, "Could not read static file", "Filename", file.Name())
+					return err
+				} else {
+					allFileData[file.Name()] = string(data)
 				}
-
-				// Create the ConfigMap
-				resource := r.createConfigMap(&stroomCluster, allFileData)
-				logger.Info("Creating static content ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
-				return r.Create(ctx, resource)
 			}
-		})
-		if err != nil {
-			return result, err
-		} else if !result.IsZero() {
-			return result, nil
+
+			// Create the ConfigMap
+			resource := r.createConfigMap(&stroomCluster, allFileData)
+			logger.Info("Creating static content ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
+			return r.Create(ctx, resource)
 		}
+	})
+	if err != nil {
+		return result, err
+	} else if !result.IsZero() {
+		return result, nil
 	}
 
 	// Create a ConfigMap for stroom-log-sender
@@ -597,7 +595,7 @@ func (r *StroomClusterReconciler) removeFinalizer(ctx context.Context, obj clien
 func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)
@@ -617,7 +615,7 @@ func (r *StroomClusterReconciler) countRemainingTasks(ctx context.Context, stroo
 	logger := log.FromContext(ctx)
 
 	// Get the current active server tasks
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)
@@ -741,7 +739,7 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 func (r *StroomClusterReconciler) userExistsAndHasPermissions(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) (bool, error) {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return false, err
 	} else {
 		defer CloseDatabase(db)
@@ -761,7 +759,7 @@ func (r *StroomClusterReconciler) userExistsAndHasPermissions(ctx context.Contex
 func (r *StroomClusterReconciler) accountExists(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) (bool, error) {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return false, err
 	} else {
 		defer CloseDatabase(db)
@@ -781,7 +779,7 @@ func (r *StroomClusterReconciler) accountExists(ctx context.Context, stroomClust
 func (r *StroomClusterReconciler) getApiKey(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, apiKey *string) error {
 	logger := log.FromContext(ctx)
 
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster); err != nil {
+	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
 		return err
 	} else {
 		defer CloseDatabase(db)

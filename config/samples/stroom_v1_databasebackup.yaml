@@ -1,0 +1,7 @@
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseBackup
+metadata:
+  name: databasebackup-sample
+spec:
+  # Add fields here
+  foo: bar
