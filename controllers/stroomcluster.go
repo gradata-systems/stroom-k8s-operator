@@ -291,6 +291,8 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	if len(stroomCluster.Spec.ExtraVolumes) > 0 {
 		volumes = append(volumes, stroomCluster.Spec.ExtraVolumes...)
+	}
+	if len(stroomCluster.Spec.ExtraVolumeMounts) > 0 {
 		volumeMounts = append(volumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
 	}
 
