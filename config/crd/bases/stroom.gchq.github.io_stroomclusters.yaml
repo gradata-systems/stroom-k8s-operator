@@ -194,6 +194,12 @@ spec:
                   - name
                   type: object
                 type: array
+              extraJvmOpts:
+                description: 'Additional Java Virtual Machine (JVM) options to use.
+                  Example of a valid entry: `-Xms1g`'
+                items:
+                  type: string
+                type: array
               extraVolumeMounts:
                 items:
                   description: VolumeMount describes a mounting of a Volume within

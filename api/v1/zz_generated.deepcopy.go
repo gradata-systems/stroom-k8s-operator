@@ -492,6 +492,11 @@ func (in *StroomClusterSpec) DeepCopyInto(out *StroomClusterSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.ExtraJvmOpts != nil {
+		in, out := &in.ExtraJvmOpts, &out.ExtraJvmOpts
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.ExtraEnv != nil {
 		in, out := &in.ExtraEnv, &out.ExtraEnv
 		*out = make([]corev1.EnvVar, len(*in))
