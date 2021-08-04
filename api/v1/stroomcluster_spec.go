@@ -36,6 +36,8 @@ type StroomClusterSpec struct {
 	// +kubebuilder:validation:MinItems=1
 	NodeSets []NodeSet `json:"nodeSets"`
 
+	// Additional Java Virtual Machine (JVM) options to use. Example of a valid entry: `-Xms1g`
+	ExtraJvmOpts []string `json:"extraJvmOpts,omitempty"`
 	// Additional environment variables provided to each NodeSet pod
 	ExtraEnv []corev1.EnvVar `json:"extraEnv,omitempty"`
 	// Additional volumes to be mounted in each NodeSet pod

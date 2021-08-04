@@ -2075,6 +2075,11 @@ spec:
                   - name
                   type: object
                 type: array
+              extraJvmOpts:
+                description: 'Additional Java Virtual Machine (JVM) options to use. Example of a valid entry: `-Xms1g`'
+                items:
+                  type: string
+                type: array
               extraVolumeMounts:
                 items:
                   description: VolumeMount describes a mounting of a Volume within a container.
@@ -5423,7 +5428,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:1.0.3
+        image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:1.0.4
         imagePullPolicy: Always
         livenessProbe:
           httpGet:

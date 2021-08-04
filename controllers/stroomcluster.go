@@ -570,9 +570,16 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 	// Calculate the size of the Java heap
 	const javaHeapLimitMB int64 = 30 * 1024
 	maxMemory := nodeSet.Resources.Limits.Memory().ScaledValue(resource.Mega) / 2
+	memoryMegabytes := int64(math.Floor(math.Min(float64(maxMemory), float64(javaHeapLimitMB))))
+	xms := fmt.Sprintf("-Xms%vm", memoryMegabytes)
+	xmx := fmt.Sprintf("-Xmx%vm", memoryMegabytes)
 
-	memory := int64(math.Floor(math.Min(float64(maxMemory), float64(javaHeapLimitMB))))
-	return fmt.Sprintf("-Xms%vm -Xmx%vm", memory, memory)
+	jvmOpts := []string{xms, xmx}
+	if len(stroomCluster.Spec.ExtraJvmOpts) > 0 {
+		jvmOpts = append(jvmOpts, stroomCluster.Spec.ExtraJvmOpts...)
+	}
+
+	return strings.Join(jvmOpts, " ")
 }
 
 func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTimings, portName string) *corev1.Probe {
