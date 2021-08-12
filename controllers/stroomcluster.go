@@ -702,8 +702,9 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					Namespace: stroomCluster.Namespace,
 					Labels:    stroomCluster.GetLabels(),
 					Annotations: map[string]string{
-						"kubernetes.io/ingress.class":                "nginx",
-						"nginx.ingress.kubernetes.io/rewrite-target": "/stroom/noauth/datafeed",
+						"kubernetes.io/ingress.class":                 "nginx",
+						"nginx.ingress.kubernetes.io/rewrite-target":  "/stroom/noauth/datafeed",
+						"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
 					},
 				},
 				Spec: netv1.IngressSpec{
