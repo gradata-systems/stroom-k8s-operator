@@ -2929,6 +2929,18 @@ spec:
                             PersistentVolume backing this claim.
                           type: string
                       type: object
+                    memoryOptions:
+                      description: MemoryOptions define JVM memory parameters
+                      properties:
+                        initialPercentage:
+                          maximum: 100
+                          minimum: 1
+                          type: integer
+                        maxPercentage:
+                          maximum: 100
+                          minimum: 1
+                          type: integer
+                      type: object
                     name:
                       description: "Name uniquely identifies the NodeSet within a
                         StroomCluster. Should be a short name like \"prod\". \n The
@@ -3130,12 +3142,9 @@ spec:
                           type: integer
                       type: object
                     resources:
-                      description: "Resources determine how much CPU and memory each
+                      description: Resources determine how much CPU and memory each
                         individual Stroom node Pod within the NodeSet requests and
-                        is limited to. \n The JVM memory options (Xms and Xmx) are
-                        automatically computed based on the `limits` property. Specifically,
-                        Xms and Xmx are both set to the lesser of 30Gi and half of
-                        the Pod memory limit."
+                        is limited to.
                       properties:
                         limits:
                           additionalProperties:

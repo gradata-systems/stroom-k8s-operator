@@ -26,10 +26,9 @@ type NodeSet struct {
 	SharedDataVolume corev1.VolumeSource `json:"sharedDataVolume"`
 	// Resources determine how much CPU and memory each individual Stroom node Pod within the NodeSet requests and is
 	// limited to.
-	//
-	// The JVM memory options (Xms and Xmx) are automatically computed based on the `limits` property. Specifically,
-	// Xms and Xmx are both set to the lesser of 30Gi and half of the Pod memory limit.
 	Resources corev1.ResourceRequirements `json:"resources"`
+	// MemoryOptions define JVM memory parameters
+	MemoryOptions JvmMemoryOptions `json:"memoryOptions,omitempty"`
 	// IngressEnabled determines whether this node receives requests via the created Kubernetes Ingresses. Usually this
 	// should be `true`, unless there is a need for a NodeSet to be pure processing-only nodes, which cannot receive data.
 	// +kubebuilder:default:=true
@@ -50,6 +49,15 @@ type NodeSet struct {
 	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
 	Tolerations  []corev1.Toleration `json:"tolerations,omitempty"`
 	Affinity     corev1.Affinity     `json:"affinity,omitempty"`
+}
+
+type JvmMemoryOptions struct {
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	InitialPercentage int `json:"initialPercentage,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=100
+	MaxPercentage int `json:"maxPercentage,omitempty"`
 }
 
 type NodeRole string

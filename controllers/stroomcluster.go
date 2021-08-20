@@ -12,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"math"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"strconv"
@@ -126,7 +125,7 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 						Args:            args,
 						Env: []corev1.EnvVar{{
 							Name:  "JAVA_OPTS",
-							Value: "-Xms512M -Xmx1G",
+							Value: "-XX:InitialRAMPercentage=50 -XX:MaxRAMPercentage=75",
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_URL",
 							Value: dbInfo.ToJdbcConnectionString(stroomCluster.Spec.AppDatabaseName),
@@ -567,14 +566,16 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 		}
 	}
 
-	// Calculate the size of the Java heap
-	const javaHeapLimitMB int64 = 30 * 1024
-	maxMemory := nodeSet.Resources.Limits.Memory().ScaledValue(resource.Mega) / 2
-	memoryMegabytes := int64(math.Floor(math.Min(float64(maxMemory), float64(javaHeapLimitMB))))
-	xms := fmt.Sprintf("-Xms%vm", memoryMegabytes)
-	xmx := fmt.Sprintf("-Xmx%vm", memoryMegabytes)
+	var jvmOpts []string
 
-	jvmOpts := []string{xms, xmx}
+	// Apply `NodeSet` memory options if set
+	if nodeSet.MemoryOptions.InitialPercentage > 0 {
+		jvmOpts = append(jvmOpts, fmt.Sprintf("-XX:InitialRAMPercentage=%v", nodeSet.MemoryOptions.InitialPercentage))
+	}
+	if nodeSet.MemoryOptions.MaxPercentage > 0 {
+		jvmOpts = append(jvmOpts, fmt.Sprintf("-XX:MaxRAMPercentage=%v", nodeSet.MemoryOptions.MaxPercentage))
+	}
+
 	if len(stroomCluster.Spec.ExtraJvmOpts) > 0 {
 		jvmOpts = append(jvmOpts, stroomCluster.Spec.ExtraJvmOpts...)
 	}
