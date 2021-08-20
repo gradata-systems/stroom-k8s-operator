@@ -41,6 +41,9 @@ spec:
             storage: 1Gi
           limits:
             storage: 1Gi
+        memoryOptions:
+          initialPercentage: 50
+          maxPercentage: 75
         selector:
           matchLabels:
             app: stroom

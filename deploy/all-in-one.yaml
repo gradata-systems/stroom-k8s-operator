@@ -3733,6 +3733,18 @@ spec:
                           description: VolumeName is the binding reference to the PersistentVolume backing this claim.
                           type: string
                       type: object
+                    memoryOptions:
+                      description: MemoryOptions define JVM memory parameters
+                      properties:
+                        initialPercentage:
+                          maximum: 100
+                          minimum: 1
+                          type: integer
+                        maxPercentage:
+                          maximum: 100
+                          minimum: 1
+                          type: integer
+                      type: object
                     name:
                       description: "Name uniquely identifies the NodeSet within a StroomCluster. Should be a short name like \"prod\". \n The NodeSet name determines the name of the Stroom node, which follows the format: `stroom-<cluster name>-node-<nodeset name>-<pod ordinal>`. \n For example, the first Stroom node in StroomCluster `dev`, NodeSet `data` will be named: `stroom-dev-node-data-0`."
                       type: string
@@ -3856,7 +3868,7 @@ spec:
                           type: integer
                       type: object
                     resources:
-                      description: "Resources determine how much CPU and memory each individual Stroom node Pod within the NodeSet requests and is limited to. \n The JVM memory options (Xms and Xmx) are automatically computed based on the `limits` property. Specifically, Xms and Xmx are both set to the lesser of 30Gi and half of the Pod memory limit."
+                      description: Resources determine how much CPU and memory each individual Stroom node Pod within the NodeSet requests and is limited to.
                       properties:
                         limits:
                           additionalProperties:
@@ -5428,7 +5440,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:1.0.5
+        image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:1.0.6
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
