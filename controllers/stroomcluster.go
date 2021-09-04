@@ -276,18 +276,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	r.appendConfigVolumes(stroomCluster, &volumes, &volumeMounts)
 
-	// Shared volumes are optional and for UI nodes, it makes sense to omit them
-	if nodeSet.SharedDataVolume != (corev1.VolumeSource{}) {
-		volumes = append(volumes, corev1.Volume{
-			Name:         "stroom-shared",
-			VolumeSource: nodeSet.SharedDataVolume,
-		})
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      "stroom-shared",
-			MountPath: "/stroom/volumes",
-		})
-	}
-
 	if len(stroomCluster.Spec.ExtraVolumes) > 0 {
 		volumes = append(volumes, stroomCluster.Spec.ExtraVolumes...)
 	}

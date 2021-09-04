@@ -349,7 +349,6 @@ func (in *LogSenderSettings) DeepCopy() *LogSenderSettings {
 func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 	*out = *in
 	in.LocalDataVolumeClaim.DeepCopyInto(&out.LocalDataVolumeClaim)
-	in.SharedDataVolume.DeepCopyInto(&out.SharedDataVolume)
 	in.Resources.DeepCopyInto(&out.Resources)
 	out.MemoryOptions = in.MemoryOptions
 	out.ReadinessProbeTimings = in.ReadinessProbeTimings
