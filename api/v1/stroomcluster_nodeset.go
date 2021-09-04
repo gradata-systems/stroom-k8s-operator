@@ -21,9 +21,6 @@ type NodeSet struct {
 	Role NodeRole `json:"role,omitempty"`
 	// LocalDataVolumeClaim provides persistent storage for each Stroom node's data
 	LocalDataVolumeClaim corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
-	// SharedDataVolume provides shared storage, accessible to all Stroom cluster nodes, for storing and retrieving
-	// stream data. Stream volumes should be allocated within Stroom to point to subdirectories within this volume.
-	SharedDataVolume corev1.VolumeSource `json:"sharedDataVolume"`
 	// Resources determine how much CPU and memory each individual Stroom node Pod within the NodeSet requests and is
 	// limited to.
 	Resources corev1.ResourceRequirements `json:"resources"`
