@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	v1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
+	v1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 )
 
 type DatabaseConnectionInfo struct {

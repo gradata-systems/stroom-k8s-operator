@@ -20,7 +20,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/p-kimberley/stroom-k8s-operator/controllers"
+	"github.com/gradata-systems/stroom-k8s-operator/controllers"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
+	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	//+kubebuilder:scaffold:imports
 )
 

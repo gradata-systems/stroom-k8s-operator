@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
-	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
+	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"

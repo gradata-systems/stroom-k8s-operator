@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"fmt"
-	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
+	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"

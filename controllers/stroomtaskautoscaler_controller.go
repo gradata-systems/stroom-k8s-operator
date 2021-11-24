@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
-	controllers "github.com/p-kimberley/stroom-k8s-operator/controllers/common"
+	controllers "github.com/gradata-systems/stroom-k8s-operator/controllers/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,7 +28,7 @@ import (
 	"math"
 	"time"
 
-	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
+	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"

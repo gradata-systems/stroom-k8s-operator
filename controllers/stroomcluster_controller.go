@@ -21,7 +21,7 @@ import (
 	"embed"
 	"fmt"
 	"github.com/go-logr/logr"
-	common "github.com/p-kimberley/stroom-k8s-operator/controllers/common"
+	common "github.com/gradata-systems/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	stroomv1 "github.com/p-kimberley/stroom-k8s-operator/api/v1"
+	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 )
 
 // StroomClusterReconciler reconciles a StroomCluster object

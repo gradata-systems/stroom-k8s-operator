@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 1.0.7
+VERSION ?= 1.0.8
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -32,9 +32,9 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # gchq.github.io/stroom-k8s-operator-bundle:$VERSION and gchq.github.io/stroom-k8s-operator-catalog:$VERSION.
 ifneq ($(origin PRIVATE_REGISTRY), undefined)
-IMAGE_TAG_BASE = $(PRIVATE_REGISTRY)/gchq.github.io/stroom-k8s-operator
+IMAGE_TAG_BASE = $(PRIVATE_REGISTRY)/gradata/stroom-k8s-operator
 else
-IMAGE_TAG_BASE ?= gchq.github.io/stroom-k8s-operator
+IMAGE_TAG_BASE ?= gradata/stroom-k8s-operator
 endif
 
 # BUNDLE_IMG defines the image:tag used for the bundle.

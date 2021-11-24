@@ -4547,7 +4547,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: docker.intranet.gradata.com.au/gchq.github.io/stroom-k8s-operator:1.0.7
+        image: gradata/stroom-k8s-operator:1.0.8
         imagePullPolicy: Always
         livenessProbe:
           httpGet:

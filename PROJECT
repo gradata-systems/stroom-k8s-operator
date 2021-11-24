@@ -5,7 +5,7 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: stroom-k8s-operator
-repo: github.com/p-kimberley/stroom-k8s-operator
+repo: github.com/gradata-systems/stroom-k8s-operator
 resources:
 - api:
     crdVersion: v1
@@ -14,7 +14,7 @@ resources:
   domain: gchq.github.io
   group: stroom
   kind: StroomCluster
-  path: github.com/p-kimberley/stroom-k8s-operator/api/v1
+  path: github.com/gradata-systems/stroom-k8s-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -23,7 +23,7 @@ resources:
   domain: gchq.github.io
   group: stroom
   kind: DatabaseServer
-  path: github.com/p-kimberley/stroom-k8s-operator/api/v1
+  path: github.com/gradata-systems/stroom-k8s-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -32,7 +32,7 @@ resources:
   domain: gchq.github.io
   group: stroom
   kind: StroomTaskAutoscaler
-  path: github.com/p-kimberley/stroom-k8s-operator/api/v1
+  path: github.com/gradata-systems/stroom-k8s-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -41,6 +41,6 @@ resources:
   domain: gchq.github.io
   group: stroom
   kind: DatabaseBackup
-  path: github.com/p-kimberley/stroom-k8s-operator/api/v1
+  path: github.com/gradata-systems/stroom-k8s-operator/api/v1
   version: v1
 version: "3"
