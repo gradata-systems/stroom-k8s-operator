@@ -1,4 +1,4 @@
-module github.com/p-kimberley/stroom-k8s-operator
+module github.com/gradata-systems/stroom-k8s-operator
 
 go 1.16
 
