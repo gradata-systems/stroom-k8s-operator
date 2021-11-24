@@ -262,6 +262,10 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		MountPath: "/stroom/tmp",
 	}, {
 		Name:      StroomNodePvcName,
+		SubPath:   "lmdb_library",
+		MountPath: "/stroom/lmdb_library",
+	}, {
+		Name:      StroomNodePvcName,
 		SubPath:   "proxy-repo",
 		MountPath: "/stroom/proxy_repo",
 	}, {
