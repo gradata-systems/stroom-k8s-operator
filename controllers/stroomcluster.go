@@ -658,20 +658,26 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 		}
 
 		if nodeSet.Role != stroomv1.ProcessingNodeRole {
+			ingressAnnotations := map[string]string{
+				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
+			}
+
+			// Apply any user-provided annotations
+			for k, v := range nodeSet.IngressAnnotations {
+				ingressAnnotations[k] = v
+			}
+
 			ingresses = append(ingresses,
 				netv1.Ingress{
 					// Default route (/)
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      clusterName,
-						Namespace: stroomCluster.Namespace,
-						Labels:    stroomCluster.GetLabels(),
-						Annotations: map[string]string{
-							"kubernetes.io/ingress.class":                 "nginx",
-							"nginx.ingress.kubernetes.io/affinity":        "cookie",
-							"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
-						},
+						Name:        clusterName,
+						Namespace:   stroomCluster.Namespace,
+						Labels:      stroomCluster.GetLabels(),
+						Annotations: ingressAnnotations,
 					},
 					Spec: netv1.IngressSpec{
+						IngressClassName: &ingressSettings.ClassName,
 						TLS: []netv1.IngressTLS{{
 							Hosts:      []string{ingressSettings.HostName},
 							SecretName: ingressSettings.SecretName,
@@ -688,19 +694,27 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 		}
 
 		if nodeSet.Role != stroomv1.FrontendNodeRole {
+			ingressAnnotations := map[string]string{
+				"nginx.ingress.kubernetes.io/rewrite-target":  "/stroom/noauth/datafeed",
+				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
+				"nginx.ingress.kubernetes.io/affinity":        "cookie",
+			}
+
+			// Apply any user-provided annotations
+			for k, v := range nodeSet.IngressAnnotations {
+				ingressAnnotations[k] = v
+			}
+
 			ingresses = append(ingresses, netv1.Ingress{
 				// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      clusterName + "-datafeed",
-					Namespace: stroomCluster.Namespace,
-					Labels:    stroomCluster.GetLabels(),
-					Annotations: map[string]string{
-						"kubernetes.io/ingress.class":                 "nginx",
-						"nginx.ingress.kubernetes.io/rewrite-target":  "/stroom/noauth/datafeed",
-						"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
-					},
+					Name:        clusterName + "-datafeed",
+					Namespace:   stroomCluster.Namespace,
+					Labels:      stroomCluster.GetLabels(),
+					Annotations: ingressAnnotations,
 				},
 				Spec: netv1.IngressSpec{
+					IngressClassName: &ingressSettings.ClassName,
 					TLS: []netv1.IngressTLS{{
 						Hosts:      []string{ingressSettings.HostName},
 						SecretName: ingressSettings.SecretName,
