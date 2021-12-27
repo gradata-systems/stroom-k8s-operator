@@ -25,7 +25,7 @@ type NodeSet struct {
 	// limited to.
 	Resources corev1.ResourceRequirements `json:"resources"`
 	// MemoryOptions define JVM memory parameters
-	MemoryOptions JvmMemoryOptions `json:"memoryOptions,omitempty"`
+	MemoryOptions JvmMemoryOptions `json:"memoryOptions"`
 	// IngressEnabled determines whether this node receives requests via the created Kubernetes Ingresses. Usually this
 	// should be `true`, unless there is a need for a NodeSet to be pure processing-only nodes, which cannot receive data.
 	// +kubebuilder:default:=true
@@ -54,10 +54,10 @@ type NodeSet struct {
 type JvmMemoryOptions struct {
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=100
-	InitialPercentage int `json:"initialPercentage,omitempty"`
+	InitialPercentage int `json:"initialPercentage"`
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=100
-	MaxPercentage int `json:"maxPercentage,omitempty"`
+	MaxPercentage int `json:"maxPercentage"`
 }
 
 type NodeRole string

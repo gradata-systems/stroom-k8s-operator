@@ -3041,6 +3041,9 @@ spec:
                           maximum: 100
                           minimum: 1
                           type: integer
+                      required:
+                      - initialPercentage
+                      - maxPercentage
                       type: object
                     name:
                       description: "Name uniquely identifies the NodeSet within a
@@ -3497,6 +3500,7 @@ spec:
                   required:
                   - count
                   - localDataVolumeClaim
+                  - memoryOptions
                   - name
                   - resources
                   type: object
