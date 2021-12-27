@@ -40,6 +40,10 @@ var _ = Describe("StroomCluster", func() {
 					NodeSets: []NodeSet{{
 						Name:  "nodeset-1",
 						Count: 1,
+						MemoryOptions: JvmMemoryOptions{
+							InitialPercentage: 50,
+							MaxPercentage:     75,
+						},
 					}},
 					LogSender: LogSenderSettings{
 						Image: Image{

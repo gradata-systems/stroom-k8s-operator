@@ -560,7 +560,6 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 
 	var jvmOpts []string
 
-	// Apply `NodeSet` memory options if set
 	if nodeSet.MemoryOptions.InitialPercentage > 0 {
 		jvmOpts = append(jvmOpts, fmt.Sprintf("-XX:InitialRAMPercentage=%v", nodeSet.MemoryOptions.InitialPercentage))
 	}

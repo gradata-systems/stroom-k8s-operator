@@ -3822,6 +3822,9 @@ spec:
                           maximum: 100
                           minimum: 1
                           type: integer
+                      required:
+                      - initialPercentage
+                      - maxPercentage
                       type: object
                     name:
                       description: "Name uniquely identifies the NodeSet within a StroomCluster. Should be a short name like \"prod\". \n The NodeSet name determines the name of the Stroom node, which follows the format: `stroom-<cluster name>-node-<nodeset name>-<pod ordinal>`. \n For example, the first Stroom node in StroomCluster `dev`, NodeSet `data` will be named: `stroom-dev-node-data-0`."
@@ -4085,6 +4088,7 @@ spec:
                   required:
                   - count
                   - localDataVolumeClaim
+                  - memoryOptions
                   - name
                   - resources
                   type: object
@@ -4631,7 +4635,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: docker.intranet.gradata.com.au/gradata/stroom-k8s-operator:1.0.9
+        image: docker.intranet.gradata.com.au/gradata/stroom-k8s-operator:1.0.10
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
