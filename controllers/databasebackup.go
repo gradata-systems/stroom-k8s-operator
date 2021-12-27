@@ -4,7 +4,6 @@ import (
 	"fmt"
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path"
@@ -13,7 +12,7 @@ import (
 	"strings"
 )
 
-func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBackup, dbInfo *DatabaseConnectionInfo) *v1beta1.CronJob {
+func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBackup, dbInfo *DatabaseConnectionInfo) *batchv1.CronJob {
 	const targetDirectory = "/var/lib/mysql/backup"
 	const fileDatePattern = "%Y-%m-%d_%H-%M-%S"
 
@@ -35,16 +34,16 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 	// Retain the CronJob for 5 minutes after it completes
 	var ttlSecondsAfterFinished int32 = 300
 
-	cronJob := &v1beta1.CronJob{
+	cronJob := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbBackup.GetBaseName(),
 			Namespace: dbBackup.Namespace,
 			Labels:    dbBackup.GetLabels(),
 		},
-		Spec: v1beta1.CronJobSpec{
+		Spec: batchv1.CronJobSpec{
 			Schedule:          dbBackup.Spec.Schedule,
-			ConcurrencyPolicy: v1beta1.ForbidConcurrent,
-			JobTemplate: v1beta1.JobTemplateSpec{
+			ConcurrencyPolicy: batchv1.ForbidConcurrent,
+			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					Template: corev1.PodTemplateSpec{
