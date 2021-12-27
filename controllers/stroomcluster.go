@@ -659,6 +659,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 
 		if nodeSet.Role != stroomv1.ProcessingNodeRole {
 			ingressAnnotations := map[string]string{
+				"nginx.ingress.kubernetes.io/affinity":        "cookie",
 				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
 			}
 
@@ -697,7 +698,6 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 			ingressAnnotations := map[string]string{
 				"nginx.ingress.kubernetes.io/rewrite-target":  "/stroom/noauth/datafeed",
 				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
-				"nginx.ingress.kubernetes.io/affinity":        "cookie",
 			}
 
 			// Apply any user-provided annotations
