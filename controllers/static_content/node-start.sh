@@ -45,7 +45,7 @@ enabled='true'
 if [[ "${STROOM_NODE_ROLE}" == 'Frontend' ]]; then
   enabled='false'
 fi
-call_api node/v1/setJobsEnabled/"${STROOM_NODE}" -X PUT -d "{ \"enabled\": $enabled }"
+call_api job/v1/setJobsEnabled/"${STROOM_NODE}" -X PUT -d "{ \"enabled\": $enabled }"
 if [[ $enabled == 'true' ]]; then
   log "Node ${STROOM_NODE} jobs enabled"
 else
