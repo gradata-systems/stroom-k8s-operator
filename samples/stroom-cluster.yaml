@@ -6,7 +6,7 @@ metadata:
 spec:
   image:
     repository: gchq/stroom
-    tag: master-SNAPSHOT
+    tag: v7.1-LATEST
   imagePullPolicy: Always
   databaseServerRef:
     serverRef:
@@ -107,3 +107,6 @@ spec:
       nfs:
         server: stroom.fs.example.com
         path: /data/stroom/stroom-shared
+  extraVolumeMounts:
+    - name: shared
+      mountPath: /stroom/data/data-shared
