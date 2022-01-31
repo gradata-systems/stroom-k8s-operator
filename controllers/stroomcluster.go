@@ -105,6 +105,7 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
 
+	volumes = append(volumes, *r.createStaticContentVolume(stroomCluster))
 	r.appendConfigVolumes(stroomCluster, &volumes, &volumeMounts)
 
 	job := batchv1.Job{
@@ -194,11 +195,8 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 	return &job
 }
 
-func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
-	secretFileMode := stroomv1.SecretFileMode
-	logSender := stroomCluster.Spec.LogSender
-
-	volumes := []corev1.Volume{{
+func (r *StroomClusterReconciler) createStaticContentVolume(stroomCluster *stroomv1.StroomCluster) *corev1.Volume {
+	return &corev1.Volume{
 		Name: "static-content",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -207,19 +205,29 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				},
 			},
 		},
-	}, {
-		Name: "api-key",
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: stroomCluster.GetBaseName(),
-				Items: []corev1.KeyToPath{{
-					Key:  "api_key",
-					Path: "api_key",
-					Mode: &secretFileMode,
-				}},
+	}
+}
+
+func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
+	secretFileMode := stroomv1.SecretFileMode
+	logSender := stroomCluster.Spec.LogSender
+
+	volumes := []corev1.Volume{
+		*r.createStaticContentVolume(stroomCluster),
+		{
+			Name: "api-key",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: stroomCluster.GetBaseName(),
+					Items: []corev1.KeyToPath{{
+						Key:  "api_key",
+						Path: "api_key",
+						Mode: &secretFileMode,
+					}},
+				},
 			},
 		},
-	}}
+	}
 	if logSender.Enabled {
 		volumes = append(volumes, corev1.Volume{
 			Name: "log-sender-configmap",
