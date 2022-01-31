@@ -88,7 +88,7 @@ logging:
       logFormat: "%highlight(%-6level) [%d{\"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'\",UTC}] [%green(%t)] %cyan(%logger) - %X{code} %msg %n"
       timeZone: UTC
 
-      # Minute rolled files for stroom/datafeed, will be curl'd/deleted by stroom-log-sender
+    # Minute rolled files for stroom/datafeed, will be curl'd/deleted by stroom-log-sender
     - type: file
       currentLogFilename: logs/app/app.log
       threshold: ALL
@@ -113,22 +113,13 @@ appConfig:
       jdbcDriverUrl: "${STROOM_JDBC_DRIVER_URL:-jdbc:mysql://localhost:3307/stroom?useUnicode=yes&characterEncoding=UTF-8}"
       jdbcDriverUsername: "${STROOM_JDBC_DRIVER_USERNAME:-stroomuser}"
       jdbcDriverPassword: "${STROOM_JDBC_DRIVER_PASSWORD:-stroompassword1}"
-  contentPackImport:
-    enabled: ${STROOM_CONTENT_PACK_IMPORT_ENABLED:-false}
-  job:
-    enabled: true
-    enableDistributedJobsOnBootstrap: ${STROOM_DISTRIBUTED_JOBS_ENABLED_ON_BOOTSTRAP:-true}
-    executionInterval: "10s"
   node:
-    # The name for the node, should be unique to each node in the cluster
     name: "${STROOM_NODE:-node1a}"
-  # The address of the this node for inter-node communication
   nodeUri:
     hostname: "${POD_HOSTNAME}.${POD_SUBDOMAIN}"
   path:
     home: "/stroom"
     temp: "${STROOM_TEMP:-/tmp/stroom}"
-  # The public address for stroom, typically the public address of nginx
   publicUri:
     hostname: "${API_GATEWAY_HOST:-localhost}"
     port: "${API_GATEWAY_PORT:-443}"
@@ -137,12 +128,7 @@ appConfig:
       preventLogin: false
     identity:
       useDefaultOpenIdCredentials: "${USE_DEFAULT_OPEN_ID_CREDENTIALS:-true}"
-  serviceDiscovery:
-    enabled: "${STROOM_SERVICE_DISCOVERY_ENABLED:-false}"
-    zookeeperUrl: "${STROOM_SERVICE_DISCOVERY_ZOOKEEPER_URL:-localhost:2181}"
   statistics:
-    hbase:
-      kafkaConfigUuid:
     internal:
       enabledStoreTypes: ${STROOM_ENABLED_STAT_STORE_TYPES:-[ "StatisticStore" ]}
     sql:
