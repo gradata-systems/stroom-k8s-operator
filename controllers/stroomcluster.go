@@ -105,6 +105,7 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
 
+	volumes = append(volumes, *r.createStaticContentVolume(stroomCluster))
 	r.appendConfigVolumes(stroomCluster, &volumes, &volumeMounts)
 
 	job := batchv1.Job{
@@ -211,19 +212,22 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	secretFileMode := stroomv1.SecretFileMode
 	logSender := stroomCluster.Spec.LogSender
 
-	volumes := []corev1.Volume{{
-		Name: "api-key",
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: stroomCluster.GetBaseName(),
-				Items: []corev1.KeyToPath{{
-					Key:  "api_key",
-					Path: "api_key",
-					Mode: &secretFileMode,
-				}},
+	volumes := []corev1.Volume{
+		*r.createStaticContentVolume(stroomCluster),
+		{
+			Name: "api-key",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: stroomCluster.GetBaseName(),
+					Items: []corev1.KeyToPath{{
+						Key:  "api_key",
+						Path: "api_key",
+						Mode: &secretFileMode,
+					}},
+				},
 			},
 		},
-	}}
+	}
 	if logSender.Enabled {
 		volumes = append(volumes, corev1.Volume{
 			Name: "log-sender-configmap",
@@ -542,7 +546,6 @@ func (r *StroomClusterReconciler) appendConfigVolumes(stroomCluster *stroomv1.St
 		})
 	} else {
 		// Use the default config
-		*volumes = append(*volumes, *r.createStaticContentVolume(stroomCluster))
 		*volumeMounts = append(*volumeMounts, corev1.VolumeMount{
 			Name:      "static-content",
 			SubPath:   "stroomcluster-config.yaml",
