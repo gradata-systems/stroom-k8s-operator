@@ -194,11 +194,8 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 	return &job
 }
 
-func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
-	secretFileMode := stroomv1.SecretFileMode
-	logSender := stroomCluster.Spec.LogSender
-
-	volumes := []corev1.Volume{{
+func (r *StroomClusterReconciler) createStaticContentVolume(stroomCluster *stroomv1.StroomCluster) *corev1.Volume {
+	return &corev1.Volume{
 		Name: "static-content",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -207,7 +204,14 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				},
 			},
 		},
-	}, {
+	}
+}
+
+func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) *appsv1.StatefulSet {
+	secretFileMode := stroomv1.SecretFileMode
+	logSender := stroomCluster.Spec.LogSender
+
+	volumes := []corev1.Volume{{
 		Name: "api-key",
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
@@ -538,6 +542,7 @@ func (r *StroomClusterReconciler) appendConfigVolumes(stroomCluster *stroomv1.St
 		})
 	} else {
 		// Use the default config
+		*volumes = append(*volumes, *r.createStaticContentVolume(stroomCluster))
 		*volumeMounts = append(*volumeMounts, corev1.VolumeMount{
 			Name:      "static-content",
 			SubPath:   "stroomcluster-config.yaml",
