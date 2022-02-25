@@ -72,4 +72,6 @@ type LogSenderSettings struct {
 	DestinationUrl string `json:"destinationUrl,omitempty"`
 	// Name of the `Environment` to set in feed metadata. If omitted, the cluster name is used (converted to UPPERCASE).
 	EnvironmentName string `json:"environmentName,omitempty"`
+	// Name of the `System` to set in feed metadata
+	SystemName string `json:"systemName,omitempty"`
 }
