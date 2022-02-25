@@ -28,6 +28,8 @@ const (
 	StroomNodePvcName           = "data"
 	StroomNodeContainerName     = "stroom-node"
 	StroomCliJobRequeueInterval = time.Second * 10
+	LogSenderDefaultCpuLimit    = "500m"
+	LogSenderDefaultMemoryLimit = "256Mi"
 )
 
 func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
@@ -91,9 +93,9 @@ func (r *StroomClusterReconciler) createLogSenderConfigMap(stroomCluster *stroom
 		},
 		Data: map[string]string{
 			"crontab.txt": "" +
-				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/access STROOM-ACCESS-EVENTS ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/app    STROOM-APP-EVENTS    ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} ${STROOM_BASE_LOGS_DIR}/user   STROOM-USER-EVENTS   ${DATAFEED_URL} --system STROOM --environment ${DEFAULT_ENVIRONMENT} --file-regex \"${DEFAULT_FILE_REGEX}\" -m ${MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"{STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"{STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
 		},
 	}
 
@@ -445,6 +447,22 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			environmentName = strings.ToUpper(stroomCluster.Name)
 		}
 
+		systemName := logSender.SystemName
+		if systemName == "" {
+			systemName = "Stroom"
+		}
+
+		// Set default resource limits if not specified
+		resources := logSender.Resources
+		if resources.Size() == 0 {
+			resources = corev1.ResourceRequirements{
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse(LogSenderDefaultCpuLimit),
+					corev1.ResourceMemory: resource.MustParse(LogSenderDefaultMemoryLimit),
+				},
+			}
+		}
+
 		containers = append(containers, corev1.Container{
 			Name:            "log-sender",
 			Image:           logSender.Image.String(),
@@ -454,19 +472,22 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				Name:  "LOG_SENDER_SCRIPT",
 				Value: "/stroom-log-sender/send_to_stroom.sh",
 			}, {
-				Name:  "DATAFEED_URL",
+				Name:  "STROOM_DATAFEED_URL",
 				Value: destinationUrl,
 			}, {
 				Name:  "STROOM_BASE_LOGS_DIR",
 				Value: "/stroom-log-sender/log-volumes/stroom",
 			}, {
-				Name:  "DEFAULT_FILE_REGEX",
+				Name:  "STROOM_FILE_REGEX",
 				Value: `.*/[a-z]+-[0-9]+-[0-9]+-[0-9]+T[0-9]+:[0-9]+\.log(\.gz)?$`,
 			}, {
-				Name:  "DEFAULT_ENVIRONMENT",
+				Name:  "STROOM_ENVIRONMENT_NAME",
 				Value: environmentName,
 			}, {
-				Name:  "MAX_DELAY_SECS",
+				Name:  "STROOM_SYSTEM_NAME",
+				Value: systemName,
+			}, {
+				Name:  "STROOM_MAX_DELAY_SECS",
 				Value: "15",
 			}},
 			VolumeMounts: []corev1.VolumeMount{{
@@ -478,6 +499,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				MountPath: "/stroom-log-sender/config",
 				ReadOnly:  true,
 			}},
+			Resources: resources,
 		})
 	}
 
