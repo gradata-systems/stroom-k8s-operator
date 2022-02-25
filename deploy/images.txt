@@ -1,2 +1,2 @@
 gcr.io/kubebuilder/kube-rbac-proxy:v0.8.0
-gradata/stroom-k8s-operator:1.0.12
+docker.intranet.gradata.com.au/gradata/stroom-k8s-operator:1.0.13

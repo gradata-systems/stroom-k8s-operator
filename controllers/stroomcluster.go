@@ -28,6 +28,8 @@ const (
 	StroomNodePvcName           = "data"
 	StroomNodeContainerName     = "stroom-node"
 	StroomCliJobRequeueInterval = time.Second * 10
+	LogSenderDefaultCpuLimit    = "500m"
+	LogSenderDefaultMemoryLimit = "256Mi"
 )
 
 func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
@@ -450,6 +452,17 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			systemName = "Stroom"
 		}
 
+		// Set default resource limits if not specified
+		resources := logSender.Resources
+		if resources.Size() == 0 {
+			resources = corev1.ResourceRequirements{
+				Limits: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:    resource.MustParse(LogSenderDefaultCpuLimit),
+					corev1.ResourceMemory: resource.MustParse(LogSenderDefaultMemoryLimit),
+				},
+			}
+		}
+
 		containers = append(containers, corev1.Container{
 			Name:            "log-sender",
 			Image:           logSender.Image.String(),
@@ -486,6 +499,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				MountPath: "/stroom-log-sender/config",
 				ReadOnly:  true,
 			}},
+			Resources: resources,
 		})
 	}
 
