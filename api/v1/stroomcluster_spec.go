@@ -1,6 +1,9 @@
 package v1
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+)
 
 // StroomClusterSpec defines the desired state of StroomCluster
 type StroomClusterSpec struct {
@@ -24,6 +27,8 @@ type StroomClusterSpec struct {
 	ConfigMapRef ConfigMapRef `json:"configMapRef,omitempty"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
+	// Pod management policy to use when deploying or scaling the StroomCluster
+	PodManagementPolicy v1.PodManagementPolicyType `json:"podManagementPolicy,omitempty"`
 	// Amount of time granted to nodes to drain their active tasks before being terminated
 	// +kubebuilder:default:=60
 	NodeTerminationPeriodSecs int64 `json:"nodeTerminationPeriodSecs"`

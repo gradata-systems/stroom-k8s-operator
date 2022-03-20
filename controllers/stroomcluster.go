@@ -510,8 +510,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			Labels:    stroomCluster.GetLabels(),
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas:    &nodeSet.Count,
-			ServiceName: stroomCluster.GetNodeSetServiceName(nodeSet),
+			Replicas:            &nodeSet.Count,
+			PodManagementPolicy: stroomCluster.Spec.PodManagementPolicy,
+			ServiceName:         stroomCluster.GetNodeSetServiceName(nodeSet),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			},
