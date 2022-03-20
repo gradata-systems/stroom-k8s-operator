@@ -3542,6 +3542,10 @@ spec:
                   tasks before being terminated
                 format: int64
                 type: integer
+              podManagementPolicy:
+                description: Pod management policy to use when deploying or scaling
+                  the StroomCluster
+                type: string
               statsDatabaseName:
                 default: stats
                 description: Name of the statistics database, usually `stats`

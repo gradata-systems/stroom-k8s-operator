@@ -510,8 +510,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			Labels:    stroomCluster.GetLabels(),
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas:    &nodeSet.Count,
-			ServiceName: stroomCluster.GetNodeSetServiceName(nodeSet),
+			Replicas:            &nodeSet.Count,
+			PodManagementPolicy: stroomCluster.Spec.PodManagementPolicy,
+			ServiceName:         stroomCluster.GetNodeSetServiceName(nodeSet),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			},
@@ -588,7 +589,15 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 		}
 	}
 
-	var jvmOpts []string
+	var jvmOpts = []string{
+		// Support Stroom WebSockets
+		"--add-opens java.base/java.nio=ALL-UNNAMED",
+		"--add-opens java.base/sun.nio.ch=ALL-UNNAMED",
+		"--add-opens java.base/java.lang=ALL-UNNAMED",
+	}
+
+	// Set
+	jvmOpts = append(jvmOpts, "--add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED")
 
 	if nodeSet.MemoryOptions.InitialPercentage > 0 {
 		jvmOpts = append(jvmOpts, fmt.Sprintf("-XX:InitialRAMPercentage=%v", nodeSet.MemoryOptions.InitialPercentage))
