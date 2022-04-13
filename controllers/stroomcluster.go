@@ -730,6 +730,33 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 						},
 					},
 				})
+
+			ingresses = append(ingresses,
+				netv1.Ingress{
+					// WebSocket endpoint
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      clusterName + "-websocket",
+						Namespace: stroomCluster.Namespace,
+						Labels:    stroomCluster.GetLabels(),
+						Annotations: map[string]string{
+							"nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
+							"nginx.ingress.kubernetes.io/configuration-snippet": "\n" +
+								"proxy_set_header Upgrade $http_upgrade;\n" +
+								"proxy_set_header Connection \"Upgrade\";\n",
+						},
+					},
+					Spec: netv1.IngressSpec{
+						IngressClassName: &ingressSettings.ClassName,
+						TLS: []netv1.IngressTLS{{
+							Hosts:      []string{ingressSettings.HostName},
+							SecretName: ingressSettings.SecretName,
+						}},
+						Rules: []netv1.IngressRule{
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/web-socket/", serviceName),
+						},
+					},
+				},
+			)
 		}
 
 		if nodeSet.Role != stroomv1.FrontendNodeRole {
