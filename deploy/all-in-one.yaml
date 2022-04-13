@@ -4663,7 +4663,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gradata/stroom-k8s-operator:1.0.14
+        image: gradata/stroom-k8s-operator:1.0.15
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
