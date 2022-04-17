@@ -73,7 +73,7 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 									Value: strconv.Itoa(int(dbInfo.Port)),
 								}, {
 									Name:  "MYSQL_USER",
-									Value: DatabaseServiceUserName,
+									Value: dbInfo.UserName,
 								}, {
 									Name: "MYSQL_PASSWORD",
 									ValueFrom: &corev1.EnvVarSource{
@@ -81,7 +81,7 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 											LocalObjectReference: corev1.LocalObjectReference{
 												Name: dbInfo.SecretName,
 											},
-											Key: DatabaseServiceUserName,
+											Key: dbInfo.UserName,
 										},
 									},
 								}},

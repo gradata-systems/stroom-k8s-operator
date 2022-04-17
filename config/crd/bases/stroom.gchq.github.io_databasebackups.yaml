@@ -77,6 +77,12 @@ spec:
                     required:
                     - name
                     type: object
+                  userName:
+                    default: stroomuser
+                    description: UserName is the name of the Stroom database user
+                      to use when connecting to the server. A corresponding key should
+                      exist in the provided Secret referenced by SecretName.
+                    type: string
                 type: object
               image:
                 properties:

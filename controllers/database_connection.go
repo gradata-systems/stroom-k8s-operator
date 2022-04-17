@@ -22,6 +22,7 @@ func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, dbRef 
 		dbConnectionInfo.Host = dbRef.ServerAddress.Host
 		dbConnectionInfo.Port = dbRef.ServerAddress.Port
 		dbConnectionInfo.SecretName = dbRef.ServerAddress.SecretName
+		dbConnectionInfo.UserName = dbRef.UserName
 	} else {
 		// If the ServerRef namespace is empty, try to find the DatabaseServer in the same namespace as the owner
 		// (e.g. StroomCluster)
@@ -60,10 +61,10 @@ func OpenDatabase(client client.Reader, ctx context.Context, dbInfo *DatabaseCon
 		return nil, err
 	}
 
-	password := string(dbSecret.Data[DatabaseServiceUserName])
-	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", DatabaseServiceUserName, password, dbInfo.Host, dbInfo.Port, databaseName)
+	password := string(dbSecret.Data[dbInfo.UserName])
+	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", dbInfo.UserName, password, dbInfo.Host, dbInfo.Port, databaseName)
 	if db, err := sql.Open("mysql", dataSourceName); err != nil {
-		logger.Error(err, "Could not connect to database", "HostName", dbInfo.Host, "Database", databaseName, "User", DatabaseServiceUserName)
+		logger.Error(err, "Could not connect to database", "HostName", dbInfo.Host, "Database", databaseName, "User", dbInfo.UserName)
 		return nil, err
 	} else {
 		return db, nil

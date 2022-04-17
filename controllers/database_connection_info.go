@@ -8,6 +8,7 @@ import (
 type DatabaseConnectionInfo struct {
 	DatabaseServer *v1.DatabaseServer
 	v1.ServerAddress
+	UserName string
 }
 
 func (dbInfo *DatabaseConnectionInfo) ToJdbcConnectionString(databaseName string) string {

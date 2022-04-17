@@ -4,10 +4,13 @@ type DatabaseServerRef struct {
 	// If specified, point to an operator-managed DatabaseServer object
 	// +optional
 	ServerRef ResourceRef `json:"serverRef,omitempty"`
-
 	// Alternatively, if the following parameters are provided, point directly to a DB by its TCP address.
 	// This allows external database instances to be used in place of an operator-managed one.
 	ServerAddress ServerAddress `json:"serverAddress,omitempty"`
+	// UserName is the name of the Stroom database user to use when connecting to the server.
+	// A corresponding key should exist in the provided Secret referenced by SecretName.
+	// +kubebuilder:default:=stroomuser
+	UserName string `json:"userName,omitempty"`
 }
 
 type ServerAddress struct {
