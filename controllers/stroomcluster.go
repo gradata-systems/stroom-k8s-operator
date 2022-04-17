@@ -137,7 +137,7 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 							Value: "com.mysql.cj.jdbc.Driver",
 						}, {
 							Name:  "STROOM_JDBC_DRIVER_USERNAME",
-							Value: DatabaseServiceUserName,
+							Value: dbInfo.UserName,
 						}, {
 							Name: "STROOM_JDBC_DRIVER_PASSWORD",
 							ValueFrom: &corev1.EnvVarSource{
@@ -145,7 +145,7 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: dbInfo.SecretName,
 									},
-									Key: DatabaseServiceUserName,
+									Key: dbInfo.UserName,
 								},
 							},
 						}, {
@@ -156,7 +156,7 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 							Value: "com.mysql.cj.jdbc.Driver",
 						}, {
 							Name:  "STROOM_STATISTICS_JDBC_DRIVER_USERNAME",
-							Value: DatabaseServiceUserName,
+							Value: dbInfo.UserName,
 						}, {
 							Name: "STROOM_STATISTICS_JDBC_DRIVER_PASSWORD",
 							ValueFrom: &corev1.EnvVarSource{
@@ -164,7 +164,7 @@ func (r *StroomClusterReconciler) createCliJob(stroomCluster *stroomv1.StroomClu
 									LocalObjectReference: corev1.LocalObjectReference{
 										Name: dbInfo.SecretName,
 									},
-									Key: DatabaseServiceUserName,
+									Key: dbInfo.UserName,
 								},
 							},
 						}, {
@@ -364,7 +364,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			Value: "com.mysql.cj.jdbc.Driver",
 		}, {
 			Name:  "STROOM_JDBC_DRIVER_USERNAME",
-			Value: DatabaseServiceUserName,
+			Value: dbInfo.UserName,
 		}, {
 			Name: "STROOM_JDBC_DRIVER_PASSWORD",
 			ValueFrom: &corev1.EnvVarSource{
@@ -372,7 +372,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: dbInfo.SecretName,
 					},
-					Key: DatabaseServiceUserName,
+					Key: dbInfo.UserName,
 				},
 			},
 		}, {
@@ -383,7 +383,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			Value: "com.mysql.cj.jdbc.Driver",
 		}, {
 			Name:  "STROOM_STATISTICS_JDBC_DRIVER_USERNAME",
-			Value: DatabaseServiceUserName,
+			Value: dbInfo.UserName,
 		}, {
 			Name: "STROOM_STATISTICS_JDBC_DRIVER_PASSWORD",
 			ValueFrom: &corev1.EnvVarSource{
@@ -391,7 +391,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: dbInfo.SecretName,
 					},
-					Key: DatabaseServiceUserName,
+					Key: dbInfo.UserName,
 				},
 			},
 		}}, stroomCluster.Spec.ExtraEnv...),
