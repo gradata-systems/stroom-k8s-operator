@@ -4671,7 +4671,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: docker.intranet.gradata.com.au/gradata/stroom-k8s-operator:1.0.16
+        image: gradata/stroom-k8s-operator:1.0.16
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
