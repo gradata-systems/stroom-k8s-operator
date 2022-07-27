@@ -14,4 +14,5 @@ type UserPermission string
 const (
 	UserPermissionManageNodes UserPermission = "Manage Nodes"
 	UserPermissionManageJobs  UserPermission = "Manage Jobs"
+	UserPermissionManageTasks UserPermission = "Manage Tasks"
 )

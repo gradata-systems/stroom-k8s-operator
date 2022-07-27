@@ -177,6 +177,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			"--createUser", stroomv1.StroomOperatorUserId,
 			"--grantPermission", stroomv1.StroomOperatorUserId, string(stroomv1.UserPermissionManageNodes),
 			"--grantPermission", stroomv1.StroomOperatorUserId, string(stroomv1.UserPermissionManageJobs),
+			"--grantPermission", stroomv1.StroomOperatorUserId, string(stroomv1.UserPermissionManageTasks),
 		})
 		foundJob := batchv1.Job{}
 		if err := r.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &foundJob); err != nil {
