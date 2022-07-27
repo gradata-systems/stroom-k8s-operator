@@ -407,7 +407,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			Protocol:      corev1.ProtocolTCP,
 		}},
 		StartupProbe: &corev1.Probe{
-			Handler: corev1.Handler{
+			ProbeHandler: corev1.ProbeHandler{
 				Exec: &corev1.ExecAction{
 					Command: []string{
 						"bash",
@@ -425,7 +425,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		LivenessProbe:  r.createProbe(&nodeSet.LivenessProbeTimings, AdminPortName),
 		Resources:      nodeSet.Resources,
 		Lifecycle: &corev1.Lifecycle{
-			PreStop: &corev1.Handler{
+			PreStop: &corev1.LifecycleHandler{
 				Exec: &corev1.ExecAction{
 					Command: []string{
 						"bash",
@@ -615,7 +615,7 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 
 func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTimings, portName string) *corev1.Probe {
 	probe := &corev1.Probe{
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Path: "/stroomAdmin/healthcheck",
 				Port: intstr.IntOrString{

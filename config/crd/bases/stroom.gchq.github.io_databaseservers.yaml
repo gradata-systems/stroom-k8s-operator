@@ -338,9 +338,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -395,7 +393,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -494,8 +492,6 @@ spec:
                                 the ones listed in the namespaces field. null selector
                                 and null or empty namespaces list means "this pod's
                                 namespace". An empty selector ({}) matches all namespaces.
-                                This field is beta-level and is only honored when
-                                PodAffinityNamespaceSelector feature is enabled.
                               properties:
                                 matchExpressions:
                                   description: matchExpressions is a list of label
@@ -546,7 +542,7 @@ spec:
                                 to the union of the namespaces listed in this field
                                 and the ones selected by namespaceSelector. null or
                                 empty namespaces list and null namespaceSelector means
-                                "this pod's namespace"
+                                "this pod's namespace".
                               items:
                                 type: string
                               type: array
@@ -647,9 +643,7 @@ spec:
                                     field and the ones listed in the namespaces field.
                                     null selector and null or empty namespaces list
                                     means "this pod's namespace". An empty selector
-                                    ({}) matches all namespaces. This field is beta-level
-                                    and is only honored when PodAffinityNamespaceSelector
-                                    feature is enabled.
+                                    ({}) matches all namespaces.
                                   properties:
                                     matchExpressions:
                                       description: matchExpressions is a list of label
@@ -704,7 +698,7 @@ spec:
                                     term is applied to the union of the namespaces
                                     listed in this field and the ones selected by
                                     namespaceSelector. null or empty namespaces list
-                                    and null namespaceSelector means "this pod's namespace"
+                                    and null namespaceSelector means "this pod's namespace".
                                   items:
                                     type: string
                                   type: array
@@ -803,8 +797,6 @@ spec:
                                 the ones listed in the namespaces field. null selector
                                 and null or empty namespaces list means "this pod's
                                 namespace". An empty selector ({}) matches all namespaces.
-                                This field is beta-level and is only honored when
-                                PodAffinityNamespaceSelector feature is enabled.
                               properties:
                                 matchExpressions:
                                   description: matchExpressions is a list of label
@@ -855,7 +847,7 @@ spec:
                                 to the union of the namespaces listed in this field
                                 and the ones selected by namespaceSelector. null or
                                 empty namespaces list and null namespaceSelector means
-                                "this pod's namespace"
+                                "this pod's namespace".
                               items:
                                 type: string
                               type: array
@@ -939,7 +931,8 @@ spec:
                       set (new files created in the volume will be owned by FSGroup)
                       3. The permission bits are OR'd with rw-rw---- \n If unset,
                       the Kubelet will not modify the ownership and permissions of
-                      any volume."
+                      any volume. Note that this field cannot be set when spec.os.name
+                      is windows."
                     format: int64
                     type: integer
                   fsGroupChangePolicy:
@@ -949,13 +942,15 @@ spec:
                       support fsGroup based ownership(and permissions). It will have
                       no effect on ephemeral volume types such as: secret, configmaps
                       and emptydir. Valid values are "OnRootMismatch" and "Always".
-                      If not specified, "Always" is used.'
+                      If not specified, "Always" is used. Note that this field cannot
+                      be set when spec.os.name is windows.'
                     type: string
                   runAsGroup:
                     description: The GID to run the entrypoint of the container process.
                       Uses runtime default if unset. May also be set in SecurityContext.  If
                       set in both SecurityContext and PodSecurityContext, the value
                       specified in SecurityContext takes precedence for that container.
+                      Note that this field cannot be set when spec.os.name is windows.
                     format: int64
                     type: integer
                   runAsNonRoot:
@@ -972,7 +967,8 @@ spec:
                       Defaults to user specified in image metadata if unspecified.
                       May also be set in SecurityContext.  If set in both SecurityContext
                       and PodSecurityContext, the value specified in SecurityContext
-                      takes precedence for that container.
+                      takes precedence for that container. Note that this field cannot
+                      be set when spec.os.name is windows.
                     format: int64
                     type: integer
                   seLinuxOptions:
@@ -981,6 +977,7 @@ spec:
                       SELinux context for each container.  May also be set in SecurityContext.  If
                       set in both SecurityContext and PodSecurityContext, the value
                       specified in SecurityContext takes precedence for that container.
+                      Note that this field cannot be set when spec.os.name is windows.
                     properties:
                       level:
                         description: Level is SELinux level label that applies to
@@ -1001,7 +998,8 @@ spec:
                     type: object
                   seccompProfile:
                     description: The seccomp options to use by the containers in this
-                      pod.
+                      pod. Note that this field cannot be set when spec.os.name is
+                      windows.
                     properties:
                       localhostProfile:
                         description: localhostProfile indicates a profile defined
@@ -1023,7 +1021,8 @@ spec:
                   supplementalGroups:
                     description: A list of groups applied to the first process run
                       in each container, in addition to the container's primary GID.  If
-                      unspecified, no groups will be added to any container.
+                      unspecified, no groups will be added to any container. Note
+                      that this field cannot be set when spec.os.name is windows.
                     items:
                       format: int64
                       type: integer
@@ -1031,7 +1030,8 @@ spec:
                   sysctls:
                     description: Sysctls hold a list of namespaced sysctls used for
                       the pod. Pods with unsupported sysctls (by the container runtime)
-                      might fail to launch.
+                      might fail to launch. Note that this field cannot be set when
+                      spec.os.name is windows.
                     items:
                       description: Sysctl defines a kernel parameter to be set
                       properties:
@@ -1050,7 +1050,8 @@ spec:
                     description: The Windows specific settings applied to all containers.
                       If unspecified, the options within a container's SecurityContext
                       will be used. If set in both SecurityContext and PodSecurityContext,
-                      the value specified in SecurityContext takes precedence.
+                      the value specified in SecurityContext takes precedence. Note
+                      that this field cannot be set when spec.os.name is linux.
                     properties:
                       gmsaCredentialSpec:
                         description: GMSACredentialSpec is where the GMSA admission
@@ -1142,12 +1143,14 @@ spec:
                       can gain more privileges than its parent process. This bool
                       directly controls if the no_new_privs flag will be set on the
                       container process. AllowPrivilegeEscalation is true always when
-                      the container is: 1) run as Privileged 2) has CAP_SYS_ADMIN'
+                      the container is: 1) run as Privileged 2) has CAP_SYS_ADMIN
+                      Note that this field cannot be set when spec.os.name is windows.'
                     type: boolean
                   capabilities:
                     description: The capabilities to add/drop when running containers.
                       Defaults to the default set of capabilities granted by the container
-                      runtime.
+                      runtime. Note that this field cannot be set when spec.os.name
+                      is windows.
                     properties:
                       add:
                         description: Added capabilities
@@ -1165,23 +1168,27 @@ spec:
                   privileged:
                     description: Run container in privileged mode. Processes in privileged
                       containers are essentially equivalent to root on the host. Defaults
-                      to false.
+                      to false. Note that this field cannot be set when spec.os.name
+                      is windows.
                     type: boolean
                   procMount:
                     description: procMount denotes the type of proc mount to use for
                       the containers. The default is DefaultProcMount which uses the
                       container runtime defaults for readonly paths and masked paths.
                       This requires the ProcMountType feature flag to be enabled.
+                      Note that this field cannot be set when spec.os.name is windows.
                     type: string
                   readOnlyRootFilesystem:
                     description: Whether this container has a read-only root filesystem.
-                      Default is false.
+                      Default is false. Note that this field cannot be set when spec.os.name
+                      is windows.
                     type: boolean
                   runAsGroup:
                     description: The GID to run the entrypoint of the container process.
                       Uses runtime default if unset. May also be set in PodSecurityContext.  If
                       set in both SecurityContext and PodSecurityContext, the value
-                      specified in SecurityContext takes precedence.
+                      specified in SecurityContext takes precedence. Note that this
+                      field cannot be set when spec.os.name is windows.
                     format: int64
                     type: integer
                   runAsNonRoot:
@@ -1198,7 +1205,8 @@ spec:
                       Defaults to user specified in image metadata if unspecified.
                       May also be set in PodSecurityContext.  If set in both SecurityContext
                       and PodSecurityContext, the value specified in SecurityContext
-                      takes precedence.
+                      takes precedence. Note that this field cannot be set when spec.os.name
+                      is windows.
                     format: int64
                     type: integer
                   seLinuxOptions:
@@ -1206,7 +1214,8 @@ spec:
                       If unspecified, the container runtime will allocate a random
                       SELinux context for each container.  May also be set in PodSecurityContext.  If
                       set in both SecurityContext and PodSecurityContext, the value
-                      specified in SecurityContext takes precedence.
+                      specified in SecurityContext takes precedence. Note that this
+                      field cannot be set when spec.os.name is windows.
                     properties:
                       level:
                         description: Level is SELinux level label that applies to
@@ -1228,7 +1237,8 @@ spec:
                   seccompProfile:
                     description: The seccomp options to use by this container. If
                       seccomp options are provided at both the pod & container level,
-                      the container options override the pod options.
+                      the container options override the pod options. Note that this
+                      field cannot be set when spec.os.name is windows.
                     properties:
                       localhostProfile:
                         description: localhostProfile indicates a profile defined
@@ -1251,7 +1261,8 @@ spec:
                     description: The Windows specific settings applied to all containers.
                       If unspecified, the options from the PodSecurityContext will
                       be used. If set in both SecurityContext and PodSecurityContext,
-                      the value specified in SecurityContext takes precedence.
+                      the value specified in SecurityContext takes precedence. Note
+                      that this field cannot be set when spec.os.name is linux.
                     properties:
                       gmsaCredentialSpec:
                         description: GMSACredentialSpec is where the GMSA admission
@@ -1327,14 +1338,14 @@ spec:
                   of storage devices and allows a Source for provider-specific attributes
                 properties:
                   accessModes:
-                    description: 'AccessModes contains the desired access modes the
+                    description: 'accessModes contains the desired access modes the
                       volume should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1'
                     items:
                       type: string
                     type: array
                   dataSource:
-                    description: 'This field can be used to specify either: * An existing
-                      VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
+                    description: 'dataSource field can be used to specify either:
+                      * An existing VolumeSnapshot object (snapshot.storage.k8s.io/VolumeSnapshot)
                       * An existing PVC (PersistentVolumeClaim) If the provisioner
                       or an external controller can support the specified data source,
                       it will create a new volume based on the contents of the specified
@@ -1359,24 +1370,25 @@ spec:
                     - name
                     type: object
                   dataSourceRef:
-                    description: 'Specifies the object from which to populate the
-                      volume with data, if a non-empty volume is desired. This may
-                      be any local object from a non-empty API group (non core object)
-                      or a PersistentVolumeClaim object. When this field is specified,
-                      volume binding will only succeed if the type of the specified
-                      object matches some installed volume populator or dynamic provisioner.
-                      This field will replace the functionality of the DataSource
-                      field and as such if both fields are non-empty, they must have
-                      the same value. For backwards compatibility, both fields (DataSource
-                      and DataSourceRef) will be set to the same value automatically
-                      if one of them is empty and the other is non-empty. There are
-                      two important differences between DataSource and DataSourceRef:
-                      * While DataSource only allows two specific types of objects,
-                      DataSourceRef   allows any non-core object, as well as PersistentVolumeClaim
-                      objects. * While DataSource ignores disallowed values (dropping
-                      them), DataSourceRef   preserves all values, and generates an
-                      error if a disallowed value is   specified. (Alpha) Using this
-                      field requires the AnyVolumeDataSource feature gate to be enabled.'
+                    description: 'dataSourceRef specifies the object from which to
+                      populate the volume with data, if a non-empty volume is desired.
+                      This may be any local object from a non-empty API group (non
+                      core object) or a PersistentVolumeClaim object. When this field
+                      is specified, volume binding will only succeed if the type of
+                      the specified object matches some installed volume populator
+                      or dynamic provisioner. This field will replace the functionality
+                      of the DataSource field and as such if both fields are non-empty,
+                      they must have the same value. For backwards compatibility,
+                      both fields (DataSource and DataSourceRef) will be set to the
+                      same value automatically if one of them is empty and the other
+                      is non-empty. There are two important differences between DataSource
+                      and DataSourceRef: * While DataSource only allows two specific
+                      types of objects, DataSourceRef   allows any non-core object,
+                      as well as PersistentVolumeClaim objects. * While DataSource
+                      ignores disallowed values (dropping them), DataSourceRef   preserves
+                      all values, and generates an error if a disallowed value is   specified.
+                      (Beta) Using this field requires the AnyVolumeDataSource feature
+                      gate to be enabled.'
                     properties:
                       apiGroup:
                         description: APIGroup is the group for the resource being
@@ -1395,8 +1407,11 @@ spec:
                     - name
                     type: object
                   resources:
-                    description: 'Resources represents the minimum resources the volume
-                      should have. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
+                    description: 'resources represents the minimum resources the volume
+                      should have. If RecoverVolumeExpansionFailure feature is enabled
+                      users are allowed to specify resource requirements that are
+                      lower than previous value but must still be higher than capacity
+                      recorded in the status field of the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#resources'
                     properties:
                       limits:
                         additionalProperties:
@@ -1422,7 +1437,8 @@ spec:
                         type: object
                     type: object
                   selector:
-                    description: A label query over volumes to consider for binding.
+                    description: selector is a label query over volumes to consider
+                      for binding.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
@@ -1466,8 +1482,8 @@ spec:
                         type: object
                     type: object
                   storageClassName:
-                    description: 'Name of the StorageClass required by the claim.
-                      More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
+                    description: 'storageClassName is the name of the StorageClass
+                      required by the claim. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#class-1'
                     type: string
                   volumeMode:
                     description: volumeMode defines what type of volume is required
@@ -1475,7 +1491,7 @@ spec:
                       in claim spec.
                     type: string
                   volumeName:
-                    description: VolumeName is the binding reference to the PersistentVolume
+                    description: volumeName is the binding reference to the PersistentVolume
                       backing this claim.
                     type: string
                 type: object
