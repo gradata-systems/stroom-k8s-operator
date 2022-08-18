@@ -230,7 +230,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			},
 		},
 	}
-	if (stroomv1.LogSenderSettings{} != logSender && logSender.Enabled) {
+	if !logSender.IsZero() {
 		volumes = append(volumes, corev1.Volume{
 			Name: "log-sender-configmap",
 			VolumeSource: corev1.VolumeSource{
@@ -436,7 +436,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}}
 
-	if (stroomv1.LogSenderSettings{} != logSender && logSender.Enabled) {
+	if !logSender.IsZero() {
 		destinationUrl := logSender.DestinationUrl
 		if destinationUrl == "" {
 			destinationUrl = stroomCluster.GetDatafeedUrl()
