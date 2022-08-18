@@ -4671,7 +4671,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gradata/stroom-k8s-operator:1.0.17
+        image: gradata/stroom-k8s-operator:1.0.18
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -4688,11 +4688,11 @@ spec:
           periodSeconds: 10
         resources:
           limits:
-            cpu: 200m
-            memory: 100Mi
+            cpu: 1000m
+            memory: 512Mi
           requests:
             cpu: 100m
-            memory: 50Mi
+            memory: 100Mi
         securityContext:
           allowPrivilegeEscalation: false
       securityContext:

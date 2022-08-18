@@ -81,3 +81,7 @@ type LogSenderSettings struct {
 	SystemName string                      `json:"systemName,omitempty"`
 	Resources  corev1.ResourceRequirements `json:"resources,omitempty"`
 }
+
+func (in *LogSenderSettings) IsZero() bool {
+	return !in.Enabled
+}

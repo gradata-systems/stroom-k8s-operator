@@ -45,6 +45,7 @@ func GetDatabaseConnectionInfo(client client.Client, ctx context.Context, dbRef 
 			dbConnectionInfo.Host = dbServer.GetServiceFqdn()
 			dbConnectionInfo.Port = DatabasePort
 			dbConnectionInfo.SecretName = dbServer.GetSecretName()
+			dbConnectionInfo.UserName = dbRef.UserName
 		}
 	}
 
