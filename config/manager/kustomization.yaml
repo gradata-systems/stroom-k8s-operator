@@ -11,4 +11,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: gradata/stroom-k8s-operator
-  newTag: 1.0.17
+  newTag: 1.0.18
