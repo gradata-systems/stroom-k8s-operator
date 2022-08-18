@@ -155,7 +155,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Create a ConfigMap for stroom-log-sender
-	if stroomCluster.Spec.LogSender.Enabled {
+	logSender := stroomCluster.Spec.LogSender
+	if (stroomv1.LogSenderSettings{} != logSender && logSender.Enabled) {
 		foundLogSenderConfigMap := corev1.ConfigMap{}
 		result, err = r.getOrCreateObject(ctx, stroomCluster.GetLogSenderConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundLogSenderConfigMap, func() error {
 			// Create the ConfigMap
