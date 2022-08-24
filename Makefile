@@ -129,7 +129,7 @@ build-helm-chart: build manifests
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/crd --output charts/stroom-operator-crds/templates/
 	$(KUSTOMIZE) build config/helm-chart > charts/stroom-operator/templates/operator.yaml
-	sh deploy/helm-substitute-vars.sh "${VERSION}"
+	sh deploy/helm-substitute-vars.sh "${IMAGE_TAG_BASE}" "${VERSION}"
 
 ##@ Deployment
 

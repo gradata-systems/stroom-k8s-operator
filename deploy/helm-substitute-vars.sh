@@ -1,6 +1,7 @@
 #!/bin/bash
 
-version="$1"
+operator_image_tag="$1"
+version="$2"
 
 chart_yaml='./charts/stroom-operator/Chart.yaml'
 operator_yaml='./charts/stroom-operator/templates/operator.yaml'
@@ -8,7 +9,7 @@ operator_yaml='./charts/stroom-operator/templates/operator.yaml'
 sed -i -E "s/appVersion: \"(.*)\"/appVersion: \"$version\"/" $chart_yaml
 
 registry="{{ if .Values.registry }}{{ printf \"%s\/\" .Values.registry }}{{ end }}"
-sed -i -E "s/(image: .+):.+$/\1:{{ .Values.image.tag | default .Chart.AppVersion }}/" $operator_yaml
+sed -i -E "s|(image: .*$operator_image_tag.*):.+$|\1:{{ .Values.image.tag \| default .Chart.AppVersion }}|" $operator_yaml
 sed -i -E "s/(image): (.+):/\1: $registry{{ \"\2\" }}:/" $operator_yaml
 
 sed -i 's/HELM_NAMESPACE/{{ .Release.Namespace }}/' $operator_yaml
