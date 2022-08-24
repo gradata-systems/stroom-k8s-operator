@@ -646,6 +646,10 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 }
 
 func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) *corev1.Service {
+	var clusterIP string
+	if nodeSet.ServiceType == stroomv1.HeadlessServiceType {
+		clusterIP = corev1.ClusterIPNone
+	}
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stroomCluster.GetNodeSetServiceName(nodeSet),
@@ -654,7 +658,7 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 		},
 		Spec: corev1.ServiceSpec{
 			Type:      corev1.ServiceTypeClusterIP,
-			ClusterIP: corev1.ClusterIPNone,
+			ClusterIP: clusterIP,
 			Selector:  stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			Ports: []corev1.ServicePort{{
 				Name:     AppPortName,
