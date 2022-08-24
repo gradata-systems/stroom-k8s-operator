@@ -2904,10 +2904,8 @@ spec:
                         be pure processing-only nodes, which cannot receive data.
                       type: boolean
                     livenessProbeTimings:
-                      description: LivenessProbeTimings specify poll Pod healthcheck
-                        conditions. Ensure periods of high volume are factored in
-                        when deciding these timings, otherwise nodes will be killed
-                        if they fail the specified parameters.
+                      description: LivenessProbeTimings determine the parameters for
+                        liveness probes. If a Pod fails successive probes, it is restarted.
                       properties:
                         failureThreshold:
                           default: 10
@@ -3308,10 +3306,10 @@ spec:
                           type: object
                       type: object
                     readinessProbeTimings:
-                      description: ReadinessProbeTimings specify the parameters for
-                        Pod initial startup. If a node fails to start up in accordance
-                        with these parameters, it will be killed. Therefore, ensure
-                        sufficient leeway is provided.
+                      description: ReadinessProbeTimings determine the parameters
+                        for readiness probes. These help to protect nodes from overload,
+                        removing them from service while they are non-responsive to
+                        healthchecks.
                       properties:
                         failureThreshold:
                           default: 10
@@ -3543,6 +3541,32 @@ spec:
                                 takes precedence.
                               type: string
                           type: object
+                      type: object
+                    startupProbeTimings:
+                      description: StartupProbeTimings specify parameters for initial
+                        Pod startup. These should be set according to how long a node
+                        typically takes to start up and respond to healthchecks.
+                      properties:
+                        failureThreshold:
+                          default: 10
+                          format: int32
+                          type: integer
+                        initialDelaySeconds:
+                          default: 5
+                          format: int32
+                          type: integer
+                        periodSeconds:
+                          default: 5
+                          format: int32
+                          type: integer
+                        successThreshold:
+                          default: 1
+                          format: int32
+                          type: integer
+                        timeoutSeconds:
+                          default: 5
+                          format: int32
+                          type: integer
                       type: object
                     tolerations:
                       items:
