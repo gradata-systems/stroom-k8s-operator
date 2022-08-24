@@ -62,18 +62,21 @@ The operator requires two Helm charts to be installed, in order to function. The
 
 ### 1. stroom-operator-crds
 ```shell
-helm install -n stroom-operator-system --create-namespace stroom-operator-crds oci://ghcr.io/gradata-systems/helm-charts/stroom-operator-crds
+helm install -n stroom-operator-system --create-namespace stroom-operator-crds \
+oci://ghcr.io/gradata-systems/helm-charts/stroom-operator-crds
 ```
 
 ### 2. stroom-operator
 ```shell
-helm install -n stroom-operator-system stroom-operator oci://ghcr.io/gradata-systems/helm-charts/stroom-operator
+helm install -n stroom-operator-system stroom-operator \
+oci://ghcr.io/gradata-systems/helm-charts/stroom-operator
 ```
 The operator will be deployed to namespace `stroom-operator-system`. You can monitor its progress by watching the `Pod` named `stroom-operator-controller-manager`. Once it reaches `Ready` state, you can deploy a Stroom cluster.
 
 #### Air-Gap Deployment
 ```shell
-helm install -n stroom-operator-system stroom-operator oci://ghcr.io/gradata-systems/helm-charts/stroom-operator \
+helm install -n stroom-operator-system stroom-operator \
+oci://ghcr.io/gradata-systems/helm-charts/stroom-operator \
 --set registry=<private registry URL>
 ```
 
@@ -98,8 +101,10 @@ An example Stroom cluster configuration is at [./samples](./samples), which has 
 
 # Upgrading the Operator
 ```shell
-helm upgrade -n stroom-operator-system stroom-operator oci://ghcr.io/gradata-systems/helm-charts/stroom-operator
-helm upgrade -n stroom-operator-system stroom-operator oci://ghcr.io/gradata-systems/helm-charts/stroom-operator-crds
+helm upgrade -n stroom-operator-system stroom-operator \
+oci://ghcr.io/gradata-systems/helm-charts/stroom-operator
+helm upgrade -n stroom-operator-system stroom-operator-crds \
+oci://ghcr.io/gradata-systems/helm-charts/stroom-operator-crds
 ```
 This upgrades the controller in-place, without affecting any deployed Stroom clusters.
 
