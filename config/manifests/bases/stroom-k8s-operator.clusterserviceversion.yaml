@@ -10,6 +10,11 @@ spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
     owned:
+    - description: DatabaseBackup is the Schema for the databasebackups API
+      displayName: Database Backup
+      kind: DatabaseBackup
+      name: databasebackups.stroom.gchq.github.io
+      version: v1
     - description: DatabaseServer is the Schema for the databases API
       displayName: Database Server
       kind: DatabaseServer

@@ -1,0 +1,94 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: stroomtaskautoscalers.stroom.gchq.github.io
+spec:
+  group: stroom.gchq.github.io
+  names:
+    kind: StroomTaskAutoscaler
+    listKind: StroomTaskAutoscalerList
+    plural: stroomtaskautoscalers
+    singular: stroomtaskautoscaler
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: StroomTaskAutoscalerSpec defines the desired state of StroomTaskAutoscaler
+            properties:
+              adjustmentIntervalMins:
+                default: 1
+                description: How often (in minutes) adjustments are made to the number of Stroom node tasks
+                minimum: 1
+                type: integer
+              maxCpuPercent:
+                default: 90
+                description: Maximum CPU usage threshold before the number of tasks is adjusted downwards
+                type: integer
+              maxTaskLimit:
+                default: 20
+                description: Maximum number of tasks auto-scaler may set the node limit to
+                type: integer
+              metricsSlidingWindowMins:
+                default: 1
+                description: Sliding window (in minutes) over which to calculate CPU usage vs. the threshold parameters
+                minimum: 1
+                type: integer
+              minCpuPercent:
+                default: 50
+                description: Minimum CPU usage threshold before the number of tasks is adjusted upwards
+                type: integer
+              minTaskLimit:
+                default: 1
+                description: Minimum number of tasks auto-scaler may set the node limit to
+                type: integer
+              stepAmount:
+                default: 1
+                description: Number of tasks to add/subtract each adjustment interval, based on usage
+                minimum: 1
+                type: integer
+              stroomClusterRef:
+                description: The target StroomCluster to apply autoscaling to
+                properties:
+                  name:
+                    type: string
+                  namespace:
+                    type: string
+                required:
+                - name
+                type: object
+              taskName:
+                description: Name of the Stroom node task to auto-scale. Usually "Data Processor".
+                type: string
+            required:
+            - stroomClusterRef
+            - taskName
+            type: object
+          status:
+            description: StroomTaskAutoscalerStatus defines the observed state of StroomTaskAutoscaler
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

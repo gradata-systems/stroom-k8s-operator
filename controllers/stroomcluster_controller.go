@@ -371,7 +371,7 @@ func (r *StroomClusterReconciler) deleteJobIfExist(ctx context.Context, stroomCl
 	foundJob := batchv1.Job{}
 
 	if err := r.Get(ctx, types.NamespacedName{Name: stroomCluster.GetCliJobName(jobName), Namespace: stroomCluster.Namespace}, &foundJob); err == nil {
-		r.deleteJob(ctx, &foundJob)
+		err = r.deleteJob(ctx, &foundJob)
 	}
 }
 

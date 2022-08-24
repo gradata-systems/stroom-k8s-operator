@@ -1,0 +1,457 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: stroom-operator-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stroom-operator-controller-manager
+  namespace: stroom-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: stroom-operator-leader-election-role
+  namespace: stroom-operator-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: stroom-operator-manager-role
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - metrics.k8s.io
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databasebackups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databasebackups/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databasebackups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databaseservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databaseservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - databaseservers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomclusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - stroom.gchq.github.io
+  resources:
+  - stroomtaskautoscalers/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stroom-operator-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stroom-operator-proxy-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: stroom-operator-leader-election-rolebinding
+  namespace: stroom-operator-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: stroom-operator-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: stroom-operator-controller-manager
+  namespace: stroom-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stroom-operator-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stroom-operator-manager-role
+subjects:
+- kind: ServiceAccount
+  name: stroom-operator-controller-manager
+  namespace: stroom-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stroom-operator-proxy-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stroom-operator-proxy-role
+subjects:
+- kind: ServiceAccount
+  name: stroom-operator-controller-manager
+  namespace: stroom-operator-system
+---
+apiVersion: v1
+data:
+  controller_manager_config.yaml: "apiVersion: controller-runtime.sigs.k8s.io/v1alpha1\r\nkind: ControllerManagerConfig\r\nhealth:\r\n  healthProbeBindAddress: :8081\r\nmetrics:\r\n  bindAddress: 127.0.0.1:8080\r\nwebhook:\r\n  port: 9443\r\nleaderElection:\r\n  leaderElect: true\r\n  resourceName: 81fe7dea.gchq.github.io\r\n"
+kind: ConfigMap
+metadata:
+  name: stroom-operator-manager-config
+  namespace: stroom-operator-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: stroom-operator-controller-manager-metrics-service
+  namespace: stroom-operator-system
+spec:
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{ include "stroom-operator.labels" . | nindent 4 }}
+    control-plane: controller-manager
+  name: stroom-operator-controller-manager
+  namespace: stroom-operator-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: controller-manager
+    spec:
+      affinity: {{ toYaml .Values.affinity | nindent 8 }}
+      containers:
+      - args:
+        - --secure-listen-address=0.0.0.0:8443
+        - --upstream=http://127.0.0.1:8080/
+        - --logtostderr=true
+        - --v=0
+        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gcr.io/kubebuilder/kube-rbac-proxy" }}:v0.13.0
+        name: kube-rbac-proxy
+        ports:
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 5m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      - args:
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=127.0.0.1:8080
+        - --leader-elect
+        command:
+        - /manager
+        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gradata/stroom-k8s-operator" }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources: {{ toYaml .Values.resources | nindent 10 }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      nodeSelector: {{ toYaml .Values.nodeSelector | nindent 8 }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: stroom-operator-controller-manager
+      terminationGracePeriodSeconds: 10
+      tolerations: {{ toYaml .Values.tolerations | nindent 8 }}

@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 1.0.18
+VERSION ?= 1.0.19
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -121,6 +121,15 @@ build-offline-bundle: build docker-build docker-push manifests kustomize
 	$(KUSTOMIZE) build config/default > deploy/all-in-one.yaml
 	# Write a list of images for use in air-gapped environments
 	sh deploy/get-images.sh > deploy/images.txt
+
+##@ Build Helm chart
+
+build-helm-chart: build manifests
+	operator-sdk generate kustomize manifests -q
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMAGE_TAG_BASE):HELM_IMAGE_TAG
+	$(KUSTOMIZE) build config/crd --output charts/stroom-operator-crds/templates/
+	$(KUSTOMIZE) build config/helm-chart > charts/stroom-operator/templates/operator.yaml
+	sh deploy/helm-substitute-vars.sh "${VERSION}"
 
 ##@ Deployment
 
