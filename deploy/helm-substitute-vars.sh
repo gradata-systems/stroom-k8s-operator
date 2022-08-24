@@ -11,6 +11,7 @@ registry="{{ if .Values.registry }}{{ printf \"%s\/\" .Values.registry }}{{ end 
 sed -i -E "s/(image: .+):HELM_IMAGE_TAG/\1:{{ .Values.image.tag | default .Chart.AppVersion }}/" $operator_yaml
 sed -i -E "s/(image): (.+):/\1: $registry{{ \"\2\" }}:/" $operator_yaml
 
+sed -i 's/HELM_NAMESPACE/{{ .Release.Namespace }}/' $operator_yaml
 sed -i 's/HELM_LABELS: ""/{{ include "stroom-operator.labels" . | nindent 4 }}/' $operator_yaml
 sed -i 's/HELM_IMAGE_PULL_POLICY/{{ .Values.image.pullPolicy }}/' $operator_yaml
 sed -i 's/HELM_RESOURCES/{{ toYaml .Values.resources | nindent 10 }}/' $operator_yaml
