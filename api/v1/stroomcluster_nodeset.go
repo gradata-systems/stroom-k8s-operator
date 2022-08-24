@@ -33,6 +33,9 @@ type NodeSet struct {
 	// IngressAnnotations is an optional map of annotations to apply to the NodeSet's Ingress. These override any
 	// default annotations provided by the controller.
 	IngressAnnotations map[string]string `json:"ingressAnnotations,omitempty"`
+	// ServiceType specifies the type of Service to create: Headless or ClusterIP.
+	// +kubebuilder:default:=ClusterIP
+	ServiceType ServiceType `json:"serviceType,omitempty"`
 	// StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
 	// typically takes to start up and respond to healthchecks.
 	StartupProbeTimings ProbeTimings `json:"startupProbeTimings,omitempty"`
@@ -53,6 +56,13 @@ type NodeSet struct {
 	Tolerations  []corev1.Toleration `json:"tolerations,omitempty"`
 	Affinity     corev1.Affinity     `json:"affinity,omitempty"`
 }
+
+type ServiceType string
+
+const (
+	ClusterIPServiceType ServiceType = "ClusterIP"
+	HeadlessServiceType              = "None"
+)
 
 type JvmMemoryOptions struct {
 	// +kubebuilder:validation:Minimum=1
