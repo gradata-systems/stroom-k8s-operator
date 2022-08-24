@@ -395,7 +395,7 @@ spec:
         - --upstream=http://127.0.0.1:8080/
         - --logtostderr=true
         - --v=0
-        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gcr.io/kubebuilder/kube-rbac-proxy" }}:v0.13.0
+        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gcr.io/kubebuilder/kube-rbac-proxy" }}:{{ .Values.image.tag | default .Chart.AppVersion }}
         name: kube-rbac-proxy
         ports:
         - containerPort: 8443

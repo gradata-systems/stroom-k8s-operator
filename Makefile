@@ -126,7 +126,7 @@ build-offline-bundle: build docker-build docker-push manifests kustomize
 
 build-helm-chart: build manifests
 	operator-sdk generate kustomize manifests -q
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMAGE_TAG_BASE):HELM_IMAGE_TAG
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/crd --output charts/stroom-operator-crds/templates/
 	$(KUSTOMIZE) build config/helm-chart > charts/stroom-operator/templates/operator.yaml
 	sh deploy/helm-substitute-vars.sh "${VERSION}"
