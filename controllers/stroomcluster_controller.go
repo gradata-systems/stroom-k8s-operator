@@ -332,10 +332,25 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		foundService := corev1.Service{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetServiceName(&nodeSet), stroomCluster.Namespace, "Service", &foundService, func() error {
+		serviceName := stroomCluster.GetNodeSetServiceName(&nodeSet)
+		result, err = r.getOrCreateObject(ctx, serviceName, stroomCluster.Namespace, "Service", &foundService, func() error {
 			// Create a headless service for the NodeSet
-			resource := r.createService(&stroomCluster, &nodeSet)
-			logger.Info("Creating a new Service", "Namespace", resource.Namespace, "Name", resource.Name)
+			resource := r.createService(&stroomCluster, &nodeSet, serviceName, corev1.ClusterIPNone)
+			logger.Info("Creating a headless Service", "Namespace", resource.Namespace, "Name", resource.Name)
+			return r.Create(ctx, resource)
+		})
+		if err != nil {
+			return result, err
+		} else if !result.IsZero() {
+			return result, nil
+		}
+
+		foundService = corev1.Service{}
+		serviceName = stroomCluster.GetNodeSetName(&nodeSet)
+		result, err = r.getOrCreateObject(ctx, serviceName, stroomCluster.Namespace, "Service", &foundService, func() error {
+			// Create a ClusterIP service for the NodeSet
+			resource := r.createService(&stroomCluster, &nodeSet, serviceName, "")
+			logger.Info("Creating a ClusterIP Service", "Namespace", resource.Namespace, "Name", resource.Name)
 			return r.Create(ctx, resource)
 		})
 		if err != nil {
