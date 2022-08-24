@@ -61,7 +61,7 @@ type ServiceType string
 
 const (
 	ClusterIPServiceType ServiceType = "ClusterIP"
-	HeadlessServiceType              = "None"
+	HeadlessServiceType              = "Headless"
 )
 
 type JvmMemoryOptions struct {
