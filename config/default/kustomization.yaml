@@ -13,6 +13,7 @@ namePrefix: stroom-operator-
 #  someName: someValue
 
 resources:
+- namespace.yaml
 - ../crd
 - ../rbac
 - ../manager
