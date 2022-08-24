@@ -8,7 +8,7 @@ operator_yaml='./charts/stroom-operator/templates/operator.yaml'
 sed -i -E "s/appVersion: \"(.*)\"/appVersion: \"$version\"/" $chart_yaml
 
 registry="{{ if .Values.registry }}{{ printf \"%s\/\" .Values.registry }}{{ end }}"
-sed -i -E "s/(image: .+):HELM_IMAGE_TAG/\1:{{ .Values.image.tag | default .Chart.AppVersion }}/" $operator_yaml
+sed -i -E "s/(image: .+):.+$/\1:{{ .Values.image.tag | default .Chart.AppVersion }}/" $operator_yaml
 sed -i -E "s/(image): (.+):/\1: $registry{{ \"\2\" }}:/" $operator_yaml
 
 sed -i 's/HELM_NAMESPACE/{{ .Release.Namespace }}/' $operator_yaml
