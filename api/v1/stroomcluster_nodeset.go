@@ -33,11 +33,14 @@ type NodeSet struct {
 	// IngressAnnotations is an optional map of annotations to apply to the NodeSet's Ingress. These override any
 	// default annotations provided by the controller.
 	IngressAnnotations map[string]string `json:"ingressAnnotations,omitempty"`
-	// ReadinessProbeTimings specify the parameters for Pod initial startup. If a node fails to start up in accordance with
-	// these parameters, it will be killed. Therefore, ensure sufficient leeway is provided.
+	// StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
+	// typically takes to start up and respond to healthchecks.
+	StartupProbeTimings ProbeTimings `json:"startupProbeTimings,omitempty"`
+	// ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
+	// removing them from service while they are non-responsive to healthchecks.
 	ReadinessProbeTimings ProbeTimings `json:"readinessProbeTimings,omitempty"`
-	// LivenessProbeTimings specify poll Pod healthcheck conditions. Ensure periods of high volume are factored in when
-	// deciding these timings, otherwise nodes will be killed if they fail the specified parameters.
+	// LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is
+	// restarted.
 	LivenessProbeTimings ProbeTimings `json:"livenessProbeTimings,omitempty"`
 	// PodAnnotations are additional annotations to set for each NodeSet Pod
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`

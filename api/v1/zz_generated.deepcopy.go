@@ -360,6 +360,7 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 			(*out)[key] = val
 		}
 	}
+	out.StartupProbeTimings = in.StartupProbeTimings
 	out.ReadinessProbeTimings = in.ReadinessProbeTimings
 	out.LivenessProbeTimings = in.LivenessProbeTimings
 	if in.PodAnnotations != nil {
