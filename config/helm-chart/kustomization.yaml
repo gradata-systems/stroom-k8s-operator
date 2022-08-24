@@ -1,0 +1,49 @@
+# Modified version of ../default/kustomization.yaml
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Adds namespace to all resources.
+namespace: stroom-operator-system
+
+# Value of this field is prepended to the
+# names of all resources, e.g. a deployment named
+# "wordpress" becomes "alices-wordpress".
+# Note that it should also match with the prefix (text before '-') of the namespace
+# field above.
+namePrefix: stroom-operator-
+
+resources:
+  - ../rbac
+  - ../manager
+
+images:
+  - name: controller
+    newName: 'gradata/stroom-k8s-operator'
+    newTag: ''
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: controller-manager
+    patch: |-
+      - op: add
+        path: /metadata/labels/HELM_LABELS
+        value: ""
+      - op: replace
+        path: /spec/template/spec/containers/1/imagePullPolicy
+        value: HELM_IMAGE_PULL_POLICY
+      - op: replace
+        path: /spec/template/spec/containers/1/resources
+        value: HELM_RESOURCES
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value: HELM_NODE_SELECTOR
+      - op: replace
+        path: /spec/template/spec/tolerations
+        value: HELM_TOLERATIONS
+      - op: replace
+        path: /spec/template/spec/affinity
+        value: HELM_AFFINITY
