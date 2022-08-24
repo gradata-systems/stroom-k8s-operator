@@ -49,10 +49,14 @@ This project was built with the Operator SDK, which bundles Kubernetes resource 
    helm pull oci://ghcr.io/gradata-systems/helm-charts/stroom-operator-crds
    helm pull oci://ghcr.io/gradata-systems/helm-charts/stroom-operator
    ```
-2. Pull all images in the [offline image list](https://raw.githubusercontent.com/gradata-systems/stroom-k8s-operator/master/deploy/images.txt) locally. For instance, to save the operator image (where `<tag>` is the image tag in `images.txt`):
+2. Pull all images in the [offline image list](https://raw.githubusercontent.com/gradata-systems/stroom-k8s-operator/master/deploy/images.txt) locally. The following script block saves all images in `images.txt` to a file `images.tar.gz` in the current directory:
    ```shell
-   docker pull gradata/stroom-k8s-operator:<tag>
-   docker image save --output stroom-k8s-operator.tar.gz gradata/stroom-k8s-operator:<tag>
+   images=$(curl -s 'https://raw.githubusercontent.com/gradata-systems/stroom-k8s-operator/master/deploy/images.txt') && \
+   printf %s "$images" | \
+   while IFS= read -r line; do \
+   docker pull $line; \
+   docker image save --output=images.tar.gz $(echo $images); \
+   done
    ```
 3. Transport all downloaded archives to the airgapped environment.
 4. Push all container images to a private registry.
