@@ -332,7 +332,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		foundService := corev1.Service{}
-		serviceName := stroomCluster.GetNodeSetServiceName(&nodeSet)
+		serviceName := stroomCluster.GetNodeSetHeadlessServiceName(&nodeSet)
 		result, err = r.getOrCreateObject(ctx, serviceName, stroomCluster.Namespace, "Service", &foundService, func() error {
 			// Create a headless service for the NodeSet
 			resource := r.createService(&stroomCluster, &nodeSet, serviceName, corev1.ClusterIPNone)
@@ -346,7 +346,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		foundService = corev1.Service{}
-		serviceName = stroomCluster.GetNodeSetName(&nodeSet)
+		serviceName = stroomCluster.GetNodeSetServiceName(&nodeSet)
 		result, err = r.getOrCreateObject(ctx, serviceName, stroomCluster.Namespace, "Service", &foundService, func() error {
 			// Create a ClusterIP service for the NodeSet
 			resource := r.createService(&stroomCluster, &nodeSet, serviceName, "")
