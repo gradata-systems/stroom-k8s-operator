@@ -336,7 +336,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			},
 		}, {
 			Name:  "POD_SUBDOMAIN",
-			Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetServiceName(nodeSet), stroomCluster.Namespace),
+			Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetHeadlessServiceName(nodeSet), stroomCluster.Namespace),
 		}, {
 			Name:  "JAVA_OPTS",
 			Value: r.getJvmOptions(stroomCluster, nodeSet),
@@ -512,7 +512,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		Spec: appsv1.StatefulSetSpec{
 			Replicas:            &nodeSet.Count,
 			PodManagementPolicy: stroomCluster.Spec.PodManagementPolicy,
-			ServiceName:         stroomCluster.GetNodeSetServiceName(nodeSet),
+			ServiceName:         stroomCluster.GetNodeSetHeadlessServiceName(nodeSet),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			},

@@ -4710,7 +4710,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gradata/stroom-k8s-operator:1.0.21
+        image: gradata/stroom-k8s-operator:1.0.22
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

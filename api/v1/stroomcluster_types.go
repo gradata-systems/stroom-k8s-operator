@@ -78,6 +78,10 @@ func (in *StroomCluster) GetNodeSetSelectorLabels(nodeSet *NodeSet) map[string]s
 	}
 }
 
+func (in *StroomCluster) GetNodeSetHeadlessServiceName(nodeSet *NodeSet) string {
+	return in.GetNodeSetName(nodeSet)
+}
+
 func (in *StroomCluster) GetNodeSetServiceName(nodeSet *NodeSet) string {
 	return fmt.Sprintf("%v-http", in.GetNodeSetName(nodeSet))
 }
