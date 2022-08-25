@@ -677,7 +677,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 	ingressSettings := stroomCluster.Spec.Ingress
 	var ingresses []netv1.Ingress
 
-	// Find out the first non-UI NodeSet so we know where to route datafeed traffic to
+	// Find out the first non-UI NodeSet, so we know where to route datafeed traffic to
 	firstNonUiServiceName := ""
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		if nodeSet.Role != stroomv1.FrontendNodeRole {
