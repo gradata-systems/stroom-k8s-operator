@@ -3542,11 +3542,6 @@ spec:
                               type: string
                           type: object
                       type: object
-                    serviceType:
-                      default: ClusterIP
-                      description: 'ServiceType specifies the type of Service to create:
-                        Headless or ClusterIP.'
-                      type: string
                     startupProbeTimings:
                       description: StartupProbeTimings specify parameters for initial
                         Pod startup. These should be set according to how long a node
