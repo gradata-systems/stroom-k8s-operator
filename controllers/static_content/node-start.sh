@@ -1,37 +1,12 @@
 #!/bin/bash
+# Executed by the pod pre-start hook.
+
+source /stroom/scripts/utils.sh
 
 log_file='/stroom/logs/k8s/node-start.log'
-base_url="http://localhost:${STROOM_APP_PORT}/api"
-http_response_code=0
 
 function log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> $log_file
-}
-
-function call_api() {
-  sub_path=$1
-  shift 1
-
-  url="$base_url/$sub_path"
-  response="$(curl -s "$url" \
-    -H 'Accept: application/json' \
-    -H 'Content-Type: application/json' \
-    -H "Authorization:Bearer $(cat "${API_KEY}")" \
-    -w '\nhttp_code=%{http_code}' \
-    "$@")"
-
-  response_pattern='^(.+?)\s*http_code=([0-9]+)$'
-  if [[ $response =~ $response_pattern ]]; then
-    echo "${BASH_REMATCH[1]}"
-    http_response_code=${BASH_REMATCH[2]}
-    if [[ $http_response_code -ne 200 ]]; then
-      log "[ERROR] Request to $url failed (HTTP $http_response_code)"
-      exit 1
-    fi
-  else
-    log "[ERROR] Invalid HTTP request to: $url. Response: $response"
-    exit 1
-  fi
 }
 
 mkdir -p "$(dirname $log_file)"
