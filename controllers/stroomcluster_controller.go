@@ -23,7 +23,6 @@ import (
 	"github.com/go-logr/logr"
 	common "github.com/gradata-systems/stroom-k8s-operator/controllers/common"
 	appsv1 "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -171,145 +170,6 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	if result, err := r.userExistsAndHasPermissions(ctx, &stroomCluster, &dbInfo); err != nil || !result {
-		// User doesn't exist or database is not initialised, so spawn a Stroom CLI job to create the operator user
-		job := r.createCliJob(&stroomCluster, &dbInfo, "create-user", []string{"./start.sh"}, []string{
-			"manage_users",
-			"--createUser", stroomv1.StroomOperatorUserId,
-			"--grantPermission", stroomv1.StroomOperatorUserId, string(stroomv1.UserPermissionManageNodes),
-			"--grantPermission", stroomv1.StroomOperatorUserId, string(stroomv1.UserPermissionManageJobs),
-			"--grantPermission", stroomv1.StroomOperatorUserId, string(stroomv1.UserPermissionManageTasks),
-		})
-		foundJob := batchv1.Job{}
-		if err := r.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &foundJob); err != nil {
-			if err := r.Create(ctx, job); err != nil {
-				logger.Error(err, "Failed to create Job to add a user and set permissions", "JobName", job.Name)
-				return ctrl.Result{}, err
-			} else {
-				logger.Info("Added Job to create a new Stroom user", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			}
-		} else {
-			if foundJob.Status.Active == 0 {
-				// Job no longer running, so remove it
-				if err := r.deleteJob(ctx, &foundJob); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-			if foundJob.Status.Succeeded > 0 {
-				// Job completed, so requeue to ensure the user exists
-				return ctrl.Result{Requeue: true}, nil
-			} else if foundJob.Status.Failed > 0 {
-				// User not created, so retry again soon
-				logger.Info("Stroom user creation job failed", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			} else {
-				// Existing job not finished, so wait for it to complete
-				logger.Info("Waiting on job to complete", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			}
-		}
-	} else {
-		r.deleteJobIfExist(ctx, &stroomCluster, "create-user")
-	}
-
-	if result, err := r.accountExists(ctx, &stroomCluster, &dbInfo); err != nil || !result {
-		// User doesn't exist or database is not initialised, so spawn a Stroom CLI job to create the operator user
-		job := r.createCliJob(&stroomCluster, &dbInfo, "create-account", []string{"./start.sh"}, []string{
-			"create_account",
-			"--user", stroomv1.StroomOperatorUserId,
-			"--noPasswordChange",
-			"--neverExpires",
-		})
-		foundJob := batchv1.Job{}
-		if err := r.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &foundJob); err != nil {
-			if err := r.Create(ctx, job); err != nil {
-				logger.Error(err, "Failed to create Job to add a user account", "JobName", job.Name)
-				return ctrl.Result{}, err
-			} else {
-				logger.Info("Added Job to create a new Stroom user account", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			}
-		} else {
-			if foundJob.Status.Active == 0 {
-				// Job no longer running, so remove it
-				if err := r.deleteJob(ctx, &foundJob); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-			if foundJob.Status.Succeeded > 0 {
-				// Job completed, so requeue to ensure the user exists
-				return ctrl.Result{Requeue: true}, nil
-			} else if foundJob.Status.Failed > 0 {
-				// User not created, so retry again soon
-				logger.Info("Stroom user account creation job failed", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			} else {
-				// Existing job not finished, so wait for it to complete
-				logger.Info("Waiting on job to complete", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			}
-		}
-	} else {
-		r.deleteJobIfExist(ctx, &stroomCluster, "create-account")
-	}
-
-	// User exists and has the required permissions, so try and get the first active API key issued to it.
-	// This API key is passed to each Stroom node in order to query the API in lifecycle scripts.
-	apiKey := ""
-	if err := r.getApiKey(ctx, &stroomCluster, &dbInfo, &apiKey); err != nil || apiKey == "" {
-		// API key could not be found, so spawn a Job to create it
-		job := r.createCliJob(&stroomCluster, &dbInfo, "create-api-key", []string{"./start.sh"}, []string{
-			"create_api_key",
-			"--user", stroomv1.StroomOperatorUserId,
-		})
-		foundJob := batchv1.Job{}
-		if err := r.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &foundJob); err != nil {
-			if err := r.Create(ctx, job); err != nil {
-				logger.Error(err, "Failed to create Job to create an API key", "JobName", job.Name)
-				return ctrl.Result{}, err
-			} else {
-				logger.Info("Added Job to create an API key", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			}
-		} else {
-			if foundJob.Status.Active == 0 {
-				// Job no longer running, so remove it
-				if err := r.deleteJob(ctx, &foundJob); err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-			if foundJob.Status.Succeeded > 0 {
-				// Job completed, so requeue to retrieve the API key
-				return ctrl.Result{Requeue: true}, nil
-			} else if foundJob.Status.Failed > 0 {
-				// User not created, so retry again soon
-				logger.Info("Stroom API key creation job failed", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			} else {
-				// Existing job not finished, so wait for it to complete
-				logger.Info("Waiting on job to complete", "JobName", job.Name)
-				return ctrl.Result{RequeueAfter: StroomCliJobRequeueInterval}, nil
-			}
-		}
-	} else {
-		r.deleteJobIfExist(ctx, &stroomCluster, "create-api-key")
-	}
-
-	// Create a Secret containing the Stroom API key
-	foundSecret := corev1.Secret{}
-	result, err = r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "Secret", &foundSecret, func() error {
-		// Create the Secret
-		resource := r.createSecret(&stroomCluster, apiKey)
-		logger.Info("Creating new Secret", "Namespace", resource.Namespace, "Name", resource.Name)
-		return r.Create(ctx, resource)
-	})
-	if err != nil {
-		return result, err
-	} else if !result.IsZero() {
-		return result, nil
-	}
-
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		foundStatefulSet := appsv1.StatefulSet{}
@@ -380,44 +240,6 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// TODO: Add node list to status
 
 	return ctrl.Result{}, nil
-}
-
-func (r *StroomClusterReconciler) deleteJobIfExist(ctx context.Context, stroomCluster *stroomv1.StroomCluster, jobName string) {
-	foundJob := batchv1.Job{}
-
-	if err := r.Get(ctx, types.NamespacedName{Name: stroomCluster.GetCliJobName(jobName), Namespace: stroomCluster.Namespace}, &foundJob); err == nil {
-		err = r.deleteJob(ctx, &foundJob)
-	}
-}
-
-// deleteJob removes a Job and its associated Pod
-func (r *StroomClusterReconciler) deleteJob(ctx context.Context, job *batchv1.Job) error {
-	logger := log.FromContext(ctx)
-
-	if err := r.Delete(ctx, job); err != nil {
-		logger.Error(err, "Failed to delete Job", "JobName", job.Name)
-		return err
-	} else {
-		// Retrieve the Pod associated with this Job
-		podList := corev1.PodList{}
-		podListOption := []client.ListOption{
-			client.InNamespace(job.Namespace),
-			client.MatchingLabels{"job-name": job.Name},
-		}
-		if err := r.List(ctx, &podList, podListOption...); err != nil {
-			logger.Error(err, "Failed to list Pods for Job", "JobName", job.Name)
-			return err
-		} else {
-			for _, pod := range podList.Items {
-				if err := r.Delete(ctx, &pod); err != nil {
-					logger.Error(err, "Failed to delete Pod associated with Job", "JobName", job.Name)
-					return err
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 func (r *StroomClusterReconciler) updateNodeSet(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, statefulSet *appsv1.StatefulSet) error {
@@ -746,64 +568,6 @@ func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroo
 		err := r.Update(ctx, db)
 		if err != nil {
 			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef, stroomCluster.Namespace, stroomCluster.Name))
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (r *StroomClusterReconciler) userExistsAndHasPermissions(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) (bool, error) {
-	logger := log.FromContext(ctx)
-
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
-		return false, err
-	} else {
-		defer CloseDatabase(db)
-
-		row := db.QueryRow("select count(distinct ap.permission) from stroom_user u inner join app_permission ap on u.uuid = ap.user_uuid where u.name = ? and ap.permission in (?, ?)",
-			stroomv1.StroomOperatorUserId, stroomv1.UserPermissionManageNodes, stroomv1.UserPermissionManageJobs)
-		var count int
-		if err := row.Scan(&count); err != nil {
-			logger.Error(err, fmt.Sprintf("Could not query user permissions for user '%v'", stroomv1.StroomOperatorUserId))
-			return false, err
-		} else {
-			return count == 2, err
-		}
-	}
-}
-
-func (r *StroomClusterReconciler) accountExists(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo) (bool, error) {
-	logger := log.FromContext(ctx)
-
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
-		return false, err
-	} else {
-		defer CloseDatabase(db)
-
-		row := db.QueryRow("select count(*) from account where user_id = ?", stroomv1.StroomOperatorUserId)
-		var count int
-		if err := row.Scan(&count); err != nil {
-			logger.Error(err, fmt.Sprintf("Could not find the account for user '%v'", stroomv1.StroomOperatorUserId))
-			return false, err
-		} else {
-			return count > 0, err
-		}
-	}
-}
-
-// getApiKey retrieves the most recent active API token issued to the Stroom operator user
-func (r *StroomClusterReconciler) getApiKey(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbInfo *DatabaseConnectionInfo, apiKey *string) error {
-	logger := log.FromContext(ctx)
-
-	if db, err := OpenDatabase(r, ctx, dbInfo, stroomCluster.Namespace, stroomCluster.Spec.AppDatabaseName); err != nil {
-		return err
-	} else {
-		defer CloseDatabase(db)
-
-		row := db.QueryRow("select data from token t inner join account a on t.fk_account_id=a.id where a.user_id = ? and t.enabled = 1 order by t.id desc limit 1", stroomv1.StroomOperatorUserId)
-		if err := row.Scan(apiKey); err != nil {
-			logger.Error(err, "Could not retrieve API key from database", "User", stroomv1.StroomOperatorUserId)
 			return err
 		}
 	}
