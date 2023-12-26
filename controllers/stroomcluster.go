@@ -194,6 +194,28 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}}, stroomCluster.Spec.ExtraEnv...)
 
+	// If OpenID configuration is defined, pass the OpenID client ID and secret as environment variables
+	openIdConfig := stroomCluster.Spec.OpenId
+	if !openIdConfig.IsZero() {
+		env = append(env, []corev1.EnvVar{
+			{
+				Name:  "STROOM_OPERATOR_OPENID_CLIENT_ID",
+				Value: openIdConfig.ClientId,
+			},
+			{
+				Name: "STROOM_OPERATOR_OPENID_CLIENT_SECRET",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: openIdConfig.ClientSecret.SecretName,
+						},
+						Key: openIdConfig.ClientSecret.Key,
+					},
+				},
+			},
+		}...)
+	}
+
 	volumes := []corev1.Volume{
 		*r.createStaticContentVolume(stroomCluster),
 		{
@@ -229,22 +251,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			},
 		})
 	}
-
-	initContainerVolumeMounts := []corev1.VolumeMount{{
-		Name:      StroomApiTokenVolumeMountName,
-		MountPath: StroomApiTokenMountPath,
-	}, {
-		Name:      "static-content",
-		SubPath:   "utils.sh",
-		MountPath: "/stroom/scripts/utils.sh",
-		ReadOnly:  true,
-	}, {
-		Name:      "static-content",
-		SubPath:   "node-init.sh",
-		MountPath: "/stroom/scripts/node-init.sh",
-		ReadOnly:  true,
-	}}
-	r.appendConfigVolumeMounts(stroomCluster, &initContainerVolumeMounts)
 
 	volumeMounts := []corev1.VolumeMount{{
 		Name:      "static-content",
@@ -299,32 +305,8 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		volumes = append(volumes, stroomCluster.Spec.ExtraVolumes...)
 	}
 	if len(stroomCluster.Spec.ExtraVolumeMounts) > 0 {
-		initContainerVolumeMounts = append(initContainerVolumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
 		volumeMounts = append(volumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
 	}
-
-	initContainers := []corev1.Container{{
-		Name:            "node-init",
-		Image:           stroomCluster.Spec.Image.String(),
-		ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
-		Command: []string{
-			"bash", "-c",
-			"/stroom/scripts/node-init.sh",
-		},
-		Env:             env,
-		VolumeMounts:    initContainerVolumeMounts,
-		SecurityContext: &nodeSet.SecurityContext,
-		Resources: corev1.ResourceRequirements{
-			Requests: corev1.ResourceList{
-				"cpu":    *resource.NewMilliQuantity(500, resource.DecimalSI),
-				"memory": *resource.NewScaledQuantity(1, resource.Giga),
-			},
-			Limits: corev1.ResourceList{
-				"cpu":    *resource.NewMilliQuantity(2000, resource.DecimalSI),
-				"memory": *resource.NewScaledQuantity(2, resource.Giga),
-			},
-		},
-	}}
 
 	containers := []corev1.Container{{
 		Name:            StroomNodeContainerName,
@@ -461,7 +443,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					ServiceAccountName:            stroomCluster.GetBaseName(),
 					SecurityContext:               &nodeSet.PodSecurityContext,
 					TerminationGracePeriodSeconds: &stroomCluster.Spec.NodeTerminationPeriodSecs,
-					InitContainers:                initContainers,
 					Containers:                    containers,
 					Volumes:                       volumes,
 					NodeSelector:                  nodeSet.NodeSelector,
@@ -515,15 +496,7 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 		}
 	}
 
-	var jvmOpts = []string{
-		// Support Stroom WebSockets
-		"--add-opens java.base/java.nio=ALL-UNNAMED",
-		"--add-opens java.base/sun.nio.ch=ALL-UNNAMED",
-		"--add-opens java.base/java.lang=ALL-UNNAMED",
-	}
-
-	// Set
-	jvmOpts = append(jvmOpts, "--add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED")
+	var jvmOpts []string
 
 	if nodeSet.MemoryOptions.InitialPercentage > 0 {
 		jvmOpts = append(jvmOpts, fmt.Sprintf("-XX:InitialRAMPercentage=%v", nodeSet.MemoryOptions.InitialPercentage))
