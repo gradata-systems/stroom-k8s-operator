@@ -26,7 +26,6 @@ type StroomClusterSpec struct {
 	// in the same namespace as the `StroomCluster`
 	ConfigMapRef ConfigMapRef `json:"configMapRef,omitempty"`
 	// Configures OpenID to enable operator components to query the Stroom API
-	// +kubebuilder:validation:Required
 	OpenId OpenIdConfiguration `json:"openId"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
