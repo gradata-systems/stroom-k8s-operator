@@ -23,6 +23,13 @@ type OpenIdConfiguration struct {
 	ClientSecret SecretItem `json:"clientSecret"`
 }
 
+func (in *OpenIdConfiguration) IsZero() bool {
+	if in == nil {
+		return true
+	}
+	return *in == OpenIdConfiguration{} || in.ClientId == ""
+}
+
 type SecretItem struct {
 	SecretName string `json:"secretName"`
 	Key        string `json:"key"`
