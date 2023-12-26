@@ -3658,6 +3658,29 @@ spec:
                   tasks before being terminated
                 format: int64
                 type: integer
+              openId:
+                description: Configures OpenID to enable operator components to query
+                  the Stroom API
+                properties:
+                  clientId:
+                    description: Name of the OpenID client
+                    type: string
+                  clientSecret:
+                    description: Details of the Secret containing the OpenID client
+                      secret
+                    properties:
+                      key:
+                        type: string
+                      secretName:
+                        type: string
+                    required:
+                    - key
+                    - secretName
+                    type: object
+                required:
+                - clientId
+                - clientSecret
+                type: object
               podManagementPolicy:
                 description: Pod management policy to use when deploying or scaling
                   the StroomCluster
@@ -3678,6 +3701,7 @@ spec:
             - ingress
             - nodeSets
             - nodeTerminationPeriodSecs
+            - openId
             - statsDatabaseName
             type: object
           status:
