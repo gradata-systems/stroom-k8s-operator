@@ -15,7 +15,7 @@ configMapGenerator:
 images:
 - name: controller
   newName: gradata/stroom-k8s-operator
-  newTag: 1.0.24
+  newTag: 1.0.25
 
 # Protect the /metrics endpoint by putting it behind auth.
 # If you want your controller-manager to expose the /metrics

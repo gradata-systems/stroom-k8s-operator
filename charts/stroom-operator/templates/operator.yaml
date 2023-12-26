@@ -391,29 +391,6 @@ spec:
       affinity: {{ toYaml .Values.affinity | nindent 8 }}
       containers:
       - args:
-        - --secure-listen-address=0.0.0.0:8443
-        - --upstream=http://127.0.0.1:8080/
-        - --logtostderr=true
-        - --v=0
-        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gcr.io/kubebuilder/kube-rbac-proxy" }}:v0.13.0
-        name: kube-rbac-proxy
-        ports:
-        - containerPort: 8443
-          name: https
-          protocol: TCP
-        resources:
-          limits:
-            cpu: 500m
-            memory: 128Mi
-          requests:
-            cpu: 5m
-            memory: 64Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-      - args:
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=127.0.0.1:8080
         - --leader-elect
@@ -427,7 +404,7 @@ spec:
             port: 8081
           initialDelaySeconds: 15
           periodSeconds: 20
-        name: manager
+        name: stroom-operator
         readinessProbe:
           httpGet:
             path: /readyz
@@ -440,11 +417,31 @@ spec:
           capabilities:
             drop:
             - ALL
+      - args:
+          - --secure-listen-address=0.0.0.0:8443
+          - --upstream=http://127.0.0.1:8080/
+          - --logtostderr=true
+          - --v=0
+        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gcr.io/kubebuilder/kube-rbac-proxy" }}:v0.13.1
+        name: kube-rbac-proxy
+        ports:
+          - containerPort: 8443
+            name: https
+            protocol: TCP
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 5m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
       nodeSelector: {{ toYaml .Values.nodeSelector | nindent 8 }}
-      securityContext:
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
+      securityContext: {{ toYaml .Values.securityContext | nindent 8 }}
       serviceAccountName: stroom-operator-controller-manager
       terminationGracePeriodSeconds: 10
       tolerations: {{ toYaml .Values.tolerations | nindent 8 }}

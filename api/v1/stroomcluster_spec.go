@@ -25,6 +25,8 @@ type StroomClusterSpec struct {
 	// Override the Stroom configuration provided to each node, by providing the name of an existing `ConfigMap`
 	// in the same namespace as the `StroomCluster`
 	ConfigMapRef ConfigMapRef `json:"configMapRef,omitempty"`
+	// Configures OpenID to enable operator components to query the Stroom API
+	OpenId OpenIdConfiguration `json:"openId"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
 	// Pod management policy to use when deploying or scaling the StroomCluster
