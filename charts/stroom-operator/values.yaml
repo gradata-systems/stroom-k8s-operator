@@ -19,11 +19,10 @@ securityContext:
 
 resources:
   requests:
-    cpu: 100m
-    memory: 100Mi
-  limits:
-    cpu: 1000m
+    cpu: 500m
     memory: 512Mi
+  limits:
+    memory: 1Gi
 
 nodeSelector: {}
 tolerations: []
