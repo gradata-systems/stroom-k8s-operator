@@ -4212,6 +4212,27 @@ spec:
                 description: Amount of time granted to nodes to drain their active tasks before being terminated
                 format: int64
                 type: integer
+              openId:
+                description: Configures OpenID to enable operator components to query the Stroom API
+                properties:
+                  clientId:
+                    description: Name of the OpenID client
+                    type: string
+                  clientSecret:
+                    description: Details of the Secret containing the OpenID client secret
+                    properties:
+                      key:
+                        type: string
+                      secretName:
+                        type: string
+                    required:
+                    - key
+                    - secretName
+                    type: object
+                required:
+                - clientId
+                - clientSecret
+                type: object
               podManagementPolicy:
                 description: Pod management policy to use when deploying or scaling the StroomCluster
                 type: string
@@ -4230,6 +4251,7 @@ spec:
             - ingress
             - nodeSets
             - nodeTerminationPeriodSecs
+            - openId
             - statsDatabaseName
             type: object
           status:
@@ -4765,7 +4787,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gradata/stroom-k8s-operator:1.0.24
+        image: docker.intranet.gradata.com.au/gradata/stroom-k8s-operator:1.0.25
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
