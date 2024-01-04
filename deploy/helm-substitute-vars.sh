@@ -19,3 +19,4 @@ sed -i 's/HELM_RESOURCES/{{ toYaml .Values.resources | nindent 10 }}/' $operator
 sed -i 's/HELM_NODE_SELECTOR/{{ toYaml .Values.nodeSelector | nindent 8 }}/' $operator_yaml
 sed -i 's/HELM_TOLERATIONS/{{ toYaml .Values.tolerations | nindent 8 }}/' $operator_yaml
 sed -i 's/HELM_AFFINITY/{{ toYaml .Values.affinity | nindent 8 }}/' $operator_yaml
+sed -i 's/HELM_POD_SECURITY_CONTEXT/{{ toYaml .Values.securityContext | nindent 8 }}/' $operator_yaml

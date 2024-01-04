@@ -47,3 +47,6 @@ patches:
       - op: replace
         path: /spec/template/spec/affinity
         value: HELM_AFFINITY
+      - op: replace
+        path: /spec/template/spec/securityContext
+        value: HELM_POD_SECURITY_CONTEXT
