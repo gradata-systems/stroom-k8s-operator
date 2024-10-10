@@ -516,7 +516,7 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 	probe := &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Path: "/stroomAdmin/healthcheck",
+				Path: "/stroomAdmin/filteredhealthcheck",
 				Port: intstr.IntOrString{
 					Type:   intstr.String,
 					StrVal: portName,
