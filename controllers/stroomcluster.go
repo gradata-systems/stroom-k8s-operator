@@ -18,8 +18,10 @@ import (
 )
 
 const (
-	AppPortName                 = "app"
-	AppPortNumber               = 8443
+	AppHttpPortName             = "app-http"
+	AppHttpPortNumber           = 8080
+	AppHttpsPortName            = "app-https"
+	AppHttpsPortNumber          = 8443
 	AdminPortName               = "admin"
 	AdminPortNumber             = 8081
 	StroomNodePvcName           = "data"
@@ -140,8 +142,11 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		Name:  "JAVA_OPTS",
 		Value: r.getJvmOptions(stroomCluster, nodeSet),
 	}, {
-		Name:  "STROOM_APP_PORT",
-		Value: strconv.Itoa(AppPortNumber),
+		Name:  "STROOM_APP_HTTP_PORT",
+		Value: strconv.Itoa(AppHttpPortNumber),
+	}, {
+		Name:  "STROOM_APP_HTTPS_PORT",
+		Value: strconv.Itoa(AppHttpsPortNumber),
 	}, {
 		Name:  "STROOM_ADMIN_PORT",
 		Value: strconv.Itoa(AdminPortNumber),
@@ -339,8 +344,12 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		VolumeMounts:    volumeMounts,
 		SecurityContext: &nodeSet.SecurityContext,
 		Ports: []corev1.ContainerPort{{
-			Name:          AppPortName,
-			ContainerPort: AppPortNumber,
+			Name:          AppHttpPortName,
+			ContainerPort: AppHttpPortNumber,
+			Protocol:      corev1.ProtocolTCP,
+		}, {
+			Name:          AppHttpsPortName,
+			ContainerPort: AppHttpsPortNumber,
 			Protocol:      corev1.ProtocolTCP,
 		}, {
 			Name:          AdminPortName,
@@ -579,8 +588,8 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 			ClusterIP: clusterIp,
 			Selector:  stroomCluster.GetNodeSetSelectorLabels(nodeSet),
 			Ports: []corev1.ServicePort{{
-				Name:     AppPortName,
-				Port:     AppPortNumber,
+				Name:     AppHttpsPortName,
+				Port:     AppHttpsPortNumber,
 				Protocol: corev1.ProtocolTCP,
 			}, {
 				Name:     AdminPortName,
@@ -737,7 +746,7 @@ func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType ne
 						Service: &netv1.IngressServiceBackend{
 							Name: serviceName,
 							Port: netv1.ServiceBackendPort{
-								Name: AppPortName,
+								Name: AppHttpsPortName,
 							},
 						},
 					},

@@ -13,8 +13,10 @@ server:
   applicationContextPath: "${APPLICATION_CONTEXT_PATH:-/}"
   adminContextPath: "${ADMIN_CONTEXT_PATH:-/stroomAdmin}"
   applicationConnectors:
+    - type: http
+      port: ${STROOM_APP_HTTP_PORT:-8080}
     - type: https
-      port: ${STROOM_APP_PORT:-8443}
+      port: ${STROOM_APP_HTTPS_PORT:-8443}
       keyStoreType: PKCS12
       keyStorePath: /stroom/pki/tls/keystore.p12
       keyStorePassword: ${STROOM_KEYSTORE_PASSWORD}
