@@ -13,6 +13,8 @@ spec:
       name: dev
   appDatabaseName: stroom
   statsDatabaseName: stats
+  https:
+    tlsSecretName: stroom-tls
   ingress:
     hostName: stroom.example.com
     secretName: stroom-tls

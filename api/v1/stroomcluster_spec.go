@@ -27,6 +27,8 @@ type StroomClusterSpec struct {
 	ConfigMapRef ConfigMapRef `json:"configMapRef,omitempty"`
 	// Configures OpenID to enable operator components to query the Stroom API
 	OpenId OpenIdConfiguration `json:"openId"`
+	// HTTPS settings
+	Https HttpsSettings `json:"https"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
 	// Pod management policy to use when deploying or scaling the StroomCluster

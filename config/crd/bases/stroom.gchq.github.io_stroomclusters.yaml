@@ -1901,6 +1901,15 @@ spec:
                   - name
                   type: object
                 type: array
+              https:
+                description: HTTPS settings
+                properties:
+                  tlsSecretName:
+                    description: Name of the TLS secret, used for the app HTTPS port
+                    type: string
+                required:
+                - tlsSecretName
+                type: object
               image:
                 properties:
                   repository:
@@ -4083,6 +4092,7 @@ spec:
             required:
             - appDatabaseName
             - databaseServerRef
+            - https
             - image
             - ingress
             - nodeSets

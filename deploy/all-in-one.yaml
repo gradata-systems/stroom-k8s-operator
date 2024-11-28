@@ -3287,6 +3287,15 @@ spec:
                   - name
                   type: object
                 type: array
+              https:
+                description: HTTPS settings
+                properties:
+                  tlsSecretName:
+                    description: Name of the TLS secret, used for the app HTTPS port
+                    type: string
+                required:
+                - tlsSecretName
+                type: object
               image:
                 properties:
                   repository:
@@ -4506,6 +4515,7 @@ spec:
             required:
             - appDatabaseName
             - databaseServerRef
+            - https
             - image
             - ingress
             - nodeSets
@@ -4965,7 +4975,18 @@ subjects:
 ---
 apiVersion: v1
 data:
-  controller_manager_config.yaml: "apiVersion: controller-runtime.sigs.k8s.io/v1alpha1\r\nkind: ControllerManagerConfig\r\nhealth:\r\n  healthProbeBindAddress: :8081\r\nmetrics:\r\n  bindAddress: 127.0.0.1:8080\r\nwebhook:\r\n  port: 9443\r\nleaderElection:\r\n  leaderElect: true\r\n  resourceName: 81fe7dea.gchq.github.io\r\n"
+  controller_manager_config.yaml: |
+    apiVersion: controller-runtime.sigs.k8s.io/v1alpha1
+    kind: ControllerManagerConfig
+    health:
+      healthProbeBindAddress: :8081
+    metrics:
+      bindAddress: 127.0.0.1:8080
+    webhook:
+      port: 9443
+    leaderElection:
+      leaderElect: true
+      resourceName: 81fe7dea.gchq.github.io
 kind: ConfigMap
 metadata:
   name: stroom-operator-manager-config
@@ -5035,7 +5056,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gradata/stroom-k8s-operator:1.0.26
+        image: gradata/stroom-k8s-operator:1.0.27
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

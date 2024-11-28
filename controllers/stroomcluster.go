@@ -18,16 +18,17 @@ import (
 )
 
 const (
-	AppPortName                   = "app"
-	AppPortNumber                 = 8080
-	AdminPortName                 = "admin"
-	AdminPortNumber               = 8081
-	StroomNodePvcName             = "data"
-	StroomNodeContainerName       = "stroom-node"
-	StroomApiTokenVolumeMountName = "api-token"
-	StroomApiTokenMountPath       = "/stroom/auth"
-	LogSenderDefaultCpuLimit      = "500m"
-	LogSenderDefaultMemoryLimit   = "256Mi"
+	AppPortName                 = "app"
+	AppPortNumber               = 8443
+	AdminPortName               = "admin"
+	AdminPortNumber             = 8081
+	StroomNodePvcName           = "data"
+	StroomNodeContainerName     = "stroom-node"
+	StroomTlsVolumeName         = "tls"
+	StroomApiTokenVolumeName    = "api-token"
+	StroomApiTokenMountPath     = "/stroom/auth"
+	LogSenderDefaultCpuLimit    = "500m"
+	LogSenderDefaultMemoryLimit = "256Mi"
 )
 
 func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
@@ -219,7 +220,15 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	volumes := []corev1.Volume{
 		*r.createStaticContentVolume(stroomCluster),
 		{
-			Name: StroomApiTokenVolumeMountName,
+			Name: StroomTlsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: stroomCluster.Spec.Https.TlsSecretName,
+				},
+			},
+		},
+		{
+			Name: StroomApiTokenVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
@@ -268,7 +277,11 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		MountPath: "/stroom/scripts/node-pre-stop.sh",
 		ReadOnly:  true,
 	}, {
-		Name:      StroomApiTokenVolumeMountName,
+		Name:      StroomTlsVolumeName,
+		MountPath: "/stroom/pki/tls",
+		ReadOnly:  true,
+	}, {
+		Name:      StroomApiTokenVolumeName,
 		MountPath: StroomApiTokenMountPath,
 	}, {
 		Name:      StroomNodePvcName,
@@ -596,9 +609,10 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 
 		if nodeSet.Role != stroomv1.ProcessingNodeRole {
 			ingressAnnotations := map[string]string{
-				"nginx.ingress.kubernetes.io/affinity":        "cookie",
-				"nginx.ingress.kubernetes.io/affinity-mode":   "persistent",
-				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
+				"nginx.ingress.kubernetes.io/backend-protocol": "HTTPS",
+				"nginx.ingress.kubernetes.io/affinity":         "cookie",
+				"nginx.ingress.kubernetes.io/affinity-mode":    "persistent",
+				"nginx.ingress.kubernetes.io/proxy-body-size":  "0", // Disable client request payload size checking
 			}
 
 			// Apply any user-provided annotations

@@ -7,6 +7,11 @@ const (
 	DeleteOnScaledownOnlyPolicy                                       = "DeleteOnScaledownOnly"
 )
 
+type HttpsSettings struct {
+	// Name of the TLS secret, used for the app HTTPS port
+	TlsSecretName string `json:"tlsSecretName"`
+}
+
 type IngressSettings struct {
 	// DNS name at which the application will be reached (e.g. stroom.example.com)
 	HostName string `json:"hostName"`
