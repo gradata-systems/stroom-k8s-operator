@@ -8,8 +8,10 @@ const (
 )
 
 type HttpsSettings struct {
-	// Name of the TLS secret, used for the app HTTPS port
+	// Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
 	TlsSecretName string `json:"tlsSecretName"`
+	// Password of the keystore and truststore
+	TlsKeystorePasswordSecretRef SecretItem `json:"tlsKeystorePasswordSecret"`
 }
 
 type IngressSettings struct {

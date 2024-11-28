@@ -17,10 +17,10 @@ server:
       port: ${STROOM_APP_PORT:-8443}
       keyStoreType: PKCS12
       keyStorePath: /stroom/pki/tls/keystore.p12
-      keyStorePassword: ${KEYSTORE_PASSWORD}
+      keyStorePassword: ${STROOM_KEYSTORE_PASSWORD}
       trustStoreType: PKCS12
       trustStorePath: /stroom/pki/tls/truststore.p12
-      trustStorePassword: ${KEYSTORE_PASSWORD}
+      trustStorePassword: ${STROOM_KEYSTORE_PASSWORD}
       validateCerts: false
   adminConnectors:
     - type: http

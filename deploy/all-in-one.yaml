@@ -3290,10 +3290,22 @@ spec:
               https:
                 description: HTTPS settings
                 properties:
+                  tlsKeystorePasswordSecret:
+                    description: Password of the keystore and truststore
+                    properties:
+                      key:
+                        type: string
+                      secretName:
+                        type: string
+                    required:
+                    - key
+                    - secretName
+                    type: object
                   tlsSecretName:
-                    description: Name of the TLS secret, used for the app HTTPS port
+                    description: Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
                     type: string
                 required:
+                - tlsKeystorePasswordSecret
                 - tlsSecretName
                 type: object
               image:

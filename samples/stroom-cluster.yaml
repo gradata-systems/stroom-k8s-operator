@@ -15,6 +15,9 @@ spec:
   statsDatabaseName: stats
   https:
     tlsSecretName: stroom-tls
+    keystorePasswordSecret:
+      secretName: stroom
+      key: keystore-password
   ingress:
     hostName: stroom.example.com
     secretName: stroom-tls

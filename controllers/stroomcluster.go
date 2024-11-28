@@ -146,6 +146,16 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		Name:  "STROOM_ADMIN_PORT",
 		Value: strconv.Itoa(AdminPortNumber),
 	}, {
+		Name: "STROOM_KEYSTORE_PASSWORD",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
+				},
+				Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
+			},
+		},
+	}, {
 		Name: "STROOM_NODE",
 		ValueFrom: &corev1.EnvVarSource{
 			FieldRef: &corev1.ObjectFieldSelector{
