@@ -135,6 +135,9 @@ appConfig:
   security:
     authentication:
       preventLogin: false
+      openId:
+        clientId: "${STROOM_OPERATOR_OPENID_CLIENT_ID}"
+        clientSecret: "${STROOM_OPERATOR_OPENID_CLIENT_SECRET}"
   statistics:
     internal:
       enabledStoreTypes: ${STROOM_ENABLED_STAT_STORE_TYPES:-[ "StatisticStore" ]}

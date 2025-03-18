@@ -212,25 +212,23 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	// If OpenID configuration is defined, pass the OpenID client ID and secret as environment variables
 	openIdConfig := stroomCluster.Spec.OpenId
-	if !openIdConfig.IsZero() {
-		env = append(env, []corev1.EnvVar{
-			{
-				Name:  "STROOM_OPERATOR_OPENID_CLIENT_ID",
-				Value: openIdConfig.ClientId,
-			},
-			{
-				Name: "STROOM_OPERATOR_OPENID_CLIENT_SECRET",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: openIdConfig.ClientSecret.SecretName,
-						},
-						Key: openIdConfig.ClientSecret.Key,
+	env = append(env, []corev1.EnvVar{
+		{
+			Name:  "STROOM_OPERATOR_OPENID_CLIENT_ID",
+			Value: openIdConfig.ClientId,
+		},
+		{
+			Name: "STROOM_OPERATOR_OPENID_CLIENT_SECRET",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: openIdConfig.ClientSecret.SecretName,
 					},
+					Key: openIdConfig.ClientSecret.Key,
 				},
 			},
-		}...)
-	}
+		},
+	}...)
 
 	volumes := []corev1.Volume{
 		*r.createStaticContentVolume(stroomCluster),
