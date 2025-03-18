@@ -135,8 +135,6 @@ appConfig:
   security:
     authentication:
       preventLogin: false
-    identity:
-      useDefaultOpenIdCredentials: "${USE_DEFAULT_OPEN_ID_CREDENTIALS:-true}"
   statistics:
     internal:
       enabledStoreTypes: ${STROOM_ENABLED_STAT_STORE_TYPES:-[ "StatisticStore" ]}
