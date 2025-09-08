@@ -69,18 +69,33 @@ func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.Stroom
 }
 
 func (r *StroomClusterReconciler) createLogSenderConfigMap(stroomCluster *stroomv1.StroomCluster) *corev1.ConfigMap {
+
+	// Configure log sender with or without mtls
+	var logSenderConfig map[string]string
+
+	if stroomCluster.Spec.LogSender.MtlsEnabled {
+		logSenderConfig = map[string]string{
+			"crontab.txt": "" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/log-sender.crt --key /stroom-log-sender/certs/log-sender.key --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/log-sender.crt --key /stroom-log-sender/certs/log-sender.key --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/log-sender.crt --key /stroom-log-sender/certs/log-sender.key --compress > /dev/stdout",
+		}
+	} else {
+		logSenderConfig = map[string]string{
+			"crontab.txt": "" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
+		}
+	}
+
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stroomCluster.GetLogSenderConfigMapName(),
 			Namespace: stroomCluster.Namespace,
 			Labels:    stroomCluster.GetLabels(),
 		},
-		Data: map[string]string{
-			"crontab.txt": "" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
-		},
+		Data: logSenderConfig,
 	}
 
 	ctrl.SetControllerReference(stroomCluster, &configMap, r.Scheme)
@@ -251,6 +266,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}
 	if !logSender.IsZero() {
+		var logSenderCertsOptional = true
 		volumes = append(volumes, corev1.Volume{
 			Name: "log-sender-configmap",
 			VolumeSource: corev1.VolumeSource{
@@ -258,6 +274,15 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: stroomCluster.GetLogSenderConfigMapName(),
 					},
+				},
+			},
+		})
+		volumes = append(volumes, corev1.Volume{
+			Name: "log-sender-certs",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "log-sender-certs",
+					Optional:   &logSenderCertsOptional,
 				},
 			},
 		})
@@ -448,6 +473,10 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			}, {
 				Name:      "log-sender-configmap",
 				MountPath: "/stroom-log-sender/config",
+				ReadOnly:  true,
+			}, {
+				Name:      "log-sender-certs",
+				MountPath: "/stroom-log-sender/certs",
 				ReadOnly:  true,
 			}},
 			Resources: resources,
