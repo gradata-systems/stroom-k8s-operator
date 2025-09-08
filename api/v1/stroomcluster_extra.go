@@ -8,6 +8,8 @@ const (
 )
 
 type HttpsSettings struct {
+	// Boolean value controling if TLS is enabled within the cluster
+	Enabled bool `json:"enabled"`
 	// Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
 	TlsSecretName string `json:"tlsSecretName"`
 	// Password of the keystore and truststore

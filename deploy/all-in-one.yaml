@@ -3290,6 +3290,9 @@ spec:
               https:
                 description: HTTPS settings
                 properties:
+                  enabled:
+                    description: Boolean value controling if TLS is enabled within the cluster
+                    type: boolean
                   tlsKeystorePasswordSecret:
                     description: Password of the keystore and truststore
                     properties:
@@ -3305,6 +3308,7 @@ spec:
                     description: Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
                     type: string
                 required:
+                - enabled
                 - tlsKeystorePasswordSecret
                 - tlsSecretName
                 type: object

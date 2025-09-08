@@ -281,7 +281,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			Name: "log-sender-certs",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: "log-sender-certs",
+					SecretName: stroomCluster.Spec.LogSender.MtlsSecretName,
 					Optional:   &logSenderCertsOptional,
 				},
 			},
@@ -622,6 +622,10 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 				Port:     AppHttpsPortNumber,
 				Protocol: corev1.ProtocolTCP,
 			}, {
+				Name:     AppHttpPortName,
+				Port:     AppHttpPortNumber,
+				Protocol: corev1.ProtocolTCP,
+			}, {
 				Name:     AdminPortName,
 				Port:     AdminPortNumber,
 				Protocol: corev1.ProtocolTCP,
@@ -669,6 +673,17 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ingressAnnotations[k] = v
 			}
 
+			//Build ingress TLS object if TLS is enabled inside the cluster
+			ingressTls := []netv1.IngressTLS{{}}
+			appPortName := AppHttpPortName
+			if stroomCluster.Spec.Https.Enabled {
+				ingressTls = []netv1.IngressTLS{{
+					Hosts:      []string{ingressSettings.HostName},
+					SecretName: ingressSettings.SecretName,
+				}}
+				appPortName = AppHttpsPortName
+			}
+
 			ingresses = append(ingresses,
 				netv1.Ingress{
 					// Default route (/)
@@ -680,16 +695,13 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					},
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ingressSettings.ClassName,
-						TLS: []netv1.IngressTLS{{
-							Hosts:      []string{ingressSettings.HostName},
-							SecretName: ingressSettings.SecretName,
-						}},
+						TLS:              ingressTls,
 						Rules: []netv1.IngressRule{
 							// Explicitly route datafeed traffic to the first non-UI NodeSet
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/noauth/datafeed", firstNonUiServiceName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/noauth/datafeed", firstNonUiServiceName, appPortName),
 
 							// All other traffic is routed to the UI NodeSets
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/", serviceName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/", serviceName, appPortName),
 						},
 					},
 				})
@@ -710,12 +722,9 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					},
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ingressSettings.ClassName,
-						TLS: []netv1.IngressTLS{{
-							Hosts:      []string{ingressSettings.HostName},
-							SecretName: ingressSettings.SecretName,
-						}},
+						TLS:              ingressTls,
 						Rules: []netv1.IngressRule{
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/web-socket/", serviceName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/web-socket/", serviceName, appPortName),
 						},
 					},
 				},
@@ -733,6 +742,17 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ingressAnnotations[k] = v
 			}
 
+			//Build ingress TLS object if TLS is enabled inside the cluster
+			ingressTls := []netv1.IngressTLS{{}}
+			appPortName := AppHttpPortName
+			if stroomCluster.Spec.Https.Enabled {
+				ingressTls = []netv1.IngressTLS{{
+					Hosts:      []string{ingressSettings.HostName},
+					SecretName: ingressSettings.SecretName,
+				}}
+				appPortName = AppHttpsPortName
+			}
+
 			ingresses = append(ingresses, netv1.Ingress{
 				// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
 				ObjectMeta: metav1.ObjectMeta{
@@ -743,12 +763,9 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				},
 				Spec: netv1.IngressSpec{
 					IngressClassName: &ingressSettings.ClassName,
-					TLS: []netv1.IngressTLS{{
-						Hosts:      []string{ingressSettings.HostName},
-						SecretName: ingressSettings.SecretName,
-					}},
+					TLS:              ingressTls,
 					Rules: []netv1.IngressRule{
-						r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/datafeeddirect", serviceName),
+						r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/datafeeddirect", serviceName, appPortName),
 					},
 				},
 			})
@@ -764,7 +781,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 	return ingresses
 }
 
-func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType netv1.PathType, path string, serviceName string) netv1.IngressRule {
+func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType netv1.PathType, path string, serviceName string, appPortName string) netv1.IngressRule {
 	return netv1.IngressRule{
 		Host: hostName,
 		IngressRuleValue: netv1.IngressRuleValue{
@@ -776,7 +793,7 @@ func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType ne
 						Service: &netv1.IngressServiceBackend{
 							Name: serviceName,
 							Port: netv1.ServiceBackendPort{
-								Name: AppHttpsPortName,
+								Name: appPortName,
 							},
 						},
 					},
