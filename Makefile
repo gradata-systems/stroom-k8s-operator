@@ -135,7 +135,7 @@ build-and-push: build docker-build docker-push bundle bundle-build bundle-push
 
 ##@ Build for offline usage
 
-build-offline-bundle: build docker-build docker-push manifests kustomize
+build-offline-bundle: build docker-build manifests kustomize
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > deploy/all-in-one.yaml
 	# Write a list of images for use in air-gapped environments
