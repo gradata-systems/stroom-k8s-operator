@@ -134,9 +134,12 @@ appConfig:
     port: "${API_GATEWAY_PORT:-443}"
   security:
     authentication:
+      openId: 
+        identityProviderType: ${IDENTITY_PROVIDER_TYPE:-INTERNAL_IDP}
+        clientId: ${STROOM_OPERATOR_OPENID_CLIENT_ID}
+        clientSecret: ${STROOM_OPERATOR_OPENID_CLIENT_SECRET}
       preventLogin: false
     identity:
-      useDefaultOpenIdCredentials: "${USE_DEFAULT_OPEN_ID_CREDENTIALS:-true}"
   statistics:
     internal:
       enabledStoreTypes: ${STROOM_ENABLED_STAT_STORE_TYPES:-[ "StatisticStore" ]}
