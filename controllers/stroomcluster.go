@@ -4,6 +4,9 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strconv"
+	"strings"
+
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -137,7 +138,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}, {
 		Name:  "POD_SUBDOMAIN",
-		Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetHeadlessServiceName(nodeSet), stroomCluster.Namespace),
+		Value: fmt.Sprintf("%v.%v.svc.cluster.local", stroomCluster.GetNodeSetHeadlessServiceName(nodeSet), stroomCluster.Namespace),
 	}, {
 		Name:  "JAVA_OPTS",
 		Value: r.getJvmOptions(stroomCluster, nodeSet),
