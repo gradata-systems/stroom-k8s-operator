@@ -3362,6 +3362,10 @@ spec:
                   imagePullPolicy:
                     description: PullPolicy describes a policy for if/when to pull a container image
                     type: string
+                  mtlsEnabled:
+                    type: boolean
+                  mtlsSecretName:
+                    type: string
                   resources:
                     description: ResourceRequirements describes the compute resource requirements.
                     properties:
@@ -3492,6 +3496,7 @@ spec:
                 required:
                 - enabled
                 - image
+                - mtlsEnabled
                 type: object
               nodeSets:
                 description: 'Each NodeSet is a functional grouping of Stroom nodes with a particular role, within the cluster. It is recommended two NodeSets should be provided: one for storing and processing data and a separate one for serving the Stroom front-end.'

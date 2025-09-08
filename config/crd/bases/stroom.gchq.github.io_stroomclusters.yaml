@@ -1985,6 +1985,10 @@ spec:
                     description: PullPolicy describes a policy for if/when to pull
                       a container image
                     type: string
+                  mtlsEnabled:
+                    type: boolean
+                  mtlsSecretName:
+                    type: string
                   resources:
                     description: ResourceRequirements describes the compute resource
                       requirements.
@@ -2207,6 +2211,7 @@ spec:
                 required:
                 - enabled
                 - image
+                - mtlsEnabled
                 type: object
               nodeSets:
                 description: 'Each NodeSet is a functional grouping of Stroom nodes
