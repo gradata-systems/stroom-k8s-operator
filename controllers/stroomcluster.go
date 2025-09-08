@@ -673,6 +673,12 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ingressAnnotations[k] = v
 			}
 
+			//Apply any user-provided ingress labels
+			ingressLabels := stroomCluster.GetLabels()
+			for k, v := range nodeSet.IngressLabels {
+				ingressLabels[k] = v
+			}
+
 			//Build ingress TLS object if TLS is enabled inside the cluster
 			ingressTls := []netv1.IngressTLS{{}}
 			appPortName := AppHttpPortName
@@ -690,7 +696,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					ObjectMeta: metav1.ObjectMeta{
 						Name:        clusterName,
 						Namespace:   stroomCluster.Namespace,
-						Labels:      stroomCluster.GetLabels(),
+						Labels:      ingressLabels,
 						Annotations: ingressAnnotations,
 					},
 					Spec: netv1.IngressSpec{
@@ -724,7 +730,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					ObjectMeta: metav1.ObjectMeta{
 						Name:        clusterName + "-websocket",
 						Namespace:   stroomCluster.Namespace,
-						Labels:      stroomCluster.GetLabels(),
+						Labels:      ingressLabels,
 						Annotations: websocketIngressAnnotations,
 					},
 					Spec: netv1.IngressSpec{
@@ -742,11 +748,18 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 			ingressAnnotations := map[string]string{
 				"nginx.ingress.kubernetes.io/rewrite-target":  "/stroom/noauth/datafeed",
 				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
+				"haproxy.router.openshift.io/rewrite-target":  "/stroom/noauth/datafeed",
 			}
 
 			// Apply any user-provided annotations
 			for k, v := range nodeSet.IngressAnnotations {
 				ingressAnnotations[k] = v
+			}
+
+			//Apply any user-provided ingress labels
+			ingressLabels := stroomCluster.GetLabels()
+			for k, v := range nodeSet.IngressLabels {
+				ingressLabels[k] = v
 			}
 
 			//Build ingress TLS object if TLS is enabled inside the cluster
@@ -765,7 +778,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        clusterName + "-datafeed",
 					Namespace:   stroomCluster.Namespace,
-					Labels:      stroomCluster.GetLabels(),
+					Labels:      ingressLabels,
 					Annotations: ingressAnnotations,
 				},
 				Spec: netv1.IngressSpec{

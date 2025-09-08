@@ -33,6 +33,9 @@ type NodeSet struct {
 	// IngressAnnotations is an optional map of annotations to apply to the NodeSet's Ingress. These override any
 	// default annotations provided by the controller.
 	IngressAnnotations map[string]string `json:"ingressAnnotations,omitempty"`
+	// IngressLabels is an optional map of labels to apply to the NodeSet's Ingress. These take precedence over any
+	// controller provided labels.
+	IngressLabels map[string]string `json:"ingressLabels,omitempty"`
 	// StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
 	// typically takes to start up and respond to healthchecks.
 	StartupProbeTimings ProbeTimings `json:"startupProbeTimings,omitempty"`

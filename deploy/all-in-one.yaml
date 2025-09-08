@@ -4043,6 +4043,11 @@ spec:
                       default: true
                       description: IngressEnabled determines whether this node receives requests via the created Kubernetes Ingresses. Usually this should be `true`, unless there is a need for a NodeSet to be pure processing-only nodes, which cannot receive data.
                       type: boolean
+                    ingressLabels:
+                      additionalProperties:
+                        type: string
+                      description: IngressLabels is an optional map of labels to apply to the NodeSet's Ingress. These take precedence over any controller provided labels.
+                      type: object
                     livenessProbeTimings:
                       description: LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is restarted.
                       properties:

@@ -376,6 +376,13 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 			(*out)[key] = val
 		}
 	}
+	if in.IngressLabels != nil {
+		in, out := &in.IngressLabels, &out.IngressLabels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
 	out.StartupProbeTimings = in.StartupProbeTimings
 	out.ReadinessProbeTimings = in.ReadinessProbeTimings
 	out.LivenessProbeTimings = in.LivenessProbeTimings
