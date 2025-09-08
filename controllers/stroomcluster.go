@@ -656,7 +656,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 		clusterName := stroomCluster.GetBaseName()
 		serviceName := stroomCluster.GetNodeSetServiceName(&nodeSet)
 
-		if nodeSet.IngressEnabled != true {
+		if !nodeSet.IngressEnabled {
 			continue
 		}
 
@@ -698,33 +698,40 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 						TLS:              ingressTls,
 						Rules: []netv1.IngressRule{
 							// Explicitly route datafeed traffic to the first non-UI NodeSet
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/noauth/datafeed", firstNonUiServiceName, appPortName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/noauth/datafeed", firstNonUiServiceName, appPortName, ingressSettings.PathTypeOverride),
 
 							// All other traffic is routed to the UI NodeSets
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/", serviceName, appPortName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/", serviceName, appPortName, ingressSettings.PathTypeOverride),
 						},
 					},
 				})
+
+			websocketIngressAnnotations := map[string]string{
+				"nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
+				"nginx.ingress.kubernetes.io/configuration-snippet": "\n" +
+					"proxy_set_header Upgrade $http_upgrade;\n" +
+					"proxy_set_header Connection \"Upgrade\";\n",
+			}
+
+			// Apply any user-provided annotations
+			for k, v := range nodeSet.IngressAnnotations {
+				websocketIngressAnnotations[k] = v
+			}
 
 			ingresses = append(ingresses,
 				netv1.Ingress{
 					// WebSocket endpoint
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      clusterName + "-websocket",
-						Namespace: stroomCluster.Namespace,
-						Labels:    stroomCluster.GetLabels(),
-						Annotations: map[string]string{
-							"nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
-							"nginx.ingress.kubernetes.io/configuration-snippet": "\n" +
-								"proxy_set_header Upgrade $http_upgrade;\n" +
-								"proxy_set_header Connection \"Upgrade\";\n",
-						},
+						Name:        clusterName + "-websocket",
+						Namespace:   stroomCluster.Namespace,
+						Labels:      stroomCluster.GetLabels(),
+						Annotations: websocketIngressAnnotations,
 					},
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ingressSettings.ClassName,
 						TLS:              ingressTls,
 						Rules: []netv1.IngressRule{
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/web-socket/", serviceName, appPortName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/web-socket/", serviceName, appPortName, ingressSettings.PathTypeOverride),
 						},
 					},
 				},
@@ -765,7 +772,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					IngressClassName: &ingressSettings.ClassName,
 					TLS:              ingressTls,
 					Rules: []netv1.IngressRule{
-						r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/datafeeddirect", serviceName, appPortName),
+						r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/datafeeddirect", serviceName, appPortName, ingressSettings.PathTypeOverride),
 					},
 				},
 			})
@@ -781,14 +788,22 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 	return ingresses
 }
 
-func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType netv1.PathType, path string, serviceName string, appPortName string) netv1.IngressRule {
+func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType netv1.PathType, path string, serviceName string, appPortName string, pathTypeOverride bool) netv1.IngressRule {
+
+	var actualPathtype netv1.PathType
+	if pathTypeOverride {
+		actualPathtype = netv1.PathTypeImplementationSpecific
+	} else {
+		actualPathtype = pathType
+	}
+
 	return netv1.IngressRule{
 		Host: hostName,
 		IngressRuleValue: netv1.IngressRuleValue{
 			HTTP: &netv1.HTTPIngressRuleValue{
 				Paths: []netv1.HTTPIngressPath{{
 					Path:     path,
-					PathType: &pathType,
+					PathType: &actualPathtype,
 					Backend: netv1.IngressBackend{
 						Service: &netv1.IngressServiceBackend{
 							Name: serviceName,

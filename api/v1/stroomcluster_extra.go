@@ -23,6 +23,8 @@ type IngressSettings struct {
 	SecretName string `json:"secretName"`
 	// Ingress class name (e.g. nginx)
 	ClassName string `json:"className,omitempty"`
+	// Override path type for all ingress resources as `ImplementationSpecific`
+	PathTypeOverride bool `json:"pathTypeOverride,omitempty"`
 }
 
 type OpenIdConfiguration struct {

@@ -3333,6 +3333,9 @@ spec:
                   hostName:
                     description: DNS name at which the application will be reached (e.g. stroom.example.com)
                     type: string
+                  pathTypeOverride:
+                    description: Override path type for all ingress resources as `ImplementationSpecific`
+                    type: boolean
                   secretName:
                     description: Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`
                     type: string
