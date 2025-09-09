@@ -11,16 +11,19 @@ type HttpsSettings struct {
 	// Boolean value controling if TLS is enabled within the cluster
 	Enabled bool `json:"enabled"`
 	// Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
-	TlsSecretName string `json:"tlsSecretName"`
+	// +kubebuilder:validation:Optional
+	TlsSecretName string `json:"tlsSecretName,omitempty"`
 	// Password of the keystore and truststore
-	TlsKeystorePasswordSecretRef SecretItem `json:"tlsKeystorePasswordSecret"`
+	// +kubebuilder:validation:Optional
+	TlsKeystorePasswordSecretRef SecretItem `json:"tlsKeystorePasswordSecret,omitempty"`
 }
 
 type IngressSettings struct {
 	// DNS name at which the application will be reached (e.g. stroom.example.com)
 	HostName string `json:"hostName"`
 	// Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`
-	SecretName string `json:"secretName"`
+	// +kubebuilder:validation:Optional
+	SecretName string `json:"secretName,omitempty"`
 	// Ingress class name (e.g. nginx)
 	ClassName string `json:"className,omitempty"`
 	// Override path type for all ingress resources as `ImplementationSpecific`

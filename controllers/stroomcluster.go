@@ -167,16 +167,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		Name:  "STROOM_ADMIN_PORT",
 		Value: strconv.Itoa(AdminPortNumber),
 	}, {
-		Name: "STROOM_KEYSTORE_PASSWORD",
-		ValueFrom: &corev1.EnvVarSource{
-			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
-				},
-				Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
-			},
-		},
-	}, {
 		Name: "STROOM_NODE",
 		ValueFrom: &corev1.EnvVarSource{
 			FieldRef: &corev1.ObjectFieldSelector{
@@ -226,6 +216,20 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}}, stroomCluster.Spec.ExtraEnv...)
 
+	if stroomCluster.Spec.Https.Enabled {
+		env = append(env, corev1.EnvVar{
+			Name: "STROOM_KEYSTORE_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
+					},
+					Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
+				},
+			},
+		})
+	}
+
 	// If OpenID configuration is defined, pass the OpenID client ID and secret as environment variables
 	openIdConfig := stroomCluster.Spec.OpenId
 	if !openIdConfig.IsZero() {
@@ -251,20 +255,24 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	volumes := []corev1.Volume{
 		*r.createStaticContentVolume(stroomCluster),
 		{
-			Name: StroomTlsVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: stroomCluster.Spec.Https.TlsSecretName,
-				},
-			},
-		},
-		{
 			Name: StroomApiTokenVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
 	}
+
+	if stroomCluster.Spec.Https.Enabled {
+		volumes = append(volumes, corev1.Volume{
+			Name: StroomTlsVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: stroomCluster.Spec.Https.TlsSecretName,
+				},
+			},
+		})
+	}
+
 	if !logSender.IsZero() {
 		var logSenderCertsOptional = true
 		volumes = append(volumes, corev1.Volume{
@@ -318,10 +326,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		MountPath: "/stroom/scripts/node-pre-stop.sh",
 		ReadOnly:  true,
 	}, {
-		Name:      StroomTlsVolumeName,
-		MountPath: "/stroom/pki/tls",
-		ReadOnly:  true,
-	}, {
 		Name:      StroomApiTokenVolumeName,
 		MountPath: StroomApiTokenMountPath,
 	}, {
@@ -353,6 +357,15 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		SubPath:   "search-results",
 		MountPath: "/stroom/search_results",
 	}}
+
+	if stroomCluster.Spec.Https.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      StroomTlsVolumeName,
+			MountPath: "/stroom/pki/tls",
+			ReadOnly:  true,
+		})
+	}
+
 	r.appendConfigVolumeMounts(stroomCluster, &volumeMounts)
 
 	if len(stroomCluster.Spec.ExtraVolumes) > 0 {

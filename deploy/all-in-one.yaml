@@ -3309,8 +3309,6 @@ spec:
                     type: string
                 required:
                 - enabled
-                - tlsKeystorePasswordSecret
-                - tlsSecretName
                 type: object
               image:
                 properties:
@@ -3341,7 +3339,6 @@ spec:
                     type: string
                 required:
                 - hostName
-                - secretName
                 type: object
               logSender:
                 description: Configures the mechanism that posts internal audit and logging to Stroom
