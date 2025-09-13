@@ -24,8 +24,10 @@ const (
 	AppHttpsPortNumber          = 8443
 	AdminPortName               = "admin"
 	AdminPortNumber             = 8081
+	StaticContentVolumeName     = "static-content"
 	StroomNodePvcName           = "data"
 	StroomNodeContainerName     = "stroom-node"
+	StroomKeystoreVolumeName    = "keystore"
 	StroomTlsVolumeName         = "tls"
 	StroomApiTokenVolumeName    = "api-token"
 	StroomApiTokenMountPath     = "/stroom/auth"
@@ -90,7 +92,7 @@ func (r *StroomClusterReconciler) createStaticContentVolume(stroomCluster *stroo
 	// Scripts need execute permissions
 	var fileMode int32 = 0554
 	return &corev1.Volume{
-		Name: "static-content",
+		Name: StaticContentVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
@@ -246,6 +248,12 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
+		{
+			Name: StroomKeystoreVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
 	}
 	if !logSender.IsZero() {
 		volumes = append(volumes, corev1.Volume{
@@ -275,22 +283,22 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}
 
 	volumeMounts := []corev1.VolumeMount{{
-		Name:      "static-content",
+		Name:      StaticContentVolumeName,
 		SubPath:   "utils.sh",
 		MountPath: "/stroom/scripts/utils.sh",
 		ReadOnly:  true,
 	}, {
-		Name:      "static-content",
+		Name:      StaticContentVolumeName,
 		SubPath:   "node-start.sh",
 		MountPath: "/stroom/scripts/node-start.sh",
 		ReadOnly:  true,
 	}, {
-		Name:      "static-content",
+		Name:      StaticContentVolumeName,
 		SubPath:   "node-pre-stop.sh",
 		MountPath: "/stroom/scripts/node-pre-stop.sh",
 		ReadOnly:  true,
 	}, {
-		Name:      StroomTlsVolumeName,
+		Name:      StroomKeystoreVolumeName,
 		MountPath: "/stroom/pki/tls",
 		ReadOnly:  true,
 	}, {
@@ -333,6 +341,41 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	if len(stroomCluster.Spec.ExtraVolumeMounts) > 0 {
 		volumeMounts = append(volumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
 	}
+
+	initContainers := []corev1.Container{{
+		Name:            "generate-keystore",
+		Image:           stroomCluster.Spec.Image.String(),
+		ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
+		Command: []string{
+			"sh",
+			"-c",
+			"/opt/scripts/generate-keystore.sh",
+		},
+		Env: []corev1.EnvVar{{
+			Name: "STROOM_KEYSTORE_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
+					},
+					Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
+				},
+			},
+		}},
+		VolumeMounts: []corev1.VolumeMount{{
+			Name:      StaticContentVolumeName,
+			SubPath:   "generate-keystore.sh",
+			MountPath: "/opt/scripts/generate-keystore.sh",
+			ReadOnly:  true,
+		}, {
+			Name:      StroomTlsVolumeName,
+			MountPath: "/opt/tls",
+			ReadOnly:  true,
+		}, {
+			Name:      StroomKeystoreVolumeName,
+			MountPath: "/data",
+		}},
+	}}
 
 	containers := []corev1.Container{{
 		Name:            StroomNodeContainerName,
@@ -473,6 +516,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 					ServiceAccountName:            stroomCluster.GetBaseName(),
 					SecurityContext:               &nodeSet.PodSecurityContext,
 					TerminationGracePeriodSeconds: &stroomCluster.Spec.NodeTerminationPeriodSecs,
+					InitContainers:                initContainers,
 					Containers:                    containers,
 					Volumes:                       volumes,
 					NodeSelector:                  nodeSet.NodeSelector,
@@ -507,7 +551,7 @@ func (r *StroomClusterReconciler) appendConfigVolumeMounts(stroomCluster *stroom
 	} else {
 		// Use the default config
 		*volumeMounts = append(*volumeMounts, corev1.VolumeMount{
-			Name:      "static-content",
+			Name:      StaticContentVolumeName,
 			SubPath:   "stroomcluster-config.yaml",
 			MountPath: configMountPath,
 			ReadOnly:  true,

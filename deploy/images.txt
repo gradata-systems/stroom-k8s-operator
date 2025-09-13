@@ -1,2 +1,2 @@
 gcr.io/kubebuilder/kube-rbac-proxy:v0.13.0
-gradata/stroom-k8s-operator:1.0.28
+gradata/stroom-k8s-operator:1.0.29
