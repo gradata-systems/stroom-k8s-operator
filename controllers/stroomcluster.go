@@ -31,6 +31,7 @@ const (
 	StroomTlsVolumeName         = "tls"
 	StroomApiTokenVolumeName    = "api-token"
 	StroomApiTokenMountPath     = "/stroom/auth"
+	LogSenderConfigMapName      = "log-sender-configmap"
 	LogSenderDefaultCpuLimit    = "500m"
 	LogSenderDefaultMemoryLimit = "256Mi"
 )
@@ -78,9 +79,9 @@ func (r *StroomClusterReconciler) createLogSenderConfigMap(stroomCluster *stroom
 		},
 		Data: map[string]string{
 			"crontab.txt": "" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" --max-sleep ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cert /opt/tls/tls.crt --key /opt/tls/tls.key --cacert /opt/tls/ca.crt --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" --max-sleep ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cert /opt/tls/tls.crt --key /opt/tls/tls.key --cacert /opt/tls/ca.crt --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" --max-sleep ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cert /opt/tls/tls.crt --key /opt/tls/tls.key --cacert /opt/tls/ca.crt --compress > /dev/stdout",
 		},
 	}
 
@@ -257,7 +258,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}
 	if !logSender.IsZero() {
 		volumes = append(volumes, corev1.Volume{
-			Name: "log-sender-configmap",
+			Name: LogSenderConfigMapName,
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
@@ -486,8 +487,12 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				SubPath:   "logs",
 				MountPath: "/stroom-log-sender/log-volumes/stroom",
 			}, {
-				Name:      "log-sender-configmap",
+				Name:      LogSenderConfigMapName,
 				MountPath: "/stroom-log-sender/config",
+				ReadOnly:  true,
+			}, {
+				Name:      StroomTlsVolumeName,
+				MountPath: "/opt/tls",
 				ReadOnly:  true,
 			}},
 			Resources: resources,
