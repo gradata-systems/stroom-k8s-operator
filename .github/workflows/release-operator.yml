@@ -2,7 +2,7 @@ name: Release Operator
 
 on:
   workflow_dispatch:
-    
+
 jobs:
     build_and_release_operator:
       runs-on: ubuntu-latest
@@ -37,4 +37,4 @@ jobs:
           uses: docker/build-push-action@v6
           with:
             push: true
-            tags: ld11466/stroom-k8s-operator:${{ steps.get_version.outputs.APP_VERSION }}
+            tags: gchq/stroom-k8s-operator:${{ steps.get_version.outputs.APP_VERSION }}
