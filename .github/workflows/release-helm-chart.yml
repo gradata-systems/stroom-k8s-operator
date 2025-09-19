@@ -1,0 +1,31 @@
+name: Release Helm Chart
+
+on:
+  workflow_dispatch:
+  pull_request: 
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:    
+    build_and_release_helm_chart:
+      runs-on: ubuntu-latest
+      steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install Helm
+        uses: azure/setup-helm@v3.3
+        with:
+          version: v3.9.0
+      - name: Helm repo login
+        run: |
+          helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push stroom-operator-crds chart
+        run: |
+          tar_path=$(helm package ./charts/stroom-operator-crds | sed -E 's/^.+ saved it to: (.+)$/\1/')
+          helm push "$tar_path" oci://${{ env.REGISTRY }}/ld11466/helm-charts
+
+      - name: Build and push stroom-operator chart
+        run: |
+          tar_path=$(helm package ./charts/stroom-operator | sed -E 's/^.+ saved it to: (.+)$/\1/')
+          helm push "$tar_path" oci://${{ env.REGISTRY }}/ld11466/helm-charts

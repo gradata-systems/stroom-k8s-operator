@@ -1,0 +1,40 @@
+name: Release Operator
+
+on:
+  workflow_dispatch:
+    
+jobs:
+    build_and_release_operator:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v3
+        - name: Set up Go
+          uses: actions/setup-go@v4
+          with:
+            go-version: '1.25.1'
+        - name: Install operator sdk
+          run: |
+            export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
+            export OS=$(uname | awk '{print tolower($0)}')
+            export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/v1.41.1
+            curl -LO ${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}
+            chmod +x operator-sdk_${OS}_${ARCH} && sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
+            chmod +x ./bin/*
+        - name: Get app version
+          id: get_version
+          run: |
+            echo APP_VERSION=$(grep -Po '^VERSION \?= \K(.*)' ./Makefile) >> $GITHUB_OUTPUT
+        - name: Build
+          run: make build
+        - name: Test
+          run: make test
+        - name: Docker Login
+          uses: docker/login-action@v3
+          with:
+            username: ${{ vars.DOCKERHUB_USERNAME }}
+            password: ${{ secrets.DOCKERHUB_TOKEN }}
+        - name: Build and push docker image
+          uses: docker/build-push-action@v6
+          with:
+            push: true
+            tags: ld11466/stroom-k8s-operator:${{ steps.get_version.outputs.APP_VERSION }}
