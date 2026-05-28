@@ -356,6 +356,18 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		Name:      StroomNodePvcName,
 		SubPath:   "search-results",
 		MountPath: "/stroom/search_results",
+	}, {
+		Name:      StroomNodePvcName,
+		SubPath:   "reference_staging_data",
+		MountPath: "/stroom/reference_staging_data",
+	}, {
+		Name:      StroomNodePvcName,
+		SubPath:   "analytic_store",
+		MountPath: "/lmdb/analytic_store",
+	}, {
+		Name:      StroomNodePvcName,
+		SubPath:   "duplicate_check",
+		MountPath: "/lmdb/duplicate_check",
 	}}
 
 	if stroomCluster.Spec.Https.Enabled {
