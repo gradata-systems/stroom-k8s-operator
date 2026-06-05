@@ -369,6 +369,11 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 	in.LocalDataVolumeClaim.DeepCopyInto(&out.LocalDataVolumeClaim)
 	in.Resources.DeepCopyInto(&out.Resources)
 	out.MemoryOptions = in.MemoryOptions
+	if in.IngressEnabled != nil {
+		in, out := &in.IngressEnabled, &out.IngressEnabled
+		*out = new(bool)
+		**out = **in
+	}
 	if in.IngressAnnotations != nil {
 		in, out := &in.IngressAnnotations, &out.IngressAnnotations
 		*out = make(map[string]string, len(*in))

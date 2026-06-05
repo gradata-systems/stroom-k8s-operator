@@ -5082,7 +5082,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gchq/stroom-k8s-operator:1.1.0
+        image: gradata/stroom-k8s-operator:1.1.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

@@ -37,4 +37,4 @@ jobs:
           uses: docker/build-push-action@v6
           with:
             push: true
-            tags: gchq/stroom-k8s-operator:${{ steps.get_version.outputs.APP_VERSION }}
+            tags: gradata/stroom-k8s-operator:${{ steps.get_version.outputs.APP_VERSION }}

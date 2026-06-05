@@ -35,6 +35,7 @@ const (
 	LogSenderConfigMapName      = "log-sender-configmap"
 	LogSenderDefaultCpuLimit    = "500m"
 	LogSenderDefaultMemoryLimit = "256Mi"
+	LogSenderCertsVolumeName    = "log-sender-certs"
 )
 
 func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
@@ -290,7 +291,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				},
 			},
 			{
-				Name: "log-sender-certs",
+				Name: LogSenderCertsVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName: stroomCluster.Spec.LogSender.MtlsSecretName,
@@ -427,7 +428,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				Name:      StroomKeystoreVolumeName,
 				MountPath: "/data",
 			}},
-			},
+		},
 		)
 	}
 
@@ -544,7 +545,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				MountPath: "/stroom-log-sender/config",
 				ReadOnly:  true,
 			}, {
-				Name:      "log-sender-certs",
+				Name:      LogSenderCertsVolumeName,
 				MountPath: "/stroom-log-sender/certs",
 				ReadOnly:  true,
 			}},
