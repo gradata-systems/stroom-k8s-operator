@@ -278,28 +278,27 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}
 
 	if !logSender.IsZero() {
-		var logSenderCertsOptional = true
-		volumes = append(volumes, []corev1.Volume{
-			{
-				Name: LogSenderConfigMapName,
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: stroomCluster.GetLogSenderConfigMapName(),
-						},
+		volumes = append(volumes, corev1.Volume{
+			Name: LogSenderConfigMapName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: stroomCluster.GetLogSenderConfigMapName(),
 					},
 				},
 			},
-			{
+		})
+
+		if logSender.MtlsEnabled && logSender.MtlsSecretName != "" {
+			volumes = append(volumes, corev1.Volume{
 				Name: LogSenderCertsVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName: stroomCluster.Spec.LogSender.MtlsSecretName,
-						Optional:   &logSenderCertsOptional,
 					},
 				},
-			},
-		}...)
+			})
+		}
 	}
 
 	// If a Stroom node config override is provided, create a volume for it
@@ -483,74 +482,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}}
 
 	if !logSender.IsZero() {
-		destinationUrl := logSender.DestinationUrl
-		if destinationUrl == "" {
-			destinationUrl = stroomCluster.GetDatafeedUrl()
-		}
-
-		environmentName := logSender.EnvironmentName
-		if environmentName == "" {
-			environmentName = strings.ToUpper(stroomCluster.Name)
-		}
-
-		systemName := logSender.SystemName
-		if systemName == "" {
-			systemName = "Stroom"
-		}
-
-		// Set default resource limits if not specified
-		resources := logSender.Resources
-		if resources.Size() == 0 {
-			resources = corev1.ResourceRequirements{
-				Limits: map[corev1.ResourceName]resource.Quantity{
-					corev1.ResourceCPU:    resource.MustParse(LogSenderDefaultCpuLimit),
-					corev1.ResourceMemory: resource.MustParse(LogSenderDefaultMemoryLimit),
-				},
-			}
-		}
-
-		containers = append(containers, corev1.Container{
-			Name:            "log-sender",
-			Image:           logSender.Image.String(),
-			ImagePullPolicy: logSender.ImagePullPolicy,
-			SecurityContext: &logSender.SecurityContext,
-			Env: []corev1.EnvVar{{
-				Name:  "LOG_SENDER_SCRIPT",
-				Value: "/stroom-log-sender/send_to_stroom.sh",
-			}, {
-				Name:  "STROOM_DATAFEED_URL",
-				Value: destinationUrl,
-			}, {
-				Name:  "STROOM_BASE_LOGS_DIR",
-				Value: "/stroom-log-sender/log-volumes/stroom",
-			}, {
-				Name:  "STROOM_FILE_REGEX",
-				Value: `.*/[a-z]+-[0-9]+-[0-9]+-[0-9]+T[0-9]+:[0-9]+\.log(\.gz)?$`,
-			}, {
-				Name:  "STROOM_ENVIRONMENT_NAME",
-				Value: environmentName,
-			}, {
-				Name:  "STROOM_SYSTEM_NAME",
-				Value: systemName,
-			}, {
-				Name:  "STROOM_MAX_DELAY_SECS",
-				Value: "15",
-			}},
-			VolumeMounts: []corev1.VolumeMount{{
-				Name:      StroomNodePvcName,
-				SubPath:   "logs",
-				MountPath: "/stroom-log-sender/log-volumes/stroom",
-			}, {
-				Name:      LogSenderConfigMapName,
-				MountPath: "/stroom-log-sender/config",
-				ReadOnly:  true,
-			}, {
-				Name:      LogSenderCertsVolumeName,
-				MountPath: "/stroom-log-sender/certs",
-				ReadOnly:  true,
-			}},
-			Resources: resources,
-		})
+		containers = append(containers, r.createLogSenderContainer(stroomCluster))
 	}
 
 	statefulSet := &appsv1.StatefulSet{
@@ -595,6 +527,87 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	ctrl.SetControllerReference(stroomCluster, statefulSet, r.Scheme)
 	return statefulSet
+}
+
+func (r *StroomClusterReconciler) createLogSenderContainer(stroomCluster *stroomv1.StroomCluster) corev1.Container {
+	logSender := stroomCluster.Spec.LogSender
+
+	destinationUrl := logSender.DestinationUrl
+	if destinationUrl == "" {
+		destinationUrl = stroomCluster.GetDatafeedUrl()
+	}
+
+	environmentName := logSender.EnvironmentName
+	if environmentName == "" {
+		environmentName = strings.ToUpper(stroomCluster.Name)
+	}
+
+	systemName := logSender.SystemName
+	if systemName == "" {
+		systemName = "Stroom"
+	}
+
+	// Set default resource limits if not specified
+	resources := logSender.Resources
+	if resources.Size() == 0 {
+		resources = corev1.ResourceRequirements{
+			Limits: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse(LogSenderDefaultCpuLimit),
+				corev1.ResourceMemory: resource.MustParse(LogSenderDefaultMemoryLimit),
+			},
+		}
+	}
+
+	logSenderVolumeMounts := []corev1.VolumeMount{
+		{
+			Name:      StroomNodePvcName,
+			SubPath:   "logs",
+			MountPath: "/stroom-log-sender/log-volumes/stroom",
+		}, {
+			Name:      LogSenderConfigMapName,
+			MountPath: "/stroom-log-sender/config",
+			ReadOnly:  true,
+		},
+	}
+
+	if logSender.MtlsEnabled && logSender.MtlsSecretName != "" {
+		logSenderVolumeMounts = append(logSenderVolumeMounts, corev1.VolumeMount{
+			Name:      LogSenderCertsVolumeName,
+			MountPath: "/stroom-log-sender/certs",
+			ReadOnly:  true,
+		})
+	}
+
+	return corev1.Container{
+		Name:            "log-sender",
+		Image:           logSender.Image.String(),
+		ImagePullPolicy: logSender.ImagePullPolicy,
+		SecurityContext: &logSender.SecurityContext,
+		Env: []corev1.EnvVar{{
+			Name:  "LOG_SENDER_SCRIPT",
+			Value: "/stroom-log-sender/send_to_stroom.sh",
+		}, {
+			Name:  "STROOM_DATAFEED_URL",
+			Value: destinationUrl,
+		}, {
+			Name:  "STROOM_BASE_LOGS_DIR",
+			Value: "/stroom-log-sender/log-volumes/stroom",
+		}, {
+			Name:  "STROOM_FILE_REGEX",
+			Value: `.*/[a-z]+-[0-9]+-[0-9]+-[0-9]+T[0-9]+:[0-9]+\.log(\.gz)?$`,
+		}, {
+			Name:  "STROOM_ENVIRONMENT_NAME",
+			Value: environmentName,
+		}, {
+			Name:  "STROOM_SYSTEM_NAME",
+			Value: systemName,
+		}, {
+			Name:  "STROOM_MAX_DELAY_SECS",
+			Value: "15",
+		}},
+		VolumeMounts: logSenderVolumeMounts,
+		Resources:    resources,
+	}
 }
 
 func (r *StroomClusterReconciler) appendConfigVolumeMounts(stroomCluster *stroomv1.StroomCluster, volumeMounts *[]corev1.VolumeMount) {
