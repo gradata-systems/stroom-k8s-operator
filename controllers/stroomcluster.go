@@ -267,14 +267,22 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}
 
 	if stroomCluster.Spec.Https.Enabled {
-		volumes = append(volumes, corev1.Volume{
-			Name: StroomTlsVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: stroomCluster.Spec.Https.TlsSecretName,
+		volumes = append(volumes, []corev1.Volume{
+			{
+				Name: StroomTlsVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: stroomCluster.Spec.Https.TlsSecretName,
+					},
 				},
 			},
-		})
+			{
+				Name: StroomKeystoreVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			},
+		}...)
 	}
 
 	if !logSender.IsZero() {
@@ -377,7 +385,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 
 	if stroomCluster.Spec.Https.Enabled {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
-			Name:      StroomTlsVolumeName,
+			Name:      StroomKeystoreVolumeName,
 			MountPath: "/stroom/pki/tls",
 			ReadOnly:  true,
 		})
