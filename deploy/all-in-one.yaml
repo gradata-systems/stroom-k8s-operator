@@ -3290,6 +3290,9 @@ spec:
               https:
                 description: HTTPS settings
                 properties:
+                  enabled:
+                    description: Boolean value controling if TLS is enabled within the cluster
+                    type: boolean
                   tlsKeystorePasswordSecret:
                     description: Password of the keystore and truststore
                     properties:
@@ -3305,8 +3308,7 @@ spec:
                     description: Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
                     type: string
                 required:
-                - tlsKeystorePasswordSecret
-                - tlsSecretName
+                - enabled
                 type: object
               image:
                 properties:
@@ -3329,12 +3331,14 @@ spec:
                   hostName:
                     description: DNS name at which the application will be reached (e.g. stroom.example.com)
                     type: string
+                  pathTypeOverride:
+                    description: Override path type for all ingress resources as `ImplementationSpecific`
+                    type: boolean
                   secretName:
                     description: Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`
                     type: string
                 required:
                 - hostName
-                - secretName
                 type: object
               logSender:
                 description: Configures the mechanism that posts internal audit and logging to Stroom
@@ -3361,6 +3365,10 @@ spec:
                     type: object
                   imagePullPolicy:
                     description: PullPolicy describes a policy for if/when to pull a container image
+                    type: string
+                  mtlsEnabled:
+                    type: boolean
+                  mtlsSecretName:
                     type: string
                   resources:
                     description: ResourceRequirements describes the compute resource requirements.
@@ -3492,6 +3500,7 @@ spec:
                 required:
                 - enabled
                 - image
+                - mtlsEnabled
                 type: object
               nodeSets:
                 description: 'Each NodeSet is a functional grouping of Stroom nodes with a particular role, within the cluster. It is recommended two NodeSets should be provided: one for storing and processing data and a separate one for serving the Stroom front-end.'
@@ -4031,6 +4040,11 @@ spec:
                       default: true
                       description: IngressEnabled determines whether this node receives requests via the created Kubernetes Ingresses. Usually this should be `true`, unless there is a need for a NodeSet to be pure processing-only nodes, which cannot receive data.
                       type: boolean
+                    ingressLabels:
+                      additionalProperties:
+                        type: string
+                      description: IngressLabels is an optional map of labels to apply to the NodeSet's Ingress. These take precedence over any controller provided labels.
+                      type: object
                     livenessProbeTimings:
                       description: LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is restarted.
                       properties:
@@ -5068,7 +5082,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: gradata/stroom-k8s-operator:1.0.30
+        image: gchq/stroom-k8s-operator:1.1.0
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:

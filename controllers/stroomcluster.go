@@ -4,6 +4,9 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strconv"
+	"strings"
+
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -71,18 +72,33 @@ func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.Stroom
 }
 
 func (r *StroomClusterReconciler) createLogSenderConfigMap(stroomCluster *stroomv1.StroomCluster) *corev1.ConfigMap {
+
+	// Configure log sender with or without mtls
+	var logSenderConfig map[string]string
+
+	if stroomCluster.Spec.LogSender.MtlsEnabled {
+		logSenderConfig = map[string]string{
+			"crontab.txt": "" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/log-sender.crt --key /stroom-log-sender/certs/log-sender.key --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/log-sender.crt --key /stroom-log-sender/certs/log-sender.key --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/log-sender.crt --key /stroom-log-sender/certs/log-sender.key --compress > /dev/stdout",
+		}
+	} else {
+		logSenderConfig = map[string]string{
+			"crontab.txt": "" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --compress > /dev/stdout",
+		}
+	}
+
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      stroomCluster.GetLogSenderConfigMapName(),
 			Namespace: stroomCluster.Namespace,
 			Labels:    stroomCluster.GetLabels(),
 		},
-		Data: map[string]string{
-			"crontab.txt": "" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" --max-sleep ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cert /opt/tls/tls.crt --key /opt/tls/tls.key --cacert /opt/tls/ca.crt --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" --max-sleep ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cert /opt/tls/tls.crt --key /opt/tls/tls.key --cacert /opt/tls/ca.crt --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" --max-sleep ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cert /opt/tls/tls.crt --key /opt/tls/tls.key --cacert /opt/tls/ca.crt --compress > /dev/stdout",
-		},
+		Data: logSenderConfig,
 	}
 
 	ctrl.SetControllerReference(stroomCluster, &configMap, r.Scheme)
@@ -140,7 +156,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}, {
 		Name:  "POD_SUBDOMAIN",
-		Value: fmt.Sprintf("%v.%v.svc", stroomCluster.GetNodeSetHeadlessServiceName(nodeSet), stroomCluster.Namespace),
+		Value: fmt.Sprintf("%v.%v.svc.cluster.local", stroomCluster.GetNodeSetHeadlessServiceName(nodeSet), stroomCluster.Namespace),
 	}, {
 		Name:  "JAVA_OPTS",
 		Value: r.getJvmOptions(stroomCluster, nodeSet),
@@ -153,16 +169,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}, {
 		Name:  "STROOM_ADMIN_PORT",
 		Value: strconv.Itoa(AdminPortNumber),
-	}, {
-		Name: "STROOM_KEYSTORE_PASSWORD",
-		ValueFrom: &corev1.EnvVarSource{
-			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
-				},
-				Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
-			},
-		},
 	}, {
 		Name: "STROOM_NODE",
 		ValueFrom: &corev1.EnvVarSource{
@@ -213,60 +219,86 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}}, stroomCluster.Spec.ExtraEnv...)
 
-	// If OpenID configuration is defined, pass the OpenID client ID and secret as environment variables
-	openIdConfig := stroomCluster.Spec.OpenId
-	env = append(env, []corev1.EnvVar{
-		{
-			Name:  "STROOM_OPERATOR_OPENID_CLIENT_ID",
-			Value: openIdConfig.ClientId,
-		},
-		{
-			Name: "STROOM_OPERATOR_OPENID_CLIENT_SECRET",
+	if stroomCluster.Spec.Https.Enabled {
+		env = append(env, corev1.EnvVar{
+			Name: "STROOM_KEYSTORE_PASSWORD",
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: openIdConfig.ClientSecret.SecretName,
+						Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
 					},
-					Key: openIdConfig.ClientSecret.Key,
+					Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
 				},
 			},
-		},
-	}...)
+		})
+	}
+
+	// If OpenID configuration is defined, pass the OpenID client ID and secret as environment variables
+	openIdConfig := stroomCluster.Spec.OpenId
+	if !openIdConfig.IsZero() {
+		env = append(env, []corev1.EnvVar{
+			{
+				Name:  "STROOM_OPERATOR_OPENID_CLIENT_ID",
+				Value: openIdConfig.ClientId,
+			},
+			{
+				Name: "STROOM_OPERATOR_OPENID_CLIENT_SECRET",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: openIdConfig.ClientSecret.SecretName,
+						},
+						Key: openIdConfig.ClientSecret.Key,
+					},
+				},
+			},
+		}...)
+	}
 
 	volumes := []corev1.Volume{
 		*r.createStaticContentVolume(stroomCluster),
-		{
-			Name: StroomTlsVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: stroomCluster.Spec.Https.TlsSecretName,
-				},
-			},
-		},
 		{
 			Name: StroomApiTokenVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
-		{
-			Name: StroomKeystoreVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
 	}
-	if !logSender.IsZero() {
+
+	if stroomCluster.Spec.Https.Enabled {
 		volumes = append(volumes, corev1.Volume{
-			Name: LogSenderConfigMapName,
+			Name: StroomTlsVolumeName,
 			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: stroomCluster.GetLogSenderConfigMapName(),
-					},
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: stroomCluster.Spec.Https.TlsSecretName,
 				},
 			},
 		})
+	}
+
+	if !logSender.IsZero() {
+		var logSenderCertsOptional = true
+		volumes = append(volumes, []corev1.Volume{
+			{
+				Name: LogSenderConfigMapName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: stroomCluster.GetLogSenderConfigMapName(),
+						},
+					},
+				},
+			},
+			{
+				Name: "log-sender-certs",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: stroomCluster.Spec.LogSender.MtlsSecretName,
+						Optional:   &logSenderCertsOptional,
+					},
+				},
+			},
+		}...)
 	}
 
 	// If a Stroom node config override is provided, create a volume for it
@@ -299,10 +331,6 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		MountPath: "/stroom/scripts/node-pre-stop.sh",
 		ReadOnly:  true,
 	}, {
-		Name:      StroomKeystoreVolumeName,
-		MountPath: "/stroom/pki/tls",
-		ReadOnly:  true,
-	}, {
 		Name:      StroomApiTokenVolumeName,
 		MountPath: StroomApiTokenMountPath,
 	}, {
@@ -333,7 +361,28 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		Name:      StroomNodePvcName,
 		SubPath:   "search-results",
 		MountPath: "/stroom/search_results",
+	}, {
+		Name:      StroomNodePvcName,
+		SubPath:   "reference_staging_data",
+		MountPath: "/stroom/reference_staging_data",
+	}, {
+		Name:      StroomNodePvcName,
+		SubPath:   "analytic_store",
+		MountPath: "/lmdb/analytic_store",
+	}, {
+		Name:      StroomNodePvcName,
+		SubPath:   "duplicate_check",
+		MountPath: "/lmdb/duplicate_check",
 	}}
+
+	if stroomCluster.Spec.Https.Enabled {
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      StroomTlsVolumeName,
+			MountPath: "/stroom/pki/tls",
+			ReadOnly:  true,
+		})
+	}
+
 	r.appendConfigVolumeMounts(stroomCluster, &volumeMounts)
 
 	if len(stroomCluster.Spec.ExtraVolumes) > 0 {
@@ -343,40 +392,44 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		volumeMounts = append(volumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
 	}
 
-	initContainers := []corev1.Container{{
-		Name:            "generate-keystore",
-		Image:           stroomCluster.Spec.Image.String(),
-		ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
-		Command: []string{
-			"sh",
-			"-c",
-			"/opt/scripts/generate-keystore.sh",
-		},
-		Env: []corev1.EnvVar{{
-			Name: "STROOM_KEYSTORE_PASSWORD",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
-					},
-					Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
-				},
+	var initContainers []corev1.Container
+	if stroomCluster.Spec.Https.Enabled {
+		initContainers = append(initContainers, corev1.Container{
+			Name:            "generate-keystore",
+			Image:           stroomCluster.Spec.Image.String(),
+			ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
+			Command: []string{
+				"sh",
+				"-c",
+				"/opt/scripts/generate-keystore.sh",
 			},
-		}},
-		VolumeMounts: []corev1.VolumeMount{{
-			Name:      StaticContentVolumeName,
-			SubPath:   "generate-keystore.sh",
-			MountPath: "/opt/scripts/generate-keystore.sh",
-			ReadOnly:  true,
-		}, {
-			Name:      StroomTlsVolumeName,
-			MountPath: "/opt/tls",
-			ReadOnly:  true,
-		}, {
-			Name:      StroomKeystoreVolumeName,
-			MountPath: "/data",
-		}},
-	}}
+			Env: []corev1.EnvVar{{
+				Name: "STROOM_KEYSTORE_PASSWORD",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.SecretName,
+						},
+						Key: stroomCluster.Spec.Https.TlsKeystorePasswordSecretRef.Key,
+					},
+				},
+			}},
+			VolumeMounts: []corev1.VolumeMount{{
+				Name:      StaticContentVolumeName,
+				SubPath:   "generate-keystore.sh",
+				MountPath: "/opt/scripts/generate-keystore.sh",
+				ReadOnly:  true,
+			}, {
+				Name:      StroomTlsVolumeName,
+				MountPath: "/opt/tls",
+				ReadOnly:  true,
+			}, {
+				Name:      StroomKeystoreVolumeName,
+				MountPath: "/data",
+			}},
+			},
+		)
+	}
 
 	containers := []corev1.Container{{
 		Name:            StroomNodeContainerName,
@@ -491,8 +544,8 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				MountPath: "/stroom-log-sender/config",
 				ReadOnly:  true,
 			}, {
-				Name:      StroomTlsVolumeName,
-				MountPath: "/opt/tls",
+				Name:      "log-sender-certs",
+				MountPath: "/stroom-log-sender/certs",
 				ReadOnly:  true,
 			}},
 			Resources: resources,
@@ -639,6 +692,10 @@ func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCl
 				Port:     AppHttpsPortNumber,
 				Protocol: corev1.ProtocolTCP,
 			}, {
+				Name:     AppHttpPortName,
+				Port:     AppHttpPortNumber,
+				Protocol: corev1.ProtocolTCP,
+			}, {
 				Name:     AdminPortName,
 				Port:     AdminPortNumber,
 				Protocol: corev1.ProtocolTCP,
@@ -669,7 +726,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 		clusterName := stroomCluster.GetBaseName()
 		serviceName := stroomCluster.GetNodeSetServiceName(&nodeSet)
 
-		if nodeSet.IngressEnabled != true {
+		if nodeSet.IngressEnabled != nil && !*nodeSet.IngressEnabled {
 			continue
 		}
 
@@ -686,53 +743,71 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ingressAnnotations[k] = v
 			}
 
+			// Apply any user-provided ingress labels
+			ingressLabels := stroomCluster.GetLabels()
+			for k, v := range nodeSet.IngressLabels {
+				ingressLabels[k] = v
+			}
+
+			// Build ingress TLS object if TLS is enabled inside the cluster
+			ingressTls := []netv1.IngressTLS{{}}
+			appPortName := AppHttpPortName
+			if stroomCluster.Spec.Https.Enabled {
+				ingressTls = []netv1.IngressTLS{{
+					Hosts:      []string{ingressSettings.HostName},
+					SecretName: ingressSettings.SecretName,
+				}}
+				appPortName = AppHttpsPortName
+			}
+
 			ingresses = append(ingresses,
 				netv1.Ingress{
 					// Default route (/)
 					ObjectMeta: metav1.ObjectMeta{
 						Name:        clusterName,
 						Namespace:   stroomCluster.Namespace,
-						Labels:      stroomCluster.GetLabels(),
+						Labels:      ingressLabels,
 						Annotations: ingressAnnotations,
 					},
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ingressSettings.ClassName,
-						TLS: []netv1.IngressTLS{{
-							Hosts:      []string{ingressSettings.HostName},
-							SecretName: ingressSettings.SecretName,
-						}},
+						TLS:              ingressTls,
 						Rules: []netv1.IngressRule{
 							// Explicitly route datafeed traffic to the first non-UI NodeSet
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/noauth/datafeed", firstNonUiServiceName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/noauth/datafeed", firstNonUiServiceName, appPortName, ingressSettings.PathTypeOverride),
 
 							// All other traffic is routed to the UI NodeSets
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/", serviceName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/", serviceName, appPortName, ingressSettings.PathTypeOverride),
 						},
 					},
 				})
+
+			websocketIngressAnnotations := map[string]string{
+				"nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
+				"nginx.ingress.kubernetes.io/configuration-snippet": "\n" +
+					"proxy_set_header Upgrade $http_upgrade;\n" +
+					"proxy_set_header Connection \"Upgrade\";\n",
+			}
+
+			// Apply any user-provided annotations
+			for k, v := range nodeSet.IngressAnnotations {
+				websocketIngressAnnotations[k] = v
+			}
 
 			ingresses = append(ingresses,
 				netv1.Ingress{
 					// WebSocket endpoint
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      clusterName + "-websocket",
-						Namespace: stroomCluster.Namespace,
-						Labels:    stroomCluster.GetLabels(),
-						Annotations: map[string]string{
-							"nginx.ingress.kubernetes.io/proxy-http-version": "1.1",
-							"nginx.ingress.kubernetes.io/configuration-snippet": "\n" +
-								"proxy_set_header Upgrade $http_upgrade;\n" +
-								"proxy_set_header Connection \"Upgrade\";\n",
-						},
+						Name:        clusterName + "-websocket",
+						Namespace:   stroomCluster.Namespace,
+						Labels:      ingressLabels,
+						Annotations: websocketIngressAnnotations,
 					},
 					Spec: netv1.IngressSpec{
 						IngressClassName: &ingressSettings.ClassName,
-						TLS: []netv1.IngressTLS{{
-							Hosts:      []string{ingressSettings.HostName},
-							SecretName: ingressSettings.SecretName,
-						}},
+						TLS:              ingressTls,
 						Rules: []netv1.IngressRule{
-							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/web-socket/", serviceName),
+							r.createIngressRule(ingressSettings.HostName, netv1.PathTypePrefix, "/web-socket/", serviceName, appPortName, ingressSettings.PathTypeOverride),
 						},
 					},
 				},
@@ -743,6 +818,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 			ingressAnnotations := map[string]string{
 				"nginx.ingress.kubernetes.io/rewrite-target":  "/stroom/noauth/datafeed",
 				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
+				"haproxy.router.openshift.io/rewrite-target":  "/stroom/noauth/datafeed",
 			}
 
 			// Apply any user-provided annotations
@@ -750,22 +826,36 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ingressAnnotations[k] = v
 			}
 
+			//Apply any user-provided ingress labels
+			ingressLabels := stroomCluster.GetLabels()
+			for k, v := range nodeSet.IngressLabels {
+				ingressLabels[k] = v
+			}
+
+			//Build ingress TLS object if TLS is enabled inside the cluster
+			ingressTls := []netv1.IngressTLS{{}}
+			appPortName := AppHttpPortName
+			if stroomCluster.Spec.Https.Enabled {
+				ingressTls = []netv1.IngressTLS{{
+					Hosts:      []string{ingressSettings.HostName},
+					SecretName: ingressSettings.SecretName,
+				}}
+				appPortName = AppHttpsPortName
+			}
+
 			ingresses = append(ingresses, netv1.Ingress{
 				// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
 				ObjectMeta: metav1.ObjectMeta{
 					Name:        clusterName + "-datafeed",
 					Namespace:   stroomCluster.Namespace,
-					Labels:      stroomCluster.GetLabels(),
+					Labels:      ingressLabels,
 					Annotations: ingressAnnotations,
 				},
 				Spec: netv1.IngressSpec{
 					IngressClassName: &ingressSettings.ClassName,
-					TLS: []netv1.IngressTLS{{
-						Hosts:      []string{ingressSettings.HostName},
-						SecretName: ingressSettings.SecretName,
-					}},
+					TLS:              ingressTls,
 					Rules: []netv1.IngressRule{
-						r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/datafeeddirect", serviceName),
+						r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/datafeeddirect", serviceName, appPortName, ingressSettings.PathTypeOverride),
 					},
 				},
 			})
@@ -781,19 +871,27 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 	return ingresses
 }
 
-func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType netv1.PathType, path string, serviceName string) netv1.IngressRule {
+func (r *StroomClusterReconciler) createIngressRule(hostName string, pathType netv1.PathType, path string, serviceName string, appPortName string, pathTypeOverride bool) netv1.IngressRule {
+
+	var actualPathtype netv1.PathType
+	if pathTypeOverride {
+		actualPathtype = netv1.PathTypeImplementationSpecific
+	} else {
+		actualPathtype = pathType
+	}
+
 	return netv1.IngressRule{
 		Host: hostName,
 		IngressRuleValue: netv1.IngressRuleValue{
 			HTTP: &netv1.HTTPIngressRuleValue{
 				Paths: []netv1.HTTPIngressPath{{
 					Path:     path,
-					PathType: &pathType,
+					PathType: &actualPathtype,
 					Backend: netv1.IngressBackend{
 						Service: &netv1.IngressServiceBackend{
 							Name: serviceName,
 							Port: netv1.ServiceBackendPort{
-								Name: AppHttpsPortName,
+								Name: appPortName,
 							},
 						},
 					},

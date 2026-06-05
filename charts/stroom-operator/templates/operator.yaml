@@ -430,7 +430,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gradata/stroom-k8s-operator" }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gchq/stroom-k8s-operator" }}:{{ .Values.image.tag | default .Chart.AppVersion }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         livenessProbe:
           httpGet:
