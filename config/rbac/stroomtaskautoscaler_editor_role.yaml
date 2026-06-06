@@ -4,21 +4,29 @@ kind: ClusterRole
 metadata:
   name: stroomtaskautoscaler-editor-role
 rules:
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - stroomtaskautoscalers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - stroomtaskautoscalers/status
-  verbs:
-  - get
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - stroomtaskautoscalers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - stroomtaskautoscalers/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - stroomtaskautoscalers/status
+    verbs:
+      - get
+      - patch
+      - update

@@ -2,61 +2,16 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: manager-role
 rules:
-- apiGroups:
-  - apps
-  resources:
-  - statefulsets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - batch
-  resources:
-  - jobs
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - ""
   resources:
   - configmaps
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - persistentvolumeclaims
+  - secrets
+  - serviceaccounts
+  - services
   verbs:
   - create
   - delete
@@ -75,9 +30,9 @@ rules:
   - list
   - watch
 - apiGroups:
-  - ""
+  - apps
   resources:
-  - secrets
+  - statefulsets
   verbs:
   - create
   - delete
@@ -87,21 +42,10 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - batch
   resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - services
+  - cronjobs
+  - jobs
   verbs:
   - create
   - delete
@@ -133,83 +77,8 @@ rules:
   - stroom.gchq.github.io
   resources:
   - databasebackups
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - databasebackups/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - databasebackups/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
   - databaseservers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - databaseservers/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - databaseservers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
   - stroomclusters
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - stroomclusters/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - stroomclusters/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
   - stroomtaskautoscalers
   verbs:
   - create
@@ -222,12 +91,18 @@ rules:
 - apiGroups:
   - stroom.gchq.github.io
   resources:
+  - databasebackups/finalizers
+  - databaseservers/finalizers
+  - stroomclusters/finalizers
   - stroomtaskautoscalers/finalizers
   verbs:
   - update
 - apiGroups:
   - stroom.gchq.github.io
   resources:
+  - databasebackups/status
+  - databaseservers/status
+  - stroomclusters/status
   - stroomtaskautoscalers/status
   verbs:
   - get
