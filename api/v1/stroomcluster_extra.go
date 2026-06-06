@@ -8,14 +8,18 @@ const (
 )
 
 type HttpsSettings struct {
-	// Boolean value controling if TLS is enabled within the cluster
-	Enabled bool `json:"enabled"`
 	// Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
-	// +kubebuilder:validation:Optional
-	TlsSecretName string `json:"tlsSecretName,omitempty"`
+	TlsSecretName string `json:"tlsSecretName"`
 	// Password of the keystore and truststore
-	// +kubebuilder:validation:Optional
-	TlsKeystorePasswordSecretRef SecretItem `json:"tlsKeystorePasswordSecret,omitempty"`
+	TlsKeystorePasswordSecretRef SecretItem `json:"tlsKeystorePasswordSecret"`
+}
+
+func (in *HttpsSettings) IsZero() bool {
+	if in == nil {
+		return true
+	}
+
+	return in.TlsSecretName == "" || in.TlsKeystorePasswordSecretRef == SecretItem{}
 }
 
 type IngressSettings struct {
@@ -41,7 +45,8 @@ func (in *OpenIdConfiguration) IsZero() bool {
 	if in == nil {
 		return true
 	}
-	return *in == OpenIdConfiguration{} || in.ClientId == ""
+
+	return in.ClientId == "" || in.ClientSecret == SecretItem{}
 }
 
 type SecretItem struct {

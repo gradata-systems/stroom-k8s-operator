@@ -221,7 +221,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}}, stroomCluster.Spec.ExtraEnv...)
 
-	if stroomCluster.Spec.Https.Enabled {
+	if !stroomCluster.Spec.Https.IsZero() {
 		env = append(env, corev1.EnvVar{
 			Name: "STROOM_KEYSTORE_PASSWORD",
 			ValueFrom: &corev1.EnvVarSource{
@@ -267,7 +267,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}
 
-	if stroomCluster.Spec.Https.Enabled {
+	if !stroomCluster.Spec.Https.IsZero() {
 		volumes = append(volumes, []corev1.Volume{
 			{
 				Name: StroomTlsVolumeName,
@@ -384,7 +384,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		MountPath: "/lmdb/duplicate_check",
 	}}
 
-	if stroomCluster.Spec.Https.Enabled {
+	if !stroomCluster.Spec.Https.IsZero() {
 		volumeMounts = append(volumeMounts, corev1.VolumeMount{
 			Name:      StroomKeystoreVolumeName,
 			MountPath: "/stroom/pki/tls",
@@ -402,7 +402,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	}
 
 	var initContainers []corev1.Container
-	if stroomCluster.Spec.Https.Enabled {
+	if !stroomCluster.Spec.Https.IsZero() {
 		initContainers = append(initContainers, corev1.Container{
 			Name:            "generate-keystore",
 			Image:           stroomCluster.Spec.Image.String(),
@@ -754,8 +754,13 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 		}
 
 		if nodeSet.Role != stroomv1.ProcessingNodeRole {
+			nginxBackendProtocol := "HTTP"
+			if !stroomCluster.Spec.Https.IsZero() {
+				nginxBackendProtocol = "HTTPS"
+			}
+
 			ingressAnnotations := map[string]string{
-				"nginx.ingress.kubernetes.io/backend-protocol": "HTTPS",
+				"nginx.ingress.kubernetes.io/backend-protocol": nginxBackendProtocol,
 				"nginx.ingress.kubernetes.io/affinity":         "cookie",
 				"nginx.ingress.kubernetes.io/affinity-mode":    "persistent",
 				"nginx.ingress.kubernetes.io/proxy-body-size":  "0", // Disable client request payload size checking
@@ -775,7 +780,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 			// Build ingress TLS object if TLS is enabled inside the cluster
 			ingressTls := []netv1.IngressTLS{{}}
 			appPortName := AppHttpPortName
-			if stroomCluster.Spec.Https.Enabled {
+			if !stroomCluster.Spec.Https.IsZero() {
 				ingressTls = []netv1.IngressTLS{{
 					Hosts:      []string{ingressSettings.HostName},
 					SecretName: ingressSettings.SecretName,
@@ -827,7 +832,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 			//Build ingress TLS object if TLS is enabled inside the cluster
 			ingressTls := []netv1.IngressTLS{{}}
 			appPortName := AppHttpPortName
-			if stroomCluster.Spec.Https.Enabled {
+			if !stroomCluster.Spec.Https.IsZero() {
 				ingressTls = []netv1.IngressTLS{{
 					Hosts:      []string{ingressSettings.HostName},
 					SecretName: ingressSettings.SecretName,

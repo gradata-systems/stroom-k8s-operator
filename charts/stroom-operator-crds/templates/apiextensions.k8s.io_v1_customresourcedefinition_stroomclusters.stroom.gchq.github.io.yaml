@@ -2227,12 +2227,8 @@ spec:
                   type: object
                 type: array
               https:
-                description: HTTPS settings
+                description: HTTPS settings. Omit to use plain-text (HTTP)
                 properties:
-                  enabled:
-                    description: Boolean value controling if TLS is enabled within
-                      the cluster
-                    type: boolean
                   tlsKeystorePasswordSecret:
                     description: Password of the keystore and truststore
                     properties:
@@ -2249,7 +2245,8 @@ spec:
                       and `truststore.p12`
                     type: string
                 required:
-                - enabled
+                - tlsKeystorePasswordSecret
+                - tlsSecretName
                 type: object
               image:
                 properties:
@@ -4431,7 +4428,6 @@ spec:
             required:
             - appDatabaseName
             - databaseServerRef
-            - https
             - image
             - ingress
             - nodeSets

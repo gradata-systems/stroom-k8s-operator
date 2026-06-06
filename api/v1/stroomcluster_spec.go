@@ -27,8 +27,9 @@ type StroomClusterSpec struct {
 	ConfigMapRef ConfigMapRef `json:"configMapRef,omitempty"`
 	// Configures OpenID to enable operator components to query the Stroom API
 	OpenId OpenIdConfiguration `json:"openId"`
-	// HTTPS settings
-	Https HttpsSettings `json:"https"`
+	// HTTPS settings. Omit to use plain-text (HTTP)
+	// +kubebuilder:validation:Optional
+	Https HttpsSettings `json:"https,omitempty"`
 	// +kubebuilder:validation:Required
 	Ingress IngressSettings `json:"ingress"`
 	// Pod management policy to use when deploying or scaling the StroomCluster
@@ -65,6 +66,10 @@ type ConfigMapRef struct {
 }
 
 func (in *ConfigMapRef) IsZero() bool {
+	if in == nil {
+		return true
+	}
+
 	return in.Name == "" && in.ItemName == ""
 }
 
@@ -88,6 +93,10 @@ type LogSenderSettings struct {
 }
 
 func (in *LogSenderSettings) IsZero() bool {
+	if in == nil {
+		return true
+	}
+
 	return !in.Enabled
 }
 
@@ -97,5 +106,9 @@ type TlsSettings struct {
 }
 
 func (in *TlsSettings) IsZero() bool {
+	if in == nil {
+		return true
+	}
+
 	return in.SecretName == ""
 }
