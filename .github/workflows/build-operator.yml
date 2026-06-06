@@ -2,8 +2,8 @@ name: Build Operator
 
 on:
   push:
-    branches: [master]
-  pull_request: 
+    branches: [ master ]
+  pull_request:
 
 jobs:
   build:
@@ -18,10 +18,10 @@ jobs:
         run: |
           export ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n $(uname -m) ;; esac)
           export OS=$(uname | awk '{print tolower($0)}')
-          export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/v1.42.2
-          curl -LO ${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}
-          chmod +x operator-sdk_${OS}_${ARCH} && sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
-          chmod +x ./bin/*
+          export OPERATOR_SDK_BINARY=operator-sdk_${OS}_${ARCH}
+          export OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/v1.42.2/${OPERATOR_SDK_BINARY}
+          curl -LO ${OPERATOR_SDK_DL_URL}
+          chmod +x ${OPERATOR_SDK_BINARY} && sudo mv operator-sdk_${OS}_${ARCH} /usr/local/bin/operator-sdk
       - name: Build
         run: make build
       - name: Test
