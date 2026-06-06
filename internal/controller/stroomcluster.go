@@ -73,16 +73,17 @@ func (r *StroomClusterReconciler) createConfigMap(stroomCluster *stroomv1.Stroom
 }
 
 func (r *StroomClusterReconciler) createLogSenderConfigMap(stroomCluster *stroomv1.StroomCluster) *corev1.ConfigMap {
+	var logSender = stroomCluster.Spec.LogSender
 
-	// Configure log sender with or without mtls
+	// Configure log sender with or without client certificate authentication
 	var logSenderConfig map[string]string
 
-	if stroomCluster.Spec.LogSender.MtlsEnabled {
+	if !logSender.Tls.IsZero() {
 		logSenderConfig = map[string]string{
 			"crontab.txt": "" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/tls.crt --key /stroom-log-sender/certs/tls.key --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/tls.crt --key /stroom-log-sender/certs/tls.key --compress > /dev/stdout\n" +
-				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --no-secure --cert 	/stroom-log-sender/certs/tls.crt --key /stroom-log-sender/certs/tls.key --compress > /dev/stdout",
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/access\" STROOM-ACCESS-EVENTS \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cacert /stroom-log-sender/certs/ca.crt --cert /stroom-log-sender/certs/tls.crt --key /stroom-log-sender/certs/tls.key --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/app\"    STROOM-APP-EVENTS    \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cacert /stroom-log-sender/certs/ca.crt --cert /stroom-log-sender/certs/tls.crt --key /stroom-log-sender/certs/tls.key --compress > /dev/stdout\n" +
+				"* * * * * ${LOG_SENDER_SCRIPT} \"${STROOM_BASE_LOGS_DIR}/user\"   STROOM-USER-EVENTS   \"${STROOM_DATAFEED_URL}\" --system \"${STROOM_SYSTEM_NAME}\" --environment \"${STROOM_ENVIRONMENT_NAME}\" --file-regex \"${STROOM_FILE_REGEX}\" -m ${STROOM_MAX_DELAY_SECS} --delete-after-sending --cacert /stroom-log-sender/certs/ca.crt --cert /stroom-log-sender/certs/tls.crt --key /stroom-log-sender/certs/tls.key --compress > /dev/stdout",
 		}
 	} else {
 		logSenderConfig = map[string]string{
@@ -297,12 +298,12 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			},
 		})
 
-		if logSender.MtlsEnabled && logSender.MtlsSecretName != "" {
+		if !logSender.Tls.IsZero() {
 			volumes = append(volumes, corev1.Volume{
 				Name: LogSenderCertsVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
-						SecretName: stroomCluster.Spec.LogSender.MtlsSecretName,
+						SecretName: stroomCluster.Spec.LogSender.Tls.SecretName,
 					},
 				},
 			})
@@ -578,7 +579,7 @@ func (r *StroomClusterReconciler) createLogSenderContainer(stroomCluster *stroom
 		},
 	}
 
-	if logSender.MtlsEnabled && logSender.MtlsSecretName != "" {
+	if !logSender.Tls.IsZero() {
 		logSenderVolumeMounts = append(logSenderVolumeMounts, corev1.VolumeMount{
 			Name:      LogSenderCertsVolumeName,
 			MountPath: "/stroom-log-sender/certs",

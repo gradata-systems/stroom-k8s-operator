@@ -2315,10 +2315,6 @@ spec:
                     description: PullPolicy describes a policy for if/when to pull
                       a container image
                     type: string
-                  mtlsEnabled:
-                    type: boolean
-                  mtlsSecretName:
-                    type: string
                   resources:
                     description: ResourceRequirements describes the compute resource
                       requirements.
@@ -2573,10 +2569,18 @@ spec:
                   systemName:
                     description: Name of the `System` to set in feed metadata
                     type: string
+                  tls:
+                    properties:
+                      secretName:
+                        description: Name of the TLS Secret containing a CA certificate
+                          (ca.crt) and client certificate/key pair (tls.crt and tls.key)
+                        type: string
+                    required:
+                    - secretName
+                    type: object
                 required:
                 - enabled
                 - image
-                - mtlsEnabled
                 type: object
               nodeSets:
                 description: |-

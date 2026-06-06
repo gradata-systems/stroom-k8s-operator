@@ -82,12 +82,20 @@ type LogSenderSettings struct {
 	// Name of the `Environment` to set in feed metadata. If omitted, the cluster name is used (converted to UPPERCASE).
 	EnvironmentName string `json:"environmentName,omitempty"`
 	// Name of the `System` to set in feed metadata
-	SystemName     string                      `json:"systemName,omitempty"`
-	Resources      corev1.ResourceRequirements `json:"resources,omitempty"`
-	MtlsEnabled    bool                        `json:"mtlsEnabled"`
-	MtlsSecretName string                      `json:"mtlsSecretName,omitempty"`
+	SystemName string                      `json:"systemName,omitempty"`
+	Resources  corev1.ResourceRequirements `json:"resources,omitempty"`
+	Tls        TlsSettings                 `json:"tls,omitempty"`
 }
 
 func (in *LogSenderSettings) IsZero() bool {
 	return !in.Enabled
+}
+
+type TlsSettings struct {
+	// Name of the TLS Secret containing a CA certificate (ca.crt) and client certificate/key pair (tls.crt and tls.key)
+	SecretName string `json:"secretName"`
+}
+
+func (in *TlsSettings) IsZero() bool {
+	return in.SecretName == ""
 }
