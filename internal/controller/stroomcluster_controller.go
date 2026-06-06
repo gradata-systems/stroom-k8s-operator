@@ -184,9 +184,9 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			})
 			if err != nil {
 				return ctrl.Result{}, err
-			} else if operationResult == controllerutil.OperationResultNone {
-				logger.Info("StatefulSet reconciled", "Result", result, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
 			}
+
+			logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
 		}
 
 		foundService := corev1.Service{}
