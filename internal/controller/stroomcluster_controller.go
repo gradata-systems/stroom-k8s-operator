@@ -175,13 +175,17 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		existingStatefulSet := appsv1.StatefulSet{}
 
-		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
+		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
 			newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
-			logger.Info("Reconciling StatefulSet", "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
 			existingStatefulSet.Spec.Replicas = newStatefulSet.Spec.Replicas
 			existingStatefulSet.Spec.Template = newStatefulSet.Spec.Template
 			return nil
 		})
+		if err != nil {
+			return ctrl.Result{}, err
+		} else if operationResult == controllerutil.OperationResultNone {
+			logger.Info("StatefulSet reconciled", "Result", result, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
+		}
 
 		foundService := corev1.Service{}
 		serviceName := stroomCluster.GetNodeSetHeadlessServiceName(&nodeSet)
