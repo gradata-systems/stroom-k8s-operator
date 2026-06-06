@@ -117,6 +117,6 @@ function set_job_status() {
   shift 2
 
   # Change the state of the provided job name list. If none provided, change the state of all jobs.
-  managed_jobs=$(jq -Rnc --arg s "${STROOM_NODE_MANAGED_JOBS}" '$s | split(",") | @json')
+  managed_jobs=$(jq -Rnc --arg s "${STROOM_NODE_MANAGED_JOBS}" '$s | split(",")')
   call_api job/v1/setJobsEnabled/"$node_name" -X PUT -d "{ \"enabled\": $enabled, \"includeJobs\": $managed_jobs }"
 }
