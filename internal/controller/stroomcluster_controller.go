@@ -177,8 +177,9 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
 			newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
-			logger.Info("Reconciling StatefulSet", "Namespace", newStatefulSet.Namespace, "Name", newStatefulSet.Name)
-			existingStatefulSet.Spec = newStatefulSet.Spec
+			logger.Info("Reconciling StatefulSet", "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
+			existingStatefulSet.Spec.Replicas = newStatefulSet.Spec.Replicas
+			existingStatefulSet.Spec.Template = newStatefulSet.Spec.Template
 			return nil
 		})
 
