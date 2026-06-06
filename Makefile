@@ -213,7 +213,7 @@ build-offline-bundle: build docker-build docker-push manifests kustomize
 
 ##@ Build Helm chart
 
-build-helm-chart: build manifests
+build-helm-chart: build manifests kustomize
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
 	$(KUSTOMIZE) build config/crd --output charts/stroom-operator-crds/templates/
