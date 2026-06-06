@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -173,21 +174,23 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		existingStatefulSet := appsv1.StatefulSet{}
 		newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
-
-		if err := r.Get(ctx, types.NamespacedName{Name: newStatefulSet.Name, Namespace: newStatefulSet.Namespace}, &existingStatefulSet); err == nil {
-			operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
-				existingStatefulSet.Spec.Replicas = newStatefulSet.Spec.Replicas
-				existingStatefulSet.Spec.Template = newStatefulSet.Spec.Template
-				return nil
-			})
-			if err != nil {
-				return ctrl.Result{}, err
-			}
-
-			logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
+		existingStatefulSet := appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newStatefulSet.Name,
+				Namespace: newStatefulSet.Namespace,
+			},
 		}
+
+		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
+			existingStatefulSet.Spec = newStatefulSet.Spec
+			return nil
+		})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
 
 		foundService := corev1.Service{}
 		serviceName := stroomCluster.GetNodeSetHeadlessServiceName(&nodeSet)
