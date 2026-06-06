@@ -174,17 +174,19 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		existingStatefulSet := appsv1.StatefulSet{}
+		newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
 
-		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
-			newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
-			existingStatefulSet.Spec.Replicas = newStatefulSet.Spec.Replicas
-			existingStatefulSet.Spec.Template = newStatefulSet.Spec.Template
-			return nil
-		})
-		if err != nil {
-			return ctrl.Result{}, err
-		} else if operationResult == controllerutil.OperationResultNone {
-			logger.Info("StatefulSet reconciled", "Result", result, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
+		if err := r.Get(ctx, types.NamespacedName{Name: newStatefulSet.Name, Namespace: newStatefulSet.Namespace}, &existingStatefulSet); err == nil {
+			operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
+				existingStatefulSet.Spec.Replicas = newStatefulSet.Spec.Replicas
+				existingStatefulSet.Spec.Template = newStatefulSet.Spec.Template
+				return nil
+			})
+			if err != nil {
+				return ctrl.Result{}, err
+			} else if operationResult == controllerutil.OperationResultNone {
+				logger.Info("StatefulSet reconciled", "Result", result, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
+			}
 		}
 
 		foundService := corev1.Service{}
