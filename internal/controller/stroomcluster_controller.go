@@ -173,24 +173,14 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		foundStatefulSet := appsv1.StatefulSet{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetNodeSetName(&nodeSet), stroomCluster.Namespace, "StatefulSet", &foundStatefulSet, func() error {
-			// Create a StatefulSet for the NodeSet
-			resource := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
-			logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
-			return r.Create(ctx, resource)
-		})
-		if err != nil {
-			return result, err
-		} else if !result.IsZero() {
-			// StatefulSet was created (didn't exist before), so requeue
-			return result, nil
-		}
+		existingStatefulSet := appsv1.StatefulSet{}
 
-		// StatefulSet already exists, so update it based on any StroomCluster/NodeSet configuration changes
-		if err := r.updateNodeSet(ctx, &stroomCluster, &nodeSet, &foundStatefulSet); err != nil {
-			return ctrl.Result{}, err
-		}
+		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
+			newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
+			logger.Info("Reconciling StatefulSet", "Namespace", newStatefulSet.Namespace, "Name", newStatefulSet.Name)
+			existingStatefulSet.Spec = newStatefulSet.Spec
+			return nil
+		})
 
 		foundService := corev1.Service{}
 		serviceName := stroomCluster.GetNodeSetHeadlessServiceName(&nodeSet)
@@ -241,55 +231,6 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	// TODO: Add node list to status
 
 	return ctrl.Result{}, nil
-}
-
-func (r *StroomClusterReconciler) updateNodeSet(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, statefulSet *appsv1.StatefulSet) error {
-	logger := log.FromContext(ctx)
-	podSpec := &statefulSet.Spec.Template.Spec
-
-	// Update the NodeSet replica count if different to the spec
-	oldReplicaCount := *statefulSet.Spec.Replicas
-	newReplicaCount := nodeSet.Count
-	if oldReplicaCount != newReplicaCount {
-		// Scale the NodeSet
-		statefulSet.Spec.Replicas = &nodeSet.Count
-		logger.Info(fmt.Sprintf("NodeSet replicas changed from %v to %v", oldReplicaCount, newReplicaCount),
-			"StroomCluster", stroomCluster.Name, "NodeSet", nodeSet.Name)
-
-		// Delete excess PVCs, depending on deletion policy
-		if err := r.deletePvcs(ctx, stroomCluster, nodeSet, oldReplicaCount, newReplicaCount); err != nil {
-			return err
-		}
-	}
-
-	// Update container image and/or tag if different
-	oldImage := podSpec.Containers[0].Image
-	newImage := stroomCluster.Spec.Image
-	if newImage.String() != oldImage {
-		podSpec.Containers[0].Image = newImage.String()
-		logger.Info(fmt.Sprintf("Stroom node pod image changed to '%v'", newImage.String()), "StroomCluster", stroomCluster.Name)
-	}
-
-	// Check other properties
-
-	if podSpec.Containers[0].ImagePullPolicy != stroomCluster.Spec.ImagePullPolicy {
-		podSpec.Containers[0].ImagePullPolicy = stroomCluster.Spec.ImagePullPolicy
-		logger.Info("ImagePullPolicy changed", "StroomCluster", stroomCluster.Name)
-	}
-	if *podSpec.TerminationGracePeriodSeconds != stroomCluster.Spec.NodeTerminationPeriodSecs {
-		*podSpec.TerminationGracePeriodSeconds = stroomCluster.Spec.NodeTerminationPeriodSecs
-		logger.Info("TerminationGracePeriodSeconds changed", "StroomCluster", stroomCluster.Name)
-	}
-
-	// Commit the update
-	if err := r.Update(ctx, statefulSet); err != nil {
-		logger.Error(err, "NodeSet StatefulSet could not be updated", "StroomCluster", stroomCluster.Name, "NodeSet", nodeSet.Name)
-		return err
-	} else {
-		logger.Info("NodeSet configuration updated", "StroomCluster", stroomCluster.Name, "NodeSet", nodeSet.Name)
-	}
-
-	return nil
 }
 
 func (r *StroomClusterReconciler) deletePvcs(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, oldReplicaCount int32, newReplicaCount int32) error {
