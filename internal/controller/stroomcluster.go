@@ -221,6 +221,24 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		},
 	}}, stroomCluster.Spec.ExtraEnv...)
 
+	// List the jobs that should be managed by the node startup and shutdown scripts.
+	// These are typically node role dependent. Frontend nodes for instance, shouldn't have the `Data Processor` node
+	// enabled.
+	var includeJobs []string
+	if nodeSet.ManagedJobs != nil && len(nodeSet.ManagedJobs) > 0 {
+		includeJobs = nodeSet.ManagedJobs
+	} else if nodeSet.Role == stroomv1.ProcessingNodeRole {
+		includeJobs = []string{}
+	} else if nodeSet.Role == stroomv1.FrontendNodeRole {
+		includeJobs = []string{
+			"Reindex Content",
+		}
+	}
+	env = append(env, corev1.EnvVar{
+		Name:  "STROOM_NODE_MANAGED_JOBS",
+		Value: strings.Join(includeJobs, ","),
+	})
+
 	if !stroomCluster.Spec.Https.IsZero() {
 		env = append(env, corev1.EnvVar{
 			Name: "STROOM_KEYSTORE_PASSWORD",

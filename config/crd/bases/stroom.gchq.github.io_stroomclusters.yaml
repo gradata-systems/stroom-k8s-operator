@@ -3755,6 +3755,15 @@ spec:
                             PersistentVolume backing this claim.
                           type: string
                       type: object
+                    managedJobs:
+                      description: |-
+                        Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.
+                        If omitted, the default is for processing nodes to handle all enabled jobs, while frontend nodes are
+                        only assigned the job `Reindex Content`.
+                        All other jobs may be managed manually via the Stroom Jobs pane.
+                      items:
+                        type: string
+                      type: array
                     memoryOptions:
                       description: MemoryOptions define JVM memory parameters
                       properties:
@@ -4027,7 +4036,7 @@ spec:
                     readinessProbeTimings:
                       description: |-
                         ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
-                        removing them from service while they are non-responsive to healthchecks.
+                        removing them from service while they are non-responsive to health checks.
                       properties:
                         failureThreshold:
                           default: 10
@@ -4313,7 +4322,7 @@ spec:
                     startupProbeTimings:
                       description: |-
                         StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
-                        typically takes to start up and respond to healthchecks.
+                        typically takes to start up and respond to health checks.
                       properties:
                         failureThreshold:
                           default: 10

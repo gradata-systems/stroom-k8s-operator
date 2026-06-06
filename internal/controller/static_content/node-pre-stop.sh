@@ -8,8 +8,8 @@ log_file='/stroom/logs/k8s/pre-stop.log'
 mkdir -p "$(dirname $log_file)"
 
 # Disable all node tasks, so the node can drain
-call_api job/v1/setJobsEnabled/"${STROOM_NODE}" -X PUT -d '{ "enabled": false }'
-log "Node ${STROOM_NODE} jobs enabled" $log_file
+set_job_status "${STROOM_NODE}" 'false'
+log "Node ${STROOM_NODE} jobs disabled" $log_file
 
 # Disable the node so the cluster doesn't attempt to contact it while it's unresponsive
 call_api node/v1/enabled/"${STROOM_NODE}" -X PUT -d false

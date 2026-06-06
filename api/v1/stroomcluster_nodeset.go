@@ -19,6 +19,11 @@ type NodeSet struct {
 	//
 	// If this property is omitted, nodes in the NodeSet will assume both Processing and Frontend roles.
 	Role NodeRole `json:"role,omitempty"`
+	// Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.
+	// If omitted, the default is for processing nodes to handle all enabled jobs, while frontend nodes are
+	// only assigned the job `Reindex Content`.
+	// All other jobs may be managed manually via the Stroom Jobs pane.
+	ManagedJobs []string `json:"managedJobs,omitempty"`
 	// LocalDataVolumeClaim provides persistent storage for each Stroom node's data
 	LocalDataVolumeClaim corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
 	// Resources determine how much CPU and memory each individual Stroom node Pod within the NodeSet requests and is
@@ -37,10 +42,10 @@ type NodeSet struct {
 	// controller provided labels.
 	IngressLabels map[string]string `json:"ingressLabels,omitempty"`
 	// StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
-	// typically takes to start up and respond to healthchecks.
+	// typically takes to start up and respond to health checks.
 	StartupProbeTimings ProbeTimings `json:"startupProbeTimings,omitempty"`
 	// ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
-	// removing them from service while they are non-responsive to healthchecks.
+	// removing them from service while they are non-responsive to health checks.
 	ReadinessProbeTimings ProbeTimings `json:"readinessProbeTimings,omitempty"`
 	// LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is
 	// restarted.
