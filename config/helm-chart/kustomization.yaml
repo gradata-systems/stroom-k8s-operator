@@ -33,10 +33,10 @@ patches:
         path: /metadata/labels/HELM_LABELS
         value: ""
       - op: replace
-        path: /spec/template/spec/containers/1/imagePullPolicy
+        path: /spec/template/spec/containers/0/imagePullPolicy
         value: HELM_IMAGE_PULL_POLICY
       - op: replace
-        path: /spec/template/spec/containers/1/resources
+        path: /spec/template/spec/containers/0/resources
         value: HELM_RESOURCES
       - op: replace
         path: /spec/template/spec/nodeSelector

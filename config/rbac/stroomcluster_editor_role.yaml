@@ -4,21 +4,29 @@ kind: ClusterRole
 metadata:
   name: stroomcluster-editor-role
 rules:
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - stroomclusters
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - stroomclusters/status
-  verbs:
-  - get
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - stroomclusters
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - stroomclusters/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - stroomclusters/status
+    verbs:
+      - get
+      - patch
+      - update

@@ -4,21 +4,29 @@ kind: ClusterRole
 metadata:
   name: databaseserver-editor-role
 rules:
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - databaseservers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - stroom.gchq.github.io
-  resources:
-  - databaseservers/status
-  verbs:
-  - get
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - databaseservers
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - databaseservers/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - stroom.gchq.github.io
+    resources:
+      - databaseservers/status
+    verbs:
+      - get
+      - patch
+      - update
