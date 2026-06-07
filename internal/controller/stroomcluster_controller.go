@@ -202,7 +202,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		existingService := corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      newService.Name,
-				Namespace: newService.Name,
+				Namespace: newService.Namespace,
 			},
 		}
 		operationResult, err = controllerutil.CreateOrUpdate(ctx, r.Client, &existingService, func() error {
@@ -220,7 +220,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		existingService = corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      newService.Name,
-				Namespace: newService.Name,
+				Namespace: newService.Namespace,
 			},
 		}
 		operationResult, err = controllerutil.CreateOrUpdate(ctx, r.Client, &existingService, func() error {
