@@ -219,6 +219,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				Key: dbInfo.UserName,
 			},
 		},
+	}, {
+		Name:  "STROOM_TEMP",
+		Value: "/stroom/tmp",
 	}}, stroomCluster.Spec.ExtraEnv...)
 
 	// List the jobs that should be managed by the node startup and shutdown scripts.
