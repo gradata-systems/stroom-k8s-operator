@@ -151,6 +151,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingConfigMap, func() error {
 		existingConfigMap.Labels = newConfigMap.Labels
 		existingConfigMap.Annotations = newConfigMap.Annotations
+		existingConfigMap.OwnerReferences = newConfigMap.OwnerReferences
 		existingConfigMap.Data = newConfigMap.Data
 		return nil
 	})
@@ -172,6 +173,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingConfigMap, func() error {
 			existingConfigMap.Labels = newConfigMap.Labels
 			existingConfigMap.Annotations = newConfigMap.Annotations
+			existingConfigMap.OwnerReferences = newConfigMap.OwnerReferences
 			existingConfigMap.Data = newConfigMap.Data
 			return nil
 		})
@@ -196,6 +198,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			oldReplicaCount = existingStatefulSet.Status.Replicas
 			existingStatefulSet.Labels = newStatefulSet.Labels
 			existingStatefulSet.Annotations = newStatefulSet.Annotations
+			existingStatefulSet.OwnerReferences = newStatefulSet.OwnerReferences
 			existingStatefulSet.Spec = newStatefulSet.Spec
 			return nil
 		})
@@ -222,6 +225,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		operationResult, err = controllerutil.CreateOrUpdate(ctx, r.Client, &existingService, func() error {
 			existingService.Labels = newService.Labels
 			existingService.Annotations = newService.Annotations
+			existingService.OwnerReferences = newService.OwnerReferences
 			existingService.Spec = newService.Spec
 			return nil
 		})
@@ -242,6 +246,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		operationResult, err = controllerutil.CreateOrUpdate(ctx, r.Client, &existingService, func() error {
 			existingService.Labels = newService.Labels
 			existingService.Annotations = newService.Annotations
+			existingService.OwnerReferences = newService.OwnerReferences
 			existingService.Spec = newService.Spec
 			return nil
 		})
@@ -263,6 +268,7 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingIngress, func() error {
 			existingIngress.Labels = newIngress.Labels
 			existingIngress.Annotations = newIngress.Annotations
+			existingIngress.OwnerReferences = newIngress.OwnerReferences
 			existingIngress.Spec = newIngress.Spec
 			return nil
 		})
