@@ -113,8 +113,8 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Create child objects
 
-	foundServiceAccount := corev1.ServiceAccount{}
-	result, err := r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "ServiceAccount", &foundServiceAccount, func() error {
+	existingServiceAccount := corev1.ServiceAccount{}
+	result, err := r.getOrCreateObject(ctx, stroomCluster.GetBaseName(), stroomCluster.Namespace, "ServiceAccount", &existingServiceAccount, func() error {
 		// Create a new ServiceAccount
 		resource := r.createServiceAccount(&stroomCluster)
 		logger.Info("Creating a new ServiceAccount", "Namespace", resource.Namespace, "Name", resource.Name)
@@ -127,53 +127,59 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Create a ConfigMap containing Stroom configuration and lifecycle scripts
-	foundConfigMap := corev1.ConfigMap{}
-	result, err = r.getOrCreateObject(ctx, stroomCluster.GetStaticContentConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundConfigMap, func() error {
-		if files, err := StaticFiles.ReadDir("static_content"); err != nil {
-			logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
-			return err
-		} else {
-			allFileData := make(map[string]string)
-			for _, file := range files {
-				if data, err := StaticFiles.ReadFile(path.Join("static_content", file.Name())); err != nil {
-					logger.Error(err, "Could not read static file", "Filename", file.Name())
-					return err
-				} else {
-					allFileData[file.Name()] = string(data)
-				}
+	allFileData := make(map[string]string)
+	if files, err := StaticFiles.ReadDir("static_content"); err != nil {
+		logger.Error(err, "Could not read static files to populate ConfigMap", "StroomCluster", stroomCluster.Name)
+		return ctrl.Result{}, err
+	} else {
+		for _, file := range files {
+			if data, err := StaticFiles.ReadFile(path.Join("static_content", file.Name())); err != nil {
+				logger.Error(err, "Could not read static file", "Filename", file.Name())
+				return ctrl.Result{}, err
+			} else {
+				allFileData[file.Name()] = string(data)
 			}
-
-			// Create the ConfigMap
-			resource := r.createConfigMap(&stroomCluster, allFileData)
-			logger.Info("Creating static content ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
-			return r.Create(ctx, resource)
 		}
+	}
+	newConfigMap := r.createConfigMap(&stroomCluster, allFileData)
+	existingConfigMap := corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      newConfigMap.Name,
+			Namespace: newConfigMap.Namespace,
+		},
+	}
+	operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingConfigMap, func() error {
+		existingConfigMap.Data = newConfigMap.Data
+		return nil
 	})
 	if err != nil {
-		return result, err
-	} else if !result.IsZero() {
-		return result, nil
+		return ctrl.Result{}, err
 	}
+	logger.Info("Static content ConfigMap reconciled", "Result", operationResult, "Namespace", existingConfigMap.Namespace, "Name", existingConfigMap.Name)
 
 	// Create a ConfigMap for stroom-log-sender
 	logSender := stroomCluster.Spec.LogSender
 	if !logSender.IsZero() {
-		foundLogSenderConfigMap := corev1.ConfigMap{}
-		result, err = r.getOrCreateObject(ctx, stroomCluster.GetLogSenderConfigMapName(), stroomCluster.Namespace, "ConfigMap", &foundLogSenderConfigMap, func() error {
-			// Create the ConfigMap
-			resource := r.createLogSenderConfigMap(&stroomCluster)
-			logger.Info("Creating stroom-log-sender ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
-			return r.Create(ctx, resource)
+		newConfigMap := r.createLogSenderConfigMap(&stroomCluster)
+		existingConfigMap := corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newConfigMap.Name,
+				Namespace: newConfigMap.Namespace,
+			},
+		}
+		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingConfigMap, func() error {
+			existingConfigMap.Data = newConfigMap.Data
+			return nil
 		})
 		if err != nil {
-			return result, err
-		} else if !result.IsZero() {
-			return result, nil
+			return ctrl.Result{}, err
 		}
+		logger.Info("Log sender ConfigMap reconciled", "Result", operationResult, "Namespace", existingConfigMap.Namespace, "Name", existingConfigMap.Name)
 	}
 
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
+		// Create a StatefulSet representing the NodeSet's nodes
 		newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
 		existingStatefulSet := appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
@@ -181,7 +187,6 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				Namespace: newStatefulSet.Namespace,
 			},
 		}
-
 		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
 			existingStatefulSet.Spec = newStatefulSet.Spec
 			return nil
@@ -189,56 +194,63 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-
 		logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
 
-		foundService := corev1.Service{}
+		// Create a headless service for inter-node communication
 		serviceName := stroomCluster.GetNodeSetHeadlessServiceName(&nodeSet)
-		result, err = r.getOrCreateObject(ctx, serviceName, stroomCluster.Namespace, "Service", &foundService, func() error {
-			// Create a headless service for the NodeSet
-			resource := r.createService(&stroomCluster, &nodeSet, serviceName, corev1.ClusterIPNone)
-			logger.Info("Creating a headless Service", "Namespace", resource.Namespace, "Name", resource.Name)
-			return r.Create(ctx, resource)
-		})
-		if err != nil {
-			return result, err
-		} else if !result.IsZero() {
-			return result, nil
+		newService := r.createService(&stroomCluster, &nodeSet, serviceName, corev1.ClusterIPNone)
+		existingService := corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newService.Name,
+				Namespace: newService.Name,
+			},
 		}
-
-		foundService = corev1.Service{}
-		serviceName = stroomCluster.GetNodeSetServiceName(&nodeSet)
-		result, err = r.getOrCreateObject(ctx, serviceName, stroomCluster.Namespace, "Service", &foundService, func() error {
-			// Create a ClusterIP service for the NodeSet
-			resource := r.createService(&stroomCluster, &nodeSet, serviceName, "")
-			logger.Info("Creating a ClusterIP Service", "Namespace", resource.Namespace, "Name", resource.Name)
-			return r.Create(ctx, resource)
-		})
-		if err != nil {
-			return result, err
-		} else if !result.IsZero() {
-			return result, nil
-		}
-	}
-
-	ingresses := r.createIngresses(ctx, &stroomCluster)
-	for _, ingress := range ingresses {
-		// Create an Ingress if it doesn't already exist
-		foundIngress := v1.Ingress{}
-		result, err = r.getOrCreateObject(ctx, ingress.Name, ingress.Namespace, "Ingress", &foundIngress, func() error {
-			// Create an Ingress
-			logger.Info("Creating a new Ingress", "Namespace", ingress.Namespace, "Name", ingress.Name)
-			if err := r.Create(ctx, &ingress); err != nil {
-				return err
-			}
+		operationResult, err = controllerutil.CreateOrUpdate(ctx, r.Client, &existingService, func() error {
+			existingService.Spec = newService.Spec
 			return nil
 		})
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		logger.Info("Headless service reconciled", "Result", operationResult, "Namespace", existingService.Namespace, "Name", existingService.Name)
+
+		// Create a ClusterIP service
+		serviceName = stroomCluster.GetNodeSetServiceName(&nodeSet)
+		newService = r.createService(&stroomCluster, &nodeSet, serviceName, "")
+		existingService = corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newService.Name,
+				Namespace: newService.Name,
+			},
+		}
+		operationResult, err = controllerutil.CreateOrUpdate(ctx, r.Client, &existingService, func() error {
+			existingService.Spec = newService.Spec
+			return nil
+		})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		logger.Info("ClusterIP service reconciled", "Result", operationResult, "Namespace", existingService.Namespace, "Name", existingService.Name)
 	}
 
-	// TODO: Add node list to status
+	ingresses := r.createIngresses(ctx, &stroomCluster)
+	for _, newIngress := range ingresses {
+		// Create or update an Ingress resource
+		existingIngress := v1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newIngress.Name,
+				Namespace: newIngress.Namespace,
+			},
+		}
+		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingIngress, func() error {
+			existingIngress.Spec = newIngress.Spec
+			return nil
+		})
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		logger.Info("Ingress reconciled", "Result", operationResult, "Namespace", existingIngress.Namespace, "Name", existingIngress.Name)
+	}
 
 	return ctrl.Result{}, nil
 }
