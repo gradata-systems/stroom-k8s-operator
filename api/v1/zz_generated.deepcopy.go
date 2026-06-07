@@ -372,6 +372,13 @@ func (in *NodeSet) DeepCopyInto(out *NodeSet) {
 		copy(*out, *in)
 	}
 	in.LocalDataVolumeClaim.DeepCopyInto(&out.LocalDataVolumeClaim)
+	if in.ExtraVolumeMounts != nil {
+		in, out := &in.ExtraVolumeMounts, &out.ExtraVolumeMounts
+		*out = make([]corev1.VolumeMount, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	in.Resources.DeepCopyInto(&out.Resources)
 	out.MemoryOptions = in.MemoryOptions
 	if in.IngressEnabled != nil {

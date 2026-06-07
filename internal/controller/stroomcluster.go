@@ -418,6 +418,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 	if len(stroomCluster.Spec.ExtraVolumeMounts) > 0 {
 		volumeMounts = append(volumeMounts, stroomCluster.Spec.ExtraVolumeMounts...)
 	}
+	if len(nodeSet.ExtraVolumeMounts) > 0 {
+		volumeMounts = append(volumeMounts, nodeSet.ExtraVolumeMounts...)
+	}
 
 	var initContainers []corev1.Container
 	if !stroomCluster.Spec.Https.IsZero() {

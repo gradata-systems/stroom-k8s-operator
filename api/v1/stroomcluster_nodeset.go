@@ -26,6 +26,8 @@ type NodeSet struct {
 	ManagedJobs []string `json:"managedJobs,omitempty"`
 	// LocalDataVolumeClaim provides persistent storage for each Stroom node's data
 	LocalDataVolumeClaim corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
+	// Extra volume mounts to add to each NodeSet pod, in addition to volume mounts defined at the StroomCluster level.
+	ExtraVolumeMounts []corev1.VolumeMount `json:"extraVolumeMounts,omitempty"`
 	// Resources determine how much CPU and memory each individual Stroom node Pod within the NodeSet requests and is
 	// limited to.
 	Resources corev1.ResourceRequirements `json:"resources"`
