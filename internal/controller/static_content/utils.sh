@@ -91,6 +91,7 @@ function call_api() {
   response=$(curl -s "$url" \
     -H 'Accept: application/json' \
     -H 'Content-Type: application/json' \
+    -H 'X-CSRF: 1' \
     -H "Authorization:Bearer $(cat $auth_token_file)" \
     -w '\nhttp_code=%{http_code}' \
     "$@")
