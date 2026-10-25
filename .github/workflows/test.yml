@@ -67,6 +67,14 @@ jobs:
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: ${{ env.HELM_VERSION }}
+      - name: Unload the runner's MySQL AppArmor profile
+        # The runner has MySQL installed. AppArmor attaches its profile for /usr/sbin/mysqld to mysqld in the kind
+        # cluster's containers too, where it stops MySQL 8.0, which runs as root, taking ownership of its data
+        # directory
+        run: |
+          if [ -f /etc/apparmor.d/usr.sbin.mysqld ]; then
+            sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.mysqld
+          fi
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
