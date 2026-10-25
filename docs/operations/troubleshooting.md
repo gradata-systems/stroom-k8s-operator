@@ -117,6 +117,26 @@ The liveness probe is failing. If `livenessProbeTimings.allow` or `deny` contain
 the probe can never pass; fix the name. Otherwise check the health check output for deadlocked threads, and the
 previous container's log (`--previous`).
 
+### MySQL can't change the data directory owner
+
+The `DatabaseServer` Pod restarts repeatedly, and its log ends with:
+
+```text
+[ERROR] [MY-010174] [Server] Can't change data directory owner to mysql
+[ERROR] [MY-013236] [Server] The designated data directory /var/lib/mysql/ is unusable.
+```
+
+This happens when the Kubernetes node's host has MySQL installed and AppArmor enabled, as on GitHub's Ubuntu
+runners or a developer's machine running kind. AppArmor attaches the host's profile for `/usr/sbin/mysqld` to
+mysqld in containers too, and the profile doesn't let the `mysql/mysql-server` image's mysqld, which runs as root,
+take ownership of a new data directory. Unload the profile on the host:
+
+```shell
+sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.mysqld
+```
+
+To keep it unloaded after a reboot, also link it into `/etc/apparmor.d/disable/`.
+
 ### A Pod is stuck terminating
 
 It's probably draining. Check `/stroom/logs/k8s/pre-stop.log` for the remaining task count. The Pod is killed when
