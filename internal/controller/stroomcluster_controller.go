@@ -21,6 +21,7 @@ import (
 	"embed"
 	"fmt"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -429,13 +430,24 @@ func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, str
 	} else {
 		defer CloseDatabase(db)
 
-		if _, err := db.Exec("update job_node set enabled = 0 where node_name like ?", stroomCluster.GetBaseName()+"%"); err != nil {
+		if _, err := db.Exec("update job_node set enabled = 0 where node_name regexp ?", clusterNodeNamePattern(stroomCluster)); err != nil {
 			logger.Error(err, "Failed to disable Stroom node task processing", "StroomCluster", stroomCluster.Name)
 			return err
 		}
 	}
 
 	return nil
+}
+
+// clusterNodeNamePattern returns a regular expression matching the Stroom node names of the cluster's node sets, which
+// are their pod names. Other clusters sharing the database may have node names that start the same way, so the
+// whole name is matched. Pod names contain only lowercase letters, digits and hyphens, so need no escaping.
+func clusterNodeNamePattern(stroomCluster *stroomv1.StroomCluster) string {
+	nodeSetNames := make([]string, len(stroomCluster.Spec.NodeSets))
+	for i := range stroomCluster.Spec.NodeSets {
+		nodeSetNames[i] = stroomCluster.GetNodeSetName(&stroomCluster.Spec.NodeSets[i])
+	}
+	return fmt.Sprintf("^(%v)-[0-9]+$", strings.Join(nodeSetNames, "|"))
 }
 
 // countRemainingTasks removes the finalizer from StroomCluster pods that have no active Stroom tasks.
@@ -449,16 +461,17 @@ func (r *StroomClusterReconciler) countRemainingTasks(ctx context.Context, stroo
 	} else {
 		defer CloseDatabase(db)
 
-		// Get a summary of active tasks by node
+		// Get a summary of active tasks by node, for the cluster's nodes
 		rows, err := db.Query("select n.name as node_name, count(*) as task_count "+
 			"from processor_task pt inner join node n on n.id = pt.fk_processor_node_id "+
-			"where pt.status = ? "+
-			"group by n.name", common.NodeTaskStatusProcessing)
+			"where pt.status = ? and n.name regexp ? "+
+			"group by n.name", common.NodeTaskStatusProcessing, clusterNodeNamePattern(stroomCluster))
 
 		if err != nil {
 			logger.Error(err, fmt.Sprintf("Failed to query the active Stroom processor tasks for cluster '%v'", stroomCluster.Name))
 			return err
 		}
+		defer rows.Close()
 
 		// For each pod in the StroomCluster determine whether any active Stroom tasks are running
 		var nodeName string
