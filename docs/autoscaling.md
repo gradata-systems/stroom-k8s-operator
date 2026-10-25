@@ -10,7 +10,8 @@ inside a target range.
 ## Requirements
 
 - [metrics-server](https://github.com/kubernetes-sigs/metrics-server), which provides Pod CPU usage.
-- A CPU limit (`resources.limits.cpu`) on each node set to be scaled. CPU usage is measured as a percentage of it.
+- A CPU limit (`resources.limits.cpu`) on each node set to be scaled. CPU usage is measured as a percentage of it,
+  so node sets without one aren't scaled.
 - Database access from the operator Pod. Task limits are read and written directly in the Stroom database.
 
 ## Create an autoscaler
@@ -39,8 +40,9 @@ kubectl apply -f autoscaler.yaml
 ```
 
 See also [`samples/autoscaler.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/autoscaler.yaml).
-Create at most one autoscaler per `StroomCluster`. Autoscalers share their per-node state in the operator, so two
-autoscalers on the same cluster interfere with each other, even if they scale different jobs.
+Each autoscaler keeps its own per-node state, so a `StroomCluster` can have several, for example to scale
+different jobs. Don't point two autoscalers at the same job on the same cluster, as each adjusts the task limit
+without regard to the other.
 
 | Field | Default | Description |
 | --- | --- | --- |

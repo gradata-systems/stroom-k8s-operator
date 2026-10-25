@@ -105,14 +105,16 @@ func (r *StroomTaskAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl
 		// For each Pod, retrieve PodMetrics and auto-scale Stroom tasks as necessary
 		for _, pod := range nodePods.Items {
 			podNamespacedName := types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}
+			// Metrics are kept per autoscaler, so autoscalers for the same StroomCluster don't share them
+			metricsKey := req.NamespacedName.String() + "|" + podNamespacedName.String()
 			currentTime := time.Now()
 
 			podMetrics := metrics.PodMetrics{}
 			if err := r.Get(ctx, types.NamespacedName{Namespace: pod.Namespace, Name: pod.Name}, &podMetrics); err != nil {
 				logger.Info(fmt.Sprintf("PodMetrics not found for pod %v - it may be starting up", pod.Name), "Namespace", pod.Namespace)
-				// Pod probably doesn't exist, so purge any metric data we have on it
-				r.Metrics.DeletePodData(podNamespacedName.String())
-				return defaultResult, nil
+				// Pod probably doesn't exist, so purge any metric data we have on it, and carry on with the other pods
+				r.Metrics.DeletePodData(metricsKey)
+				continue
 			}
 
 			// Find the relevant container metrics
@@ -133,24 +135,24 @@ func (r *StroomTaskAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl
 			}
 
 			// Store the current metrics against the pod namespace/name
-			r.Metrics.AddMetric(podNamespacedName.String(), nodeMetrics)
+			r.Metrics.AddMetric(metricsKey, nodeMetrics)
 			r.Metrics.AgeOff(MaximumMetricRetentionPeriodMins, currentTime)
 
 			// Determine whether the auto-scaling time interval has elapsed
 			autoScaleOptions := stroomTaskAutoscaler.Spec
 			adjustmentInterval := autoScaleOptions.AdjustmentIntervalMins
-			if r.Metrics.ShouldScale(podNamespacedName.String(), adjustmentInterval, currentTime) {
-				if err := r.scaleStroomNode(ctx, &stroomCluster, &nodeSet, podNamespacedName, &autoScaleOptions, currentTime); err != nil {
-					r.Metrics.SetLastScaled(podNamespacedName.String(), currentTime)
+			if r.Metrics.ShouldScale(metricsKey, adjustmentInterval, currentTime) {
+				if err := r.scaleStroomNode(ctx, &stroomCluster, &nodeSet, podNamespacedName, metricsKey, &autoScaleOptions, currentTime); err != nil {
+					r.Metrics.SetLastScaled(metricsKey, currentTime)
 					return errorResult, err
 				} else {
-					r.Metrics.SetLastScaled(podNamespacedName.String(), currentTime)
+					r.Metrics.SetLastScaled(metricsKey, currentTime)
 				}
 			}
 
 			// If this is the first time a pod has appeared, schedule scaling for the current time + interval
-			if !r.Metrics.IsScaleScheduled(podNamespacedName.String()) {
-				r.Metrics.SetLastScaled(podNamespacedName.String(), currentTime)
+			if !r.Metrics.IsScaleScheduled(metricsKey) {
+				r.Metrics.SetLastScaled(metricsKey, currentTime)
 			}
 		}
 	}
@@ -159,57 +161,59 @@ func (r *StroomTaskAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl
 }
 
 func (r *StroomTaskAutoscalerReconciler) scaleStroomNode(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, podNamespacedName types.NamespacedName,
-	autoScaleOptions *stroomv1.StroomTaskAutoscalerSpec, currentTime time.Time) error {
+	metricsKey string, autoScaleOptions *stroomv1.StroomTaskAutoscalerSpec, currentTime time.Time) error {
 	logger := log.FromContext(ctx)
 
-	// Check whether resource limits are set
+	// CPU use is measured as a percentage of the limit, so a node set without a CPU limit can't be scaled
 	cpuLimit := nodeSet.Resources.Limits.Cpu()
-	logger.Info(fmt.Sprintf("Metric count for node %v: %v", podNamespacedName.Name, len(r.Metrics.Items[podNamespacedName.String()])))
-	if cpuLimit != nil {
-		var avgCpuUsage int64 = 0
-		if found := r.Metrics.GetSlidingWindowMean(podNamespacedName.String(), autoScaleOptions.MetricsSlidingWindowMins, currentTime, &avgCpuUsage); found {
-			cpuPercent := int(math.Floor(float64(avgCpuUsage) / float64(cpuLimit.MilliValue()) * 100.0))
-			logger.Info(fmt.Sprintf("CPU usage for Stroom node is on average %vm (%v percent over the past %v minutes). Limit: %vm", avgCpuUsage, cpuPercent, autoScaleOptions.MetricsSlidingWindowMins, cpuLimit.MilliValue()), "Namespace", podNamespacedName.Namespace, "Pod", podNamespacedName.Name)
+	if cpuLimit.IsZero() {
+		logger.Info("Not scaling Stroom node tasks, as its node set has no CPU limit", "Pod", podNamespacedName.Name, "NodeSet", nodeSet.Name)
+		return nil
+	}
+	logger.Info(fmt.Sprintf("Metric count for node %v: %v", podNamespacedName.Name, len(r.Metrics.Items[metricsKey])))
+	var avgCpuUsage int64 = 0
+	if found := r.Metrics.GetSlidingWindowMean(metricsKey, autoScaleOptions.MetricsSlidingWindowMins, currentTime, &avgCpuUsage); found {
+		cpuPercent := int(math.Floor(float64(avgCpuUsage) / float64(cpuLimit.MilliValue()) * 100.0))
+		logger.Info(fmt.Sprintf("CPU usage for Stroom node is on average %vm (%v percent over the past %v minutes). Limit: %vm", avgCpuUsage, cpuPercent, autoScaleOptions.MetricsSlidingWindowMins, cpuLimit.MilliValue()), "Namespace", podNamespacedName.Namespace, "Pod", podNamespacedName.Name)
 
-			// Is CPU percentage outside bounds?
-			minCpuPercent := autoScaleOptions.MinCpuPercent
-			maxCpuPercent := autoScaleOptions.MaxCpuPercent
-			if cpuPercent < minCpuPercent || cpuPercent > maxCpuPercent {
-				// Query the node's current task limit
-				dbServerRef := stroomCluster.Spec.DatabaseServerRef
-				dbInfo := DatabaseConnectionInfo{}
-				if err := GetDatabaseConnectionInfo(r.Client, ctx, &dbServerRef, stroomCluster.Namespace, &dbInfo); err != nil {
-					return err
-				}
-				taskName := autoScaleOptions.TaskName
-				var activeTasks, taskLimit int
-				if err := r.getNodeTasks(ctx, stroomCluster, &dbInfo, podNamespacedName.Name, taskName, &activeTasks, &taskLimit); err == nil {
-					newTaskLimit := taskLimit
-					if cpuPercent < minCpuPercent && taskLimit < autoScaleOptions.MaxTaskLimit {
-						// We're running below optimal range and have capacity to add tasks
-						if activeTasks < taskLimit {
-							// Node is not at capacity, so don't try and increase the task limit. This avoids scaling idle nodes.
-							return nil
-						}
-
-						newTaskLimit = taskLimit + autoScaleOptions.StepAmount
-						if newTaskLimit > autoScaleOptions.MaxTaskLimit {
-							newTaskLimit = autoScaleOptions.MaxTaskLimit
-						}
-					} else if cpuPercent > maxCpuPercent && taskLimit > autoScaleOptions.MinTaskLimit {
-						// We're above optimal range and can shrink the task limit
-						newTaskLimit = taskLimit - autoScaleOptions.StepAmount
-						if newTaskLimit < autoScaleOptions.MinTaskLimit {
-							newTaskLimit = autoScaleOptions.MinTaskLimit
-						}
+		// Is CPU percentage outside bounds?
+		minCpuPercent := autoScaleOptions.MinCpuPercent
+		maxCpuPercent := autoScaleOptions.MaxCpuPercent
+		if cpuPercent < minCpuPercent || cpuPercent > maxCpuPercent {
+			// Query the node's current task limit
+			dbServerRef := stroomCluster.Spec.DatabaseServerRef
+			dbInfo := DatabaseConnectionInfo{}
+			if err := GetDatabaseConnectionInfo(r.Client, ctx, &dbServerRef, stroomCluster.Namespace, &dbInfo); err != nil {
+				return err
+			}
+			taskName := autoScaleOptions.TaskName
+			var activeTasks, taskLimit int
+			if err := r.getNodeTasks(ctx, stroomCluster, &dbInfo, podNamespacedName.Name, taskName, &activeTasks, &taskLimit); err == nil {
+				newTaskLimit := taskLimit
+				if cpuPercent < minCpuPercent && taskLimit < autoScaleOptions.MaxTaskLimit {
+					// We're running below optimal range and have capacity to add tasks
+					if activeTasks < taskLimit {
+						// Node is not at capacity, so don't try and increase the task limit. This avoids scaling idle nodes.
+						return nil
 					}
-					if newTaskLimit != taskLimit {
-						// Update the task limit in the DB
-						logger.Info(fmt.Sprintf("Updating task limit for node '%v' from %v to %v due to CPU usage being at %v percent",
-							podNamespacedName.Name, taskLimit, newTaskLimit, cpuPercent), "StroomCluster", stroomCluster.Name)
-						if err := r.updateNodeTaskLimit(ctx, stroomCluster, &dbInfo, podNamespacedName.Name, taskName, newTaskLimit); err != nil {
-							return err
-						}
+
+					newTaskLimit = taskLimit + autoScaleOptions.StepAmount
+					if newTaskLimit > autoScaleOptions.MaxTaskLimit {
+						newTaskLimit = autoScaleOptions.MaxTaskLimit
+					}
+				} else if cpuPercent > maxCpuPercent && taskLimit > autoScaleOptions.MinTaskLimit {
+					// We're above optimal range and can shrink the task limit
+					newTaskLimit = taskLimit - autoScaleOptions.StepAmount
+					if newTaskLimit < autoScaleOptions.MinTaskLimit {
+						newTaskLimit = autoScaleOptions.MinTaskLimit
+					}
+				}
+				if newTaskLimit != taskLimit {
+					// Update the task limit in the DB
+					logger.Info(fmt.Sprintf("Updating task limit for node '%v' from %v to %v due to CPU usage being at %v percent",
+						podNamespacedName.Name, taskLimit, newTaskLimit, cpuPercent), "StroomCluster", stroomCluster.Name)
+					if err := r.updateNodeTaskLimit(ctx, stroomCluster, &dbInfo, podNamespacedName.Name, taskName, newTaskLimit); err != nil {
+						return err
 					}
 				}
 			}
