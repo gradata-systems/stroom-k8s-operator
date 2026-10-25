@@ -186,32 +186,23 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Log sender ConfigMap reconciled", "Result", operationResult, "Namespace", existingConfigMap.Namespace, "Name", existingConfigMap.Name)
 	}
 
+	// Don't create or change the nodes while their DatabaseServer is being updated, as a node stopping then can't
+	// drain: its pre-stop hook needs the database. The DatabaseServer's update is applied first, and the nodes are
+	// updated once it's ready.
+	holdNodes := false
+	if dbInfo.DatabaseServer != nil {
+		if settled, reason, err := r.databaseServerSettled(ctx, dbInfo.DatabaseServer); err != nil {
+			return ctrl.Result{}, err
+		} else if !settled {
+			logger.Info("Waiting for the DatabaseServer before creating or updating the nodes", "DatabaseServer", dbInfo.DatabaseServer.Name, "Reason", reason)
+			holdNodes = true
+		}
+	}
+
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		// Create a StatefulSet representing the NodeSet's nodes
-		newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
-		existingStatefulSet := appsv1.StatefulSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      newStatefulSet.Name,
-				Namespace: newStatefulSet.Namespace,
-			},
-		}
-		var oldReplicaCount int32
-		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
-			oldReplicaCount = existingStatefulSet.Status.Replicas
-			existingStatefulSet.Labels = newStatefulSet.Labels
-			existingStatefulSet.Annotations = newStatefulSet.Annotations
-			existingStatefulSet.OwnerReferences = newStatefulSet.OwnerReferences
-			existingStatefulSet.Spec = newStatefulSet.Spec
-			return nil
-		})
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
-		if operationResult == controllerutil.OperationResultUpdated {
-			// StatefulSet may have been scaled down, so delete excess PVCs, depending on deletion policy
-			if err := r.deletePvcs(ctx, &stroomCluster, &nodeSet, oldReplicaCount, *newStatefulSet.Spec.Replicas); err != nil {
+		if !holdNodes {
+			if err := r.reconcileNodeStatefulSet(ctx, &stroomCluster, &nodeSet, &dbInfo); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -281,7 +272,77 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Ingress reconciled", "Result", operationResult, "Namespace", existingIngress.Namespace, "Name", existingIngress.Name)
 	}
 
+	if holdNodes {
+		// The DatabaseServer's StatefulSet isn't watched, so check it again shortly
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
 	return ctrl.Result{}, nil
+}
+
+// reconcileNodeStatefulSet creates or updates the StatefulSet running a NodeSet's nodes
+func (r *StroomClusterReconciler) reconcileNodeStatefulSet(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) error {
+	logger := log.FromContext(ctx)
+
+	newStatefulSet := r.createStatefulSet(stroomCluster, nodeSet, dbInfo)
+	existingStatefulSet := appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      newStatefulSet.Name,
+			Namespace: newStatefulSet.Namespace,
+		},
+	}
+	var oldReplicaCount int32
+	operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
+		oldReplicaCount = existingStatefulSet.Status.Replicas
+		existingStatefulSet.Labels = newStatefulSet.Labels
+		existingStatefulSet.Annotations = newStatefulSet.Annotations
+		existingStatefulSet.OwnerReferences = newStatefulSet.OwnerReferences
+		existingStatefulSet.Spec = newStatefulSet.Spec
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
+	if operationResult == controllerutil.OperationResultUpdated {
+		// StatefulSet may have been scaled down, so delete excess PVCs, depending on deletion policy
+		return r.deletePvcs(ctx, stroomCluster, nodeSet, oldReplicaCount, *newStatefulSet.Spec.Replicas)
+	}
+	return nil
+}
+
+// databaseServerSettled returns whether a DatabaseServer's StatefulSet has the Pod template the operator would apply
+// now, with all its pods updated and ready. If not, it returns why.
+func (r *StroomClusterReconciler) databaseServerSettled(ctx context.Context, dbServer *stroomv1.DatabaseServer) (bool, string, error) {
+	statefulSet := appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: dbServer.Namespace, Name: dbServer.GetBaseName()}, &statefulSet); errors.IsNotFound(err) {
+		return false, "its StatefulSet doesn't exist yet", nil
+	} else if err != nil {
+		return false, "", err
+	}
+	desired := (&DatabaseServerReconciler{Scheme: r.Scheme}).createStatefulSet(dbServer)
+	settled, reason := statefulSetSettled(&statefulSet, podTemplateHash(&desired.Spec.Template))
+	return settled, reason, nil
+}
+
+// statefulSetSettled returns whether a DatabaseServer's StatefulSet was last updated with the Pod template whose hash
+// is given, and all its pods have that template and are ready. If not, it returns why.
+func statefulSetSettled(statefulSet *appsv1.StatefulSet, templateHash string) (bool, string) {
+	var replicas int32 = 1
+	if statefulSet.Spec.Replicas != nil {
+		replicas = *statefulSet.Spec.Replicas
+	}
+	status := statefulSet.Status
+	switch {
+	case statefulSet.Annotations[DatabaseServerTemplateHashAnnotation] != templateHash:
+		return false, "its StatefulSet is about to be updated"
+	case status.ObservedGeneration < statefulSet.Generation:
+		return false, "its StatefulSet's update hasn't been processed yet"
+	case status.UpdatedReplicas < replicas || status.CurrentRevision != status.UpdateRevision:
+		return false, "its pods are being updated"
+	case status.ReadyReplicas < replicas:
+		return false, "its pods aren't ready"
+	}
+	return true, ""
 }
 
 func (r *StroomClusterReconciler) deletePvcs(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, oldReplicaCount int32, newReplicaCount int32) error {

@@ -131,7 +131,9 @@ See the [changelog](https://github.com/gradata-systems/stroom-k8s-operator/blob/
 change. Those that affect an upgrade:
 
 - **Database servers restart once.** The operator now applies changes to a `DatabaseServer`, so its Pod is
-  updated to match after the upgrade. See [Changing a DatabaseServer](../database/database-server.md#changing-a-databaseserver).
+  updated to match after the upgrade. MySQL restarts first, and each node set is rolled once it's ready, so the
+  nodes can drain. Stroom loses its database connection while MySQL restarts. See
+  [Changing a DatabaseServer](../database/database-server.md#changing-a-databaseserver).
 - **Security defaults.** Pods now disallow privilege escalation, use the container runtime's default seccomp
   profile and don't mount a service account token, unless set otherwise. This is part of why every node set rolls.
   See [Security](../configuration/security.md).

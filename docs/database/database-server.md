@@ -110,6 +110,12 @@ to the running server. Changing anything in its Pod restarts MySQL, so Stroom lo
 briefly; plan changes for a quiet period. A change to `additionalConfig` alone updates the configuration, which
 MySQL reads when it next starts.
 
+While the server's Pod is being replaced, and until it's ready again, the operator doesn't create or change the
+nodes of the `StroomCluster` using it, as a node stopping then couldn't drain. If you change both at once, or an
+operator upgrade changes both, MySQL restarts first, then the nodes are rolled. The operator logs
+`Waiting for the DatabaseServer before creating or updating the nodes` while it waits. A new `StroomCluster`'s
+nodes are likewise created once its `DatabaseServer` is ready.
+
 Some changes need more:
 
 - **`volumeClaim`.** Kubernetes doesn't allow a StatefulSet's volume claim template to change, so the operator

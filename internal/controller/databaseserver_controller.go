@@ -127,6 +127,10 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
 		existingStatefulSet.Labels = newStatefulSet.Labels
 		existingStatefulSet.OwnerReferences = newStatefulSet.OwnerReferences
+		if existingStatefulSet.Annotations == nil {
+			existingStatefulSet.Annotations = map[string]string{}
+		}
+		existingStatefulSet.Annotations[DatabaseServerTemplateHashAnnotation] = podTemplateHash(&newStatefulSet.Spec.Template)
 		if existingStatefulSet.CreationTimestamp.IsZero() {
 			existingStatefulSet.Spec = newStatefulSet.Spec
 		} else {

@@ -35,7 +35,9 @@ for details.
 - Database backups didn't run on Kubernetes 1.25 and later, as the CronJob was looked up with `batch/v1beta1`.
   Changes to a `DatabaseBackup` are now applied. A backup whose dump failed reported success and left an empty
   archive; it now fails the Job, and removes the archive.
-- Changes to a `DatabaseServer` were never applied, and its `podAnnotations` were ignored.
+- Changes to a `DatabaseServer` were never applied, and its `podAnnotations` were ignored. Now that they are, the
+  nodes of a `StroomCluster` aren't created or changed while its `DatabaseServer`'s Pod is being replaced, as a node
+  stopping then couldn't drain.
 - A `DatabaseServer`'s readiness probe always succeeded, before MySQL accepted connections.
 - A `DatabaseServer` whose name differed from its `StroomCluster`'s couldn't be used, as the claim recorded the wrong
   name.

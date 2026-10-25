@@ -73,6 +73,47 @@ var _ = Describe("DatabaseServer reconciler", func() {
 		Expect(annotations).To(Equal(map[string]string{"example.com/annotation": "pod"}))
 	})
 
+	It("should let StroomClusters tell when the DatabaseServer is being updated", func() {
+		clusterReconciler := &StroomClusterReconciler{Client: reconciler.Client, Scheme: reconciler.Scheme}
+		settled := func() (bool, string) {
+			Expect(reconciler.Get(ctx, key, dbServer)).To(Succeed())
+			settled, reason, err := clusterReconciler.databaseServerSettled(ctx, dbServer)
+			Expect(err).ToNot(HaveOccurred())
+			return settled, reason
+		}
+		// setRolledOut sets the StatefulSet's status as the StatefulSet controller would once its pod is updated and ready
+		setRolledOut := func() {
+			statefulSet := reconcile()
+			statefulSet.Status = appsv1.StatefulSetStatus{
+				ObservedGeneration: statefulSet.Generation, Replicas: 1, ReadyReplicas: 1, UpdatedReplicas: 1,
+				CurrentRevision: "rev", UpdateRevision: "rev",
+			}
+			Expect(reconciler.Status().Update(ctx, statefulSet)).To(Succeed())
+		}
+
+		ok, reason := settled()
+		Expect(ok).To(BeFalse())
+		Expect(reason).To(Equal("its StatefulSet doesn't exist yet"))
+
+		statefulSet := reconcile()
+		Expect(statefulSet.Annotations).To(HaveKeyWithValue(DatabaseServerTemplateHashAnnotation, podTemplateHash(&statefulSet.Spec.Template)))
+		ok, reason = settled()
+		Expect(ok).To(BeFalse())
+		Expect(reason).To(Equal("its pods are being updated"))
+
+		setRolledOut()
+		Expect(settled()).To(BeTrue())
+
+		By("changing the DatabaseServer, before its reconciler has updated the StatefulSet")
+		update(func(db *stroomv1.DatabaseServer) { db.Spec.Image.Tag = "8.4.6" })
+		ok, reason = settled()
+		Expect(ok).To(BeFalse())
+		Expect(reason).To(Equal("its StatefulSet is about to be updated"))
+
+		setRolledOut()
+		Expect(settled()).To(BeTrue())
+	})
+
 	It("should update the MySQL pod template when the DatabaseServer changes", func() {
 		reconcile()
 		update(func(db *stroomv1.DatabaseServer) { db.Spec.Image.Tag = "8.4.6" })

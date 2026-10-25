@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,7 +19,20 @@ const (
 	DatabaseRootUserName          = "root"
 	DatabaseServiceUserName       = "stroomuser"
 	DatabasePort            int32 = 3306
+
+	// DatabaseServerTemplateHashAnnotation records, on a DatabaseServer's StatefulSet, a hash of the Pod template the
+	// operator last applied to it. StroomClusters compare it with the template the operator would apply now, to tell
+	// whether their DatabaseServer is about to be updated.
+	DatabaseServerTemplateHashAnnotation = "stroom.gchq.github.io/template-hash"
 )
+
+// podTemplateHash returns a hash identifying a Pod template
+func podTemplateHash(template *corev1.PodTemplateSpec) string {
+	// Marshalling a Pod template can't fail
+	data, _ := json.Marshal(template)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:8])
+}
 
 func (r *DatabaseServerReconciler) getInitConfigName(dbServer *stroomv1.DatabaseServer) string {
 	return fmt.Sprintf("%v-init", dbServer.GetBaseName())
