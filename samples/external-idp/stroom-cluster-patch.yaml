@@ -1,0 +1,23 @@
+# Points each StroomCluster in the deployment at the configuration in config.yml, and gives it the OpenID client
+# secrets. The name isn't used, as the kustomization applies the patch to every StroomCluster.
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: any
+spec:
+  configMapRef:
+    name: stroom-config
+    itemName: config.yml
+  # The OpenID client the operator's node lifecycle scripts use to obtain a token
+  openId:
+    clientId: stroom-operator
+    clientSecret:
+      secretName: stroom-operator-openid
+      key: client-secret
+  extraEnv:
+    # Stroom's own OpenID client secret, used by config.yml
+    - name: STROOM_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: stroom-openid
+          key: client-secret

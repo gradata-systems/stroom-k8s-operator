@@ -1,29 +1,21 @@
-# A Stroom cluster with processing and frontend node sets, HTTPS, an Ingress and log shipping, using an external
-# identity provider. It uses the DatabaseServer in database-server.yaml, the configuration in stroom-config.yaml and
-# the Secrets in secrets.yaml. Probe timings are left at their defaults.
+# A Stroom cluster with processing and frontend node sets, HTTPS, an Ingress and log shipping, using the
+# DatabaseServer in database-server.yaml. The external-idp component adds its Stroom configuration and OpenID
+# settings. Probe timings are left at their defaults.
 apiVersion: stroom.gchq.github.io/v1
 kind: StroomCluster
 metadata:
   name: dev
-  namespace: stroom
 spec:
   image:
     repository: gchq/stroom
     tag: v7.13.2
+  # The operator creates the databases and their user on the DatabaseServer, and gives the nodes the connection
+  # details
   databaseServerRef:
     serverRef:
       name: dev
   appDatabaseName: stroom
   statsDatabaseName: stats
-  configMapRef:
-    name: stroom-config
-    itemName: config.yml
-  # The OpenID client the operator's node lifecycle scripts use to obtain a token
-  openId:
-    clientId: stroom-operator
-    clientSecret:
-      secretName: stroom-operator-openid
-      key: client-secret
   https:
     tlsSecretName: stroom-tls
     tlsKeystorePasswordSecret:
@@ -38,13 +30,6 @@ spec:
   # Time allowed for a node to finish its tasks when it stops
   nodeTerminationPeriodSecs: 300
   volumeClaimDeletePolicy: DeleteOnScaledownOnly
-  extraEnv:
-    # Stroom's own OpenID client secret, used by stroom-config.yaml
-    - name: STROOM_CLIENT_SECRET
-      valueFrom:
-        secretKeyRef:
-          name: stroom-openid
-          key: client-secret
   logSender:
     enabled: true
     image:

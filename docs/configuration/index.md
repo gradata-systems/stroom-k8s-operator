@@ -1,9 +1,17 @@
 # Configuring a StroomCluster
 
 A `StroomCluster` describes the Stroom nodes, how they are grouped and exposed, and how they connect to the
-database and identity provider. A working example is in
-[`samples/stroom-cluster.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/stroom-cluster.yaml),
-and the [quick start](../getting-started/quick-start.md) builds a minimal one step by step.
+database and identity provider. The [`samples`](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/samples)
+directory has complete example deployments:
+
+| Sample | Shows |
+| --- | --- |
+| [`operator-database`](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/samples/operator-database) | A MySQL server managed by the operator, with backups, processing and frontend node sets, task autoscaling, log shipping and NetworkPolicies |
+| [`external-database`](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/samples/external-database) | A MySQL server the operator doesn't manage |
+| [`external-idp`](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/samples/external-idp) | A custom Stroom configuration that authenticates with Keycloak, included by both deployments |
+
+Each is applied with `kubectl apply -k`. The [quick start](../getting-started/quick-start.md) builds a minimal
+cluster step by step.
 
 ## Top-level settings
 

@@ -37,7 +37,7 @@ spec:
         storage: 100Gi
 ```
 
-See also [`samples/database-server.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/database-server.yaml).
+See also [`samples/operator-database/database-server.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/operator-database/database-server.yaml).
 
 | Field | Description |
 | --- | --- |

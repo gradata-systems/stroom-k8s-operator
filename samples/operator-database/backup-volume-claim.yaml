@@ -1,0 +1,12 @@
+# Storage for the database backups. Use a storage class whose volumes are kept, and backed up, separately from the
+# database's own volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: stroom-db-backups
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi

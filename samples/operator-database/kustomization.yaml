@@ -1,0 +1,17 @@
+# A Stroom cluster using a MySQL server the operator deploys and manages, with daily backups, task autoscaling and
+# NetworkPolicies. Authentication is with Keycloak, from the external-idp component. Apply with:
+#
+#   kubectl apply -k samples/operator-database
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stroom
+resources:
+  - secrets.yaml
+  - database-server.yaml
+  - stroom-cluster.yaml
+  - backup-volume-claim.yaml
+  - database-backup.yaml
+  - autoscaler.yaml
+  - network-policies.yaml
+components:
+  - ../external-idp

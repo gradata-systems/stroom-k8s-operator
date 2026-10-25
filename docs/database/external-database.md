@@ -57,3 +57,6 @@ Don't set `serverRef` as well: if `serverRef` is set, the operator uses the `Dat
   Secret and restart the nodes; see [Rolling restarts](../operations/node-lifecycle.md#rolling-restarts).
 - **Backups.** A [`DatabaseBackup`](backups.md) can back up an external server too, but your database service's own
   backups are usually a better choice.
+
+The [`external-database`](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/samples/external-database)
+sample is a complete deployment using an external server.

@@ -39,7 +39,7 @@ spec:
 kubectl apply -f autoscaler.yaml
 ```
 
-See also [`samples/autoscaler.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/autoscaler.yaml).
+See also [`samples/operator-database/autoscaler.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/operator-database/autoscaler.yaml).
 Each autoscaler keeps its own per-node state, so a `StroomCluster` can have several, for example to scale
 different jobs. Don't point two autoscalers at the same job on the same cluster, as each adjusts the task limit
 without regard to the other.

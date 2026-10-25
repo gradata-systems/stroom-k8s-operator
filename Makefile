@@ -115,8 +115,8 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+test: manifests generate fmt vet setup-envtest kustomize ## Run tests.
+	KUSTOMIZE="$(KUSTOMIZE)" KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
 # The e2e tests run the operator and Stroom in a Kind cluster, which must be installed. See test/e2e/README.md.
 # Set E2E_KEEP_CLUSTER=1 to keep the cluster after the tests, so it can be inspected or reused.

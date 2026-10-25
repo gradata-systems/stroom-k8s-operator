@@ -82,6 +82,10 @@ endpoint, scopes, audience and claim settings) and provider-specific instruction
   which you need to do because Stroom has no built-in administrator when using an external IdP. See also the
   [quick start](../getting-started/quick-start.md#7-create-the-first-administrator).
 
+The [`external-idp`](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/samples/external-idp) sample
+is a complete configuration for Keycloak, with the realm's clients described in the
+[samples README](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/samples#keycloak).
+
 ## How tokens are handled
 
 The scripts cache the token in `/stroom/auth/token`, a Pod-local volume, and request a new one shortly before it

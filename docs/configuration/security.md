@@ -42,7 +42,7 @@ the server's files or bypass authentication. See [Operator-managed DatabaseServe
 
 The operator doesn't create NetworkPolicies, as which pods need to reach Stroom depends on your cluster: where your
 Ingress controller runs, and whether data senders run inside it.
-[`samples/network-policies.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/network-policies.yaml)
+[`samples/operator-database/network-policies.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/operator-database/network-policies.yaml)
 is a starting point. It denies connections to pods in the Stroom namespace except:
 
 - between the nodes of a `StroomCluster`,

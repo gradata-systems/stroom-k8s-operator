@@ -65,7 +65,9 @@ for details.
 ### Added
 
 - Documentation, published at https://gradata-systems.github.io/stroom-k8s-operator/, with a CRD reference.
-- Samples for an external identity provider, an operator-managed or external database, and NetworkPolicies.
+- Example deployments in `samples/`, applied with `kubectl apply -k`: with an operator-managed database, with an
+  external database, and a custom Stroom configuration for Keycloak that both include. They include backups, task
+  autoscaling and NetworkPolicies.
 - Unit, envtest and end-to-end tests, run against Stroom 7.13 with Keycloak, and releases published from GitHub
   releases.
 

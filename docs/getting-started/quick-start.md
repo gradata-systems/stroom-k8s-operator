@@ -123,7 +123,7 @@ kubectl -n stroom get pods -l app.kubernetes.io/instance=dev,app.kubernetes.io/c
 The `State` column shows `Deployed` once the operator has created the database objects. Wait for the Pod
 `stroom-dev-db-0` to be `Running`, and check its log (`kubectl -n stroom logs stroom-dev-db-0`) to confirm MySQL
 has finished initialising. A fuller example is in
-[`samples/database-server.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/database-server.yaml).
+[`samples/operator-database/database-server.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/operator-database/database-server.yaml).
 
 ## 6. Create the Stroom cluster
 

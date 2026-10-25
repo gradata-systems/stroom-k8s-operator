@@ -3,7 +3,6 @@ apiVersion: stroom.gchq.github.io/v1
 kind: StroomTaskAutoscaler
 metadata:
   name: dev
-  namespace: stroom
 spec:
   stroomClusterRef:
     name: dev

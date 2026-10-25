@@ -4,7 +4,6 @@ apiVersion: stroom.gchq.github.io/v1
 kind: DatabaseServer
 metadata:
   name: dev
-  namespace: stroom
 spec:
   image:
     repository: mysql

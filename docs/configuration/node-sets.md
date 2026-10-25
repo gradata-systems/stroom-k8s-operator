@@ -110,8 +110,10 @@ To spread a node set's Pods across Kubernetes nodes, use the labels the operator
                     stroom/nodeSet: data
 ```
 
-The Stroom image includes a `stroom` user and group with ID `1000`. The samples run the container as that user,
-with `fsGroup: 1000` so that it can write to the node's volumes on storage that honours `fsGroup`:
+By default the Stroom image's entrypoint starts as root, makes its directories owned by the `stroom` user (ID
+`1000`), then runs Stroom as that user. To run the container as that user from the start, set the Pod security
+context. The entrypoint then skips changing ownership, so add `fsGroup: 1000` to make the node's volumes writable,
+on storage that honours `fsGroup`:
 
 ```yaml
       podSecurityContext:

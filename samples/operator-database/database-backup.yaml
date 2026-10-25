@@ -1,9 +1,9 @@
-# Backs up the Stroom databases on the dev DatabaseServer every day at 02:00, to a PersistentVolumeClaim you provide
+# Backs up the Stroom databases on the dev DatabaseServer every day at 02:00, to the PersistentVolumeClaim in
+# backup-volume-claim.yaml
 apiVersion: stroom.gchq.github.io/v1
 kind: DatabaseBackup
 metadata:
   name: dev
-  namespace: stroom
 spec:
   image:
     repository: mysql

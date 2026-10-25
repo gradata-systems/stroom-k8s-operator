@@ -1,0 +1,20 @@
+# A custom Stroom configuration that authenticates with Keycloak, and the OpenID client Secrets it and the operator
+# need. It's a kustomize component, which the operator-database and external-database deployments include. Keycloak
+# itself isn't included: see the README for the realm it expects.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - openid-secrets.yaml
+configMapGenerator:
+  - name: stroom-config
+    files:
+      - config.yml
+    options:
+      # The StroomCluster refers to the ConfigMap by name, which kustomize can't update with a hash suffix. A changed
+      # configuration is picked up when the nodes restart.
+      disableNameSuffixHash: true
+patches:
+  - path: stroom-cluster-patch.yaml
+    target:
+      group: stroom.gchq.github.io
+      kind: StroomCluster

@@ -33,7 +33,7 @@ spec:
       path: /exports/stroom-backups
 ```
 
-See also [`samples/database-backup.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/database-backup.yaml).
+See also [`samples/operator-database/database-backup.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/operator-database/database-backup.yaml).
 
 | Field | Description |
 | --- | --- |

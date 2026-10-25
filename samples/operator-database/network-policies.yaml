@@ -8,7 +8,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-ingress
-  namespace: stroom
 spec:
   podSelector: {}
   policyTypes:
@@ -20,7 +19,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: stroom-dev-nodes
-  namespace: stroom
 spec:
   podSelector:
     matchLabels:
@@ -46,7 +44,6 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: stroom-dev-db
-  namespace: stroom
 spec:
   podSelector:
     matchLabels:

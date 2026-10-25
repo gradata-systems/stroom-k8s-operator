@@ -23,7 +23,7 @@ spec:
 | `environmentName` | The cluster name in upper case, for example `DEV` | The `Environment` header sent with the data. |
 | `systemName` | `Stroom` | The `System` header sent with the data. |
 | `resources` | Limits `cpu: 500m`, `memory: 256Mi` | Sidecar resources. |
-| `securityContext` | None | Sidecar security context. See [`samples/stroom-cluster.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/stroom-cluster.yaml) for the one used in the sample. |
+| `securityContext` | None | Sidecar security context. Privilege escalation is disallowed unless set otherwise; see [Security](security.md). |
 | `imagePullPolicy` | | Pull policy for the sidecar image. |
 | `tls.secretName` | None | Client certificate authentication; see below. |
 
