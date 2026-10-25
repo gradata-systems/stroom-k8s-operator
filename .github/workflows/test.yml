@@ -36,6 +36,8 @@ jobs:
         run: make test
       - name: Check generated files are up to date
         run: git diff --exit-code
+      - name: Check the changelog has release notes for the operator version
+        run: bash hack/release-notes.sh "$(grep -Po '^VERSION \?= \K(.+)' Makefile)" > /dev/null
 
   e2e:
     name: End-to-end (${{ github.event_name == 'schedule' && 'extended' || inputs.e2e-labels || 'core' }})
