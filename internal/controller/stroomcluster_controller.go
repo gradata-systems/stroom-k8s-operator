@@ -553,26 +553,34 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef, db *stroomv1.DatabaseServer) error {
 	logger := log.FromContext(ctx)
 
+	clusterRef := stroomv1.ResourceRef{Name: stroomCluster.Name, Namespace: stroomCluster.Namespace}
+
 	// If DatabaseServer is claimed by a StroomCluster, check whether it is the current cluster
 	if !db.StroomClusterRef.IsZero() {
-		if db.StroomClusterRef.Name == stroomCluster.Name && db.StroomClusterRef.Namespace == stroomCluster.Namespace {
+		if db.StroomClusterRef == clusterRef {
 			// Already claimed by this cluster
 			return nil
 		}
 
-		// Already owned by another cluster, so we can't claim it
-		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v/%v'. Cannot be claimed by StroomCluster '%v/%v'",
-			db.Namespace, db.Name, db.StroomClusterRef.Namespace, db.StroomClusterRef.Name, stroomCluster.Namespace, stroomCluster.Name))
-		logger.Error(err, "Cannot claim DatabaseServer")
-		return err
-	} else {
-		// Register the StroomCluster with the DatabaseServer
-		db.StroomClusterRef = dbRef
-		err := r.Update(ctx, db)
-		if err != nil {
-			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef, stroomCluster.Namespace, stroomCluster.Name))
+		// A claim by a StroomCluster that no longer exists is stale, and can be replaced. Earlier operator versions
+		// recorded the DatabaseServer's own name in place of the StroomCluster's, which is replaced in the same way.
+		claimingCluster := stroomv1.StroomCluster{}
+		if err := r.Get(ctx, db.StroomClusterRef.NamespacedName(), &claimingCluster); err == nil {
+			// Already owned by another cluster, so we can't claim it
+			err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v/%v'. Cannot be claimed by StroomCluster '%v/%v'",
+				db.Namespace, db.Name, db.StroomClusterRef.Namespace, db.StroomClusterRef.Name, stroomCluster.Namespace, stroomCluster.Name))
+			logger.Error(err, "Cannot claim DatabaseServer")
+			return err
+		} else if !errors.IsNotFound(err) {
 			return err
 		}
+	}
+
+	// Register the StroomCluster with the DatabaseServer
+	db.StroomClusterRef = clusterRef
+	if err := r.Update(ctx, db); err != nil {
+		logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef, stroomCluster.Namespace, stroomCluster.Name))
+		return err
 	}
 
 	return nil

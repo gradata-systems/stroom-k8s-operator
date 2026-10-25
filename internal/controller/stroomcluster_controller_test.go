@@ -1,14 +1,82 @@
 package controller
 
 import (
+	"context"
 	"regexp"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 )
+
+var _ = Describe("StroomCluster database server claims", func() {
+
+	var (
+		ctx        = context.Background()
+		reconciler *StroomClusterReconciler
+		cluster    *stroomv1.StroomCluster
+		dbServer   *stroomv1.DatabaseServer
+	)
+
+	// newReconciler returns a reconciler whose client holds the given resources
+	newReconciler := func(objects ...client.Object) *StroomClusterReconciler {
+		testScheme := runtime.NewScheme()
+		Expect(clientgoscheme.AddToScheme(testScheme)).To(Succeed())
+		Expect(stroomv1.AddToScheme(testScheme)).To(Succeed())
+		fakeClient := fake.NewClientBuilder().WithScheme(testScheme).WithObjects(objects...).Build()
+		return &StroomClusterReconciler{Client: fakeClient, Scheme: testScheme}
+	}
+
+	// claim claims the database server for the cluster, returning the database server's claim afterwards
+	claim := func() (stroomv1.ResourceRef, error) {
+		err := reconciler.claimDatabaseServer(ctx, cluster, stroomv1.ResourceRef{Name: dbServer.Name, Namespace: dbServer.Namespace}, dbServer)
+		stored := &stroomv1.DatabaseServer{}
+		Expect(reconciler.Get(ctx, types.NamespacedName{Name: dbServer.Name, Namespace: dbServer.Namespace}, stored)).To(Succeed())
+		return stored.StroomClusterRef, err
+	}
+
+	BeforeEach(func() {
+		cluster = &stroomv1.StroomCluster{ObjectMeta: metav1.ObjectMeta{Name: "dev", Namespace: "stroom"}}
+		// The DatabaseServer's name differs from the StroomCluster's
+		dbServer = &stroomv1.DatabaseServer{ObjectMeta: metav1.ObjectMeta{Name: "mysql", Namespace: "stroom"}}
+	})
+
+	It("should record the claiming StroomCluster", func() {
+		reconciler = newReconciler(cluster, dbServer)
+		ref, err := claim()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ref).To(Equal(stroomv1.ResourceRef{Name: "dev", Namespace: "stroom"}))
+
+		// Claiming again is allowed
+		ref, err = claim()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ref).To(Equal(stroomv1.ResourceRef{Name: "dev", Namespace: "stroom"}))
+	})
+
+	It("should replace a claim recording the DatabaseServer's own name, as earlier versions did", func() {
+		dbServer.StroomClusterRef = stroomv1.ResourceRef{Name: "mysql", Namespace: "stroom"}
+		reconciler = newReconciler(cluster, dbServer)
+		ref, err := claim()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ref).To(Equal(stroomv1.ResourceRef{Name: "dev", Namespace: "stroom"}))
+	})
+
+	It("should refuse a DatabaseServer claimed by another StroomCluster", func() {
+		other := &stroomv1.StroomCluster{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "stroom"}}
+		dbServer.StroomClusterRef = stroomv1.ResourceRef{Name: "other", Namespace: "stroom"}
+		reconciler = newReconciler(cluster, other, dbServer)
+		ref, err := claim()
+		Expect(err).To(HaveOccurred())
+		Expect(ref).To(Equal(stroomv1.ResourceRef{Name: "other", Namespace: "stroom"}))
+	})
+})
 
 var _ = Describe("StroomCluster deletion", func() {
 

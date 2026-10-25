@@ -85,11 +85,10 @@ in the operator log.
 While a `StroomCluster` uses it, the `DatabaseServer` can't be deleted: the deletion waits until the cluster has
 gone.
 
-!!! warning "Known issue: give the DatabaseServer the same name as the StroomCluster"
-    The operator currently records the claim using the `DatabaseServer`'s own name rather than the cluster's. If
-    the two names differ, the owning cluster fails its own claim on a later reconcile (`already claimed`), and the
-    deletion safeguard doesn't work. Until this is fixed, name the `DatabaseServer` and the `StroomCluster` the
-    same, as in the examples (`dev`).
+!!! note "Operator 1.1.5 and earlier"
+    Earlier versions recorded the claim using the `DatabaseServer`'s own name rather than the cluster's, so a
+    `StroomCluster` whose `DatabaseServer` had a different name failed with `already claimed`. The operator now
+    replaces a claim by a `StroomCluster` that doesn't exist, which repairs these claims when you upgrade.
 
 ## Credentials
 
