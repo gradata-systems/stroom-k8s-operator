@@ -143,17 +143,18 @@ var _ = Describe("Node lifecycle scripts", func() {
 			Expect(log).To(ContainSubstring("All tasks drained for node node-1"))
 		})
 
-		It("should report the node as drained when the active task count cannot be retrieved", func() {
-			// BASELINE: known bug. A failed task list request is treated as zero active tasks, so the node shuts down
-			// without draining.
+		It("should keep waiting when the active task count cannot be retrieved", func() {
 			output, err := runScript("node-pre-stop.sh", "",
 				`500 {"message":"Error fetching client credentials flow access token"}`,
+				`200 not-json`,
 				`200 {"pageResponse":{"total":0}}`,
 			)
 			Expect(err).ToNot(HaveOccurred(), output)
 
-			Expect(strings.Count(readFile("requests"), "/task/v1/list/node-1")).To(Equal(1))
-			Expect(readFile("logs", "k8s", "pre-stop.log")).To(ContainSubstring("All tasks drained for node node-1"))
+			Expect(strings.Count(readFile("requests"), "/task/v1/list/node-1")).To(Equal(3))
+			log := readFile("logs", "k8s", "pre-stop.log")
+			Expect(strings.Count(log, "Unable to determine the number of active tasks")).To(Equal(2))
+			Expect(log).To(ContainSubstring("All tasks drained for node node-1"))
 		})
 
 		It("should stop without draining when jobs cannot be disabled", func() {
