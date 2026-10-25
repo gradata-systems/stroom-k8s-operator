@@ -1,0 +1,98 @@
+# A MySQL server not managed by the operator, which a StroomCluster connects to by address. The Secret is keyed by
+# database user name, as the operator expects.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: external-mysql
+stringData:
+  root: ${EXTERNAL_MYSQL_ROOT_PASSWORD}
+  stroomuser: ${EXTERNAL_MYSQL_PASSWORD}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: external-mysql-init
+data:
+  init-stroom-db.sql: |
+    CREATE DATABASE IF NOT EXISTS stroom;
+    CREATE DATABASE IF NOT EXISTS stats;
+    GRANT ALL PRIVILEGES ON stroom.* TO 'stroomuser'@'%';
+    GRANT ALL PRIVILEGES ON stats.* TO 'stroomuser'@'%';
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: external-mysql
+  template:
+    metadata:
+      labels:
+        app: external-mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-mysql
+                  key: root
+            - name: MYSQL_USER
+              value: stroomuser
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: external-mysql
+                  key: stroomuser
+          ports:
+            - name: mysql
+              containerPort: 3306
+          readinessProbe:
+            # Connect over TCP, as during initialisation a temporary server accepts only local socket connections
+            exec:
+              command: ["sh", "-c", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysql -h 127.0.0.1 -uroot -e 'SELECT 1'"]
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: external-mysql-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  selector:
+    app: external-mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: mysql

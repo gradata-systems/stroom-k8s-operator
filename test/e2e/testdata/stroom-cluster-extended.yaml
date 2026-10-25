@@ -1,0 +1,95 @@
+# A Stroom cluster with processing and frontend node sets, HTTPS, an Ingress and the log sender. The processing
+# nodes have a CPU limit, which task autoscaling requires.
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: e2e
+spec:
+  image:
+    repository: gchq/stroom
+    tag: ${STROOM_TAG}
+  imagePullPolicy: IfNotPresent
+  databaseServerRef: ${DATABASE_SERVER_REF}
+  configMapRef:
+    name: stroom-config
+    itemName: config.yml
+  openId:
+    clientId: stroom-operator
+    clientSecret:
+      secretName: stroom-operator-openid
+      key: client-secret
+  https:
+    tlsSecretName: stroom-tls
+    tlsKeystorePasswordSecret:
+      secretName: stroom-keystore
+      key: password
+  ingress:
+    hostName: stroom.e2e.local
+    secretName: stroom-tls
+    className: nginx
+  podManagementPolicy: Parallel
+  nodeTerminationPeriodSecs: 120
+  extraEnv:
+    - name: STROOM_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: stroom-openid
+          key: client-secret
+  logSender:
+    enabled: true
+    image:
+      repository: gchq/stroom-log-sender
+      tag: ${LOG_SENDER_TAG}
+    destinationUrl: https://stroom-e2e-node-processing-http.${NAMESPACE}.svc.cluster.local:8443/stroom/datafeeddirect
+  nodeSets:
+    - name: processing
+      count: 1
+      role: Processing
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      memoryOptions:
+        initialPercentage: 25
+        maxPercentage: 70
+      ${POD_SECURITY_CONTEXT}
+      startupProbeTimings:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 60
+      readinessProbeTimings: {}
+      livenessProbeTimings: {}
+    - name: frontend
+      count: 1
+      role: Frontend
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          memory: 2Gi
+      memoryOptions:
+        initialPercentage: 25
+        maxPercentage: 70
+      ${POD_SECURITY_CONTEXT}
+      startupProbeTimings:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 60
+      readinessProbeTimings: {}
+      livenessProbeTimings: {}

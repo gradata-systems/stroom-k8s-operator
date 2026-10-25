@@ -118,11 +118,12 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
-# The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
-# CertManager is installed by default; skip with:
-# - CERT_MANAGER_INSTALL_SKIP=true
-KIND_CLUSTER ?= memcached-operator-test-e2e
+# The e2e tests run the operator and Stroom in a Kind cluster, which must be installed. See test/e2e/README.md.
+# Set E2E_KEEP_CLUSTER=1 to keep the cluster after the tests, so it can be inspected or reused.
+KIND_CLUSTER ?= stroom-operator-e2e
+E2E_TIMEOUT ?= 180m
+# Ginkgo label filter selecting the suites to run: core (on merge) or extended (nightly)
+E2E_LABELS ?= core
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
@@ -139,9 +140,15 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 	esac
 
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v
-	$(MAKE) cleanup-test-e2e
+test-e2e: setup-test-e2e manifests generate fmt vet kustomize ## Run the core e2e tests. Expected an isolated environment using Kind.
+	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -ginkgo.label-filter='$(E2E_LABELS)' -timeout $(E2E_TIMEOUT); \
+		status=$$?; \
+		if [ "$(E2E_KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
+		exit $$status
+
+.PHONY: test-e2e-extended
+test-e2e-extended: ## Run the extended e2e tests, which run nightly.
+	$(MAKE) test-e2e E2E_LABELS=extended
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests

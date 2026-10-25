@@ -1,0 +1,17 @@
+# Scales the Data Processor task limit of the e2e StroomCluster's nodes. The CPU thresholds are set so any CPU use
+# is above the maximum, so the task limit is always reduced, to make the test predictable.
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomTaskAutoscaler
+metadata:
+  name: e2e
+spec:
+  stroomClusterRef:
+    name: e2e
+  taskName: Data Processor
+  adjustmentIntervalMins: 1
+  metricsSlidingWindowMins: 1
+  minCpuPercent: 0
+  maxCpuPercent: 1
+  minTaskLimit: 1
+  maxTaskLimit: 20
+  stepAmount: 5

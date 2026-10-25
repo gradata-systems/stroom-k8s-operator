@@ -1,0 +1,19 @@
+# Daily backup of the Stroom databases on a DatabaseServer
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseBackup
+metadata:
+  name: ${DATABASE_SERVER_NAME}
+spec:
+  image:
+    repository: ${MYSQL_REPOSITORY}
+    tag: "${MYSQL_TAG}"
+  imagePullPolicy: IfNotPresent
+  databaseServerRef:
+    serverRef:
+      name: ${DATABASE_SERVER_NAME}
+  databaseNames:
+    - stroom
+    - stats
+  volume:
+    emptyDir: {}
+  schedule: "0 2 * * *"

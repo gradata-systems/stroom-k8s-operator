@@ -1,0 +1,27 @@
+# MySQL database server for a Stroom cluster
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseServer
+metadata:
+  name: ${DATABASE_SERVER_NAME}
+spec:
+  image:
+    repository: ${MYSQL_REPOSITORY}
+    tag: "${MYSQL_TAG}"
+  imagePullPolicy: IfNotPresent
+  databaseNames:
+    - stroom
+    - stats
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  volumeClaim:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 2Gi
+  readinessProbeTimings: {}
+  livenessProbeTimings: {}
