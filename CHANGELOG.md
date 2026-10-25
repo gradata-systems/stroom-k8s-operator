@@ -47,12 +47,15 @@ for details.
   other.
 - Stroom failed to start with the bundled configuration unless `spec.https` was set, as the configuration always had
   an HTTPS connector. It now only has one with `spec.https`.
+- Stroom failed to start with `spec.https`, as the key store init container created the key store and trust store
+  readable only by root, and the Stroom image runs Stroom as the `stroom` user. They're now given to that user.
 
 ### Security
 
 - Database names were interpolated into SQL run as root, and into the backup job's shell command.
 - With images other than `mysql/mysql-server`, the MySQL root password was the path `/etc/mysql/password/root`.
-- The OpenID client secret was visible in the node container's process list.
+- The OpenID client secret was visible in the node container's process list, and the key store password in the key
+  store init container's.
 - `DatabaseServer.spec.additionalConfig` could set any server option, including those giving file access or
   bypassing authentication.
 - The operator could read and change every Secret in the cluster.

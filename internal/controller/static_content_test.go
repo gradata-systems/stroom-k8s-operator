@@ -69,6 +69,69 @@ var _ = Describe("Bundled Stroom configuration", func() {
 	})
 })
 
+var _ = Describe("generate-keystore.sh", func() {
+	It("should create a key store and trust store readable only by the user Stroom runs as", func() {
+		for _, tool := range []string{"bash", "openssl"} {
+			if _, err := exec.LookPath(tool); err != nil {
+				Skip(tool + " is required to test the key store script")
+			}
+		}
+		if os.Getuid() == 0 {
+			Skip("the script gives the files to the stroom user when run as root, which this test can't check")
+		}
+
+		root := GinkgoT().TempDir()
+		tlsDir := filepath.Join(root, "tls")
+		keystoreDir := filepath.Join(root, "keystore")
+		Expect(os.MkdirAll(tlsDir, 0o755)).To(Succeed())
+		Expect(os.MkdirAll(keystoreDir, 0o755)).To(Succeed())
+		certificate := exec.Command("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+			"-subj", "/CN=stroom", "-keyout", filepath.Join(tlsDir, "tls.key"), "-out", filepath.Join(tlsDir, "tls.crt"))
+		output, err := certificate.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), string(output))
+		content, err := os.ReadFile(filepath.Join(tlsDir, "tls.crt"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(os.WriteFile(filepath.Join(tlsDir, "ca.crt"), content, 0o644)).To(Succeed())
+
+		script, err := StaticFiles.ReadFile("static_content/generate-keystore.sh")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(os.WriteFile(filepath.Join(root, "generate-keystore.sh"), script, 0o755)).To(Succeed())
+		cmd := exec.Command("bash", filepath.Join(root, "generate-keystore.sh"))
+		cmd.Env = append(os.Environ(),
+			"STROOM_TLS_DIR="+tlsDir,
+			"STROOM_KEYSTORE_DIR="+keystoreDir,
+			"STROOM_KEYSTORE_PASSWORD=s3cret",
+		)
+		output, err = cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), string(output))
+
+		for _, file := range []string{"keystore.p12", "truststore.p12"} {
+			path := filepath.Join(keystoreDir, file)
+			info, err := os.Stat(path)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o400)), file)
+
+			// The password opens it
+			check := exec.Command("openssl", "pkcs12", "-in", path, "-noout", "-passin", "pass:s3cret")
+			output, err := check.CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), "%v: %v", file, string(output))
+		}
+	})
+
+	It("should fail when the certificate is missing", func() {
+		if _, err := exec.LookPath("bash"); err != nil {
+			Skip("bash is required to test the key store script")
+		}
+		root := GinkgoT().TempDir()
+		script, err := StaticFiles.ReadFile("static_content/generate-keystore.sh")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(os.WriteFile(filepath.Join(root, "generate-keystore.sh"), script, 0o755)).To(Succeed())
+		cmd := exec.Command("bash", filepath.Join(root, "generate-keystore.sh"))
+		cmd.Env = append(os.Environ(), "STROOM_TLS_DIR="+root, "STROOM_KEYSTORE_DIR="+root, "STROOM_KEYSTORE_PASSWORD=s3cret")
+		Expect(cmd.Run()).ToNot(Succeed())
+	})
+})
+
 var _ = Describe("Node lifecycle scripts", func() {
 
 	var root string
