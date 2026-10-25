@@ -24,6 +24,8 @@ import (
 
 // DatabaseBackupSpec defines the desired state of DatabaseBackup
 type DatabaseBackupSpec struct {
+	// Image the backup runs in, which must have `bash`, `mysqldump` and `gzip`, such as the official `mysql:8.4`
+	// image. The `mysql/mysql-server` images have no `gzip`.
 	// +kubebuilder:validation:Required
 	Image           Image             `json:"image"`
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`

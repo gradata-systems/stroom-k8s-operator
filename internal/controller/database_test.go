@@ -139,6 +139,23 @@ var _ = Describe("Database resources", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o444)))
 			})
+			It("should fail before dumping when the image has no gzip", func() {
+				if _, err := exec.LookPath("bash"); err != nil {
+					Skip("bash is required to run the backup command")
+				}
+				root := GinkgoT().TempDir()
+				bashPath, err := exec.LookPath("bash")
+				Expect(err).ToNot(HaveOccurred())
+				// Only mysqldump is on the PATH
+				Expect(os.WriteFile(filepath.Join(root, "mysqldump"), []byte("#!/bin/sh\necho dumped\n"), 0o755)).To(Succeed())
+				cmd := exec.Command(bashPath, "-c", newCronJobCommand("stroom"))
+				cmd.Env = []string{"PATH=" + root, "BACKUP_ROOT=" + filepath.Join(root, "backup")}
+				output, err := cmd.CombinedOutput()
+				Expect(err).To(HaveOccurred(), string(output))
+				Expect(string(output)).To(ContainSubstring("Backup failed: the image has no gzip"))
+				Expect(string(output)).ToNot(ContainSubstring("dumped"))
+			})
+
 			It("should fail, and leave no archive, when the dump fails", func() {
 				output, backupRoot, err := runBackup(2)
 				Expect(err).To(HaveOccurred(), output)

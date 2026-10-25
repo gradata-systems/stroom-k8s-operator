@@ -37,7 +37,7 @@ See also [`samples/operator-database/database-backup.yaml`](https://github.com/g
 
 | Field | Description |
 | --- | --- |
-| `image` | An image with `bash`, `mysqldump` and `gzip`. A MySQL server image of the same version as the server works. |
+| `image` | An image with `bash`, `mysqldump` and `gzip`. Use the official `mysql:8.4` image, which can back up MySQL 8.0 servers too. The `mysql/mysql-server` images have no `gzip`, and the `mysqldump` in 8.0.32 needs the `RELOAD` privilege, which the database user doesn't have. |
 | `schedule` | A [cron schedule](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax). |
 | `databaseServerRef` | A `DatabaseServer` (`serverRef`) or an external server (`serverAddress` and `userName`), as for a [`StroomCluster`](external-database.md#3-reference-the-server). If both are set, `serverRef` is used. |
 | `databaseNames` | Databases to back up. If omitted, all databases are backed up (`--all-databases`). |

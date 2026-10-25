@@ -72,6 +72,13 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 									"-c",
 									// Without pipefail, a failed dump would leave an empty archive and report success
 									"set -o pipefail\n" +
+										// Images differ in what they include, e.g. mysql/mysql-server has no gzip
+										"for tool in mysqldump gzip; do\n" +
+										"  if ! command -v \"$tool\" > /dev/null; then\n" +
+										"    echo \"Backup failed: the image has no $tool\" >&2\n" +
+										"    exit 1\n" +
+										"  fi\n" +
+										"done\n" +
 										fmt.Sprintf("backupDirectory=\"%v\"", backupDirectory) + "\n" +
 										fmt.Sprintf("archivePath=\"%v\"", archivePath) + "\n" +
 										fmt.Sprintf("echo \"Backing up \"%v\" to: $archivePath\"", shellQuote(plainTextDatabaseList)) + "\n" +

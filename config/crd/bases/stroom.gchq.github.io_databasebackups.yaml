@@ -91,6 +91,9 @@ spec:
                     type: string
                 type: object
               image:
+                description: |-
+                  Image the backup runs in, which must have `bash`, `mysqldump` and `gzip`, such as the official `mysql:8.4`
+                  image. The `mysql/mysql-server` images have no `gzip`.
                 properties:
                   repository:
                     minLength: 1

@@ -132,7 +132,7 @@ _Appears in:_ [DatabaseBackup](#databasebackup)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `image` _[Image](#image)_ |  |  | Required |
+| `image` _[Image](#image)_ | Image the backup runs in, which must have `bash`, `mysqldump` and `gzip`, such as the official `mysql:8.4`<br />image. The `mysql/mysql-server` images have no `gzip`. |  | Required |
 | `imagePullPolicy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#pullpolicy-v1-core)_ |  |  |  |
 | `databaseServerRef` _[DatabaseServerRef](#databaseserverref)_ | DatabaseServerRef contains either the details of a DatabaseServer resource, or the TCP connection details of<br />an external MySQL database |  | Required |
 | `databaseNames` _string array_ | Backup the specified database names. If unspecified, all user databases are backed up |  | items:Pattern: `^[A-Za-z0-9_]{1,64}$` |

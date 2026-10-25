@@ -31,6 +31,12 @@ spec:
             - -c
             - |-
               set -o pipefail
+              for tool in mysqldump gzip; do
+                if ! command -v "$tool" > /dev/null; then
+                  echo "Backup failed: the image has no $tool" >&2
+                  exit 1
+                fi
+              done
               backupDirectory="${BACKUP_ROOT:-/var/lib/mysql/backup}/$(date +'%Y-%m')"
               archivePath="${BACKUP_ROOT:-/var/lib/mysql/backup}/$(date +'%Y-%m')/$(date +'full_%Y-%m-%d_%H-%M-%S.sql.gz')"
               echo "Backing up "'databases (stroom,stats)'" to: $archivePath"

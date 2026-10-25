@@ -34,7 +34,8 @@ for details.
 - A `StroomCluster` without a log sender was never deployed, as the operator couldn't add its finalizer.
 - Database backups didn't run on Kubernetes 1.25 and later, as the CronJob was looked up with `batch/v1beta1`.
   Changes to a `DatabaseBackup` are now applied. A backup whose dump failed reported success and left an empty
-  archive; it now fails the Job, and removes the archive.
+  archive; it now fails the Job, and removes the archive. A backup in an image without `gzip`, such as
+  `mysql/mysql-server`, now fails with a message saying so; use the official `mysql:8.4` image.
 - Changes to a `DatabaseServer` were never applied, and its `podAnnotations` were ignored. Now that they are, the
   nodes of a `StroomCluster` aren't created or changed while its `DatabaseServer`'s Pod is being replaced, as a node
   stopping then couldn't drain.
