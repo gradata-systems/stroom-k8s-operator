@@ -18,7 +18,9 @@ const (
 	operatorNamespace  = "stroom-operator-system"
 	operatorDeployment = "deployment/stroom-operator-controller-manager"
 	// operatorRepository is the image repository the Helm chart deploys the operator from
-	operatorRepository = "gradata/stroom-k8s-operator"
+	operatorRepository = "ghcr.io/gradata-systems/stroom-k8s-operator"
+	// previousRepository is the image repository of the previous release, from before the move to GHCR
+	previousRepository = "gradata/stroom-k8s-operator"
 )
 
 var (
@@ -36,7 +38,7 @@ var (
 
 // Images used by the tests, which are loaded into the kind cluster in advance so pods don't wait on image pulls
 var testImages = []string{
-	operatorRepository + ":" + previousRelease,
+	previousRepository + ":" + previousRelease,
 	"gchq/stroom:" + stroomTag,
 	"gchq/stroom:" + previousStroomTag,
 	"mysql/mysql-server:8.0.32",

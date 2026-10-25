@@ -32,6 +32,8 @@ var _ = Describe("Stroom operator, extended", Label("extended"), func() {
 		withManifestOperator(featureSpecs))
 	Context("StroomCluster volume claim delete policies", Ordered, withManifestOperator(volumeClaimDeletePolicySpecs))
 	Context("Operator restarts", Ordered, withManifestOperator(operatorRestartSpecs))
+	Context("Sample deployment with an operator-managed database", Ordered, withManifestOperator(sampleOperatorDatabaseSpecs))
+	Context("Sample deployment with an external database", Ordered, withManifestOperator(sampleExternalDatabaseSpecs))
 })
 
 // withManifestOperator installs the current operator with the kustomize manifests before a suite's specs. An operator
@@ -57,9 +59,6 @@ func featureSpecs() {
 	values := keycloakClusterValues(operatorDatabase, namespace)
 	values["STROOM_CONFIG_FILE"] = "external-idp-stroom-config-https.yaml"
 	values["LOG_SENDER_TAG"] = logSenderTag
-	// BASELINE: works around a known bug, where Stroom can't read the key store, which the init container creates
-	// readable only by root, by running the pods as the stroom user
-	values["POD_SECURITY_CONTEXT"] = stroomUserSecurityContext
 
 	BeforeAll(func() {
 		installIngressNginx()
@@ -106,10 +105,16 @@ func featureSpecs() {
 			return httpStatus(namespace, processingPod, "https://stroom.e2e.local"+path,
 				"--resolve", "stroom.e2e.local:443:"+ingressIp, "-X", method)
 		}
-		Expect(viaIngress("GET", "/")).To(MatchRegexp(`^[23][0-9]{2}$`))
+		// ingress-nginx can take a few seconds after a node is ready to route to it
+		Eventually(func() string {
+			return viaIngress("GET", "/")
+		}, 2*time.Minute, 5*time.Second).Should(MatchRegexp(`^[23][0-9]{2}$`))
 
-		// BASELINE: known bug. The datafeed Ingress sends plain HTTP to the nodes' HTTPS port when HTTPS is enabled.
-		Expect(viaIngress("POST", "/stroom/datafeed")).To(BeElementOf("400", "502"))
+		// The datafeed Ingress reaches the processing nodes over HTTPS, so Stroom answers as it does directly. The
+		// request has no feed, so Stroom rejects it, but not as the Ingress controller would (400 or 502).
+		direct := httpStatus(namespace, processingPod, "https://localhost:8443/stroom/datafeed", "-X", "POST")
+		Expect(direct).ToNot(BeElementOf("400", "502", "000"))
+		Expect(viaIngress("POST", "/stroom/datafeed")).To(Equal(direct))
 	})
 
 	It("should send Stroom's logs with the log sender", func() {
@@ -144,6 +149,10 @@ func volumeClaimDeletePolicySpecs() {
 		"scaledown": "DeleteOnScaledownOnly",
 		"always":    "DeleteOnScaledownAndClusterDeletion",
 	}
+	// The clusters share the DatabaseServer, so connect to it by address
+	sharedDatabase := fmt.Sprintf(
+		"{serverAddress: {host: stroom-e2e-db-headless.%v.svc.cluster.local, port: 3306, secretName: stroom-e2e-db}, userName: stroomuser}",
+		namespace)
 	pvc := func(cluster string, ordinal int) string {
 		return fmt.Sprintf("pvc/data-stroom-%v-node-node-%v", cluster, ordinal)
 	}
@@ -164,7 +173,7 @@ func volumeClaimDeletePolicySpecs() {
 			}
 			applyTestData(namespace, "stroom-cluster-pause.yaml", map[string]string{
 				"CLUSTER_NAME": cluster, "VOLUME_CLAIM_DELETE_POLICY": policyLine, "NODE_COUNT": "2",
-				"DATABASE_SERVER_NAME": "e2e", "LOG_SENDER": disabledLogSender,
+				"DATABASE_SERVER_REF": sharedDatabase, "LOG_SENDER": noLogSender,
 			})
 		}
 	})
@@ -210,7 +219,7 @@ func operatorRestartSpecs() {
 		deployPauseClusterPrerequisites(namespace)
 		applyTestData(namespace, "stroom-cluster-pause.yaml", map[string]string{
 			"CLUSTER_NAME": cluster, "VOLUME_CLAIM_DELETE_POLICY": "# No volumeClaimDeletePolicy", "NODE_COUNT": "1",
-			"DATABASE_SERVER_NAME": "e2e", "LOG_SENDER": disabledLogSender,
+			"DATABASE_SERVER_REF": "{serverRef: {name: e2e}}", "LOG_SENDER": noLogSender,
 		})
 		waitForCondition(namespace, "pod/"+pods[0], "jsonpath={.status.phase}=Running", defaultTimeout)
 	})
@@ -324,7 +333,7 @@ openssl x509 -req -in tls.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 -
 
 // httpStatus requests a URL from a Stroom node's container, returning the HTTP status code
 func httpStatus(namespace string, pod string, url string, curlArgs ...string) string {
-	command := "curl -sk -o /dev/null -w '%{http_code}' " + strings.Join(curlArgs, " ") + " '" + url + "'"
+	command := "curl -sk --max-time 30 -o /dev/null -w '%{http_code}' " + strings.Join(curlArgs, " ") + " '" + url + "'"
 	output, _ := execInPod(namespace, pod, "stroom-node", command)
 	return strings.TrimSpace(output)
 }

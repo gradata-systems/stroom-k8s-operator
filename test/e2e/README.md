@@ -44,11 +44,13 @@ go test ./test/e2e/ -v -ginkgo.v -ginkgo.focus "external database"   # rerun one
 | core | DatabaseServer | `stroom-e2e-db` | MySQL with the `mysql/mysql-server` and official `mysql` images; root password handling; DatabaseBackup |
 | core | External identity provider, operator-managed database | `stroom-e2e-external` | Keycloak, a Stroom user for the operator with only the Manage Nodes, Manage Jobs and Manage Tasks permissions, node start, health check filters, node drain, scaling the node set up and down, an identity provider outage, and deleting the cluster while a node has a processing task |
 | core | External identity provider, external database | `stroom-e2e-external-db` | As above, except scaling and the outage, with a MySQL server not managed by the operator (`external-mysql.yaml`), connected to by address |
-| core | Bootstrap lock and Stroom upgrade | `stroom-e2e-lock` | Nodes waiting on the Stroom bootstrap lock, which the test holds, then a rolling upgrade of Stroom |
-| core | Internal identity provider | `stroom-e2e-internal` | Stroom's bundled configuration with its internal identity provider, without and with HTTPS, and as the stroom user |
+| core | Bootstrap lock and Stroom upgrade | `stroom-e2e-lock` | Two or more nodes waiting on the Stroom bootstrap lock, which the test holds, within the startup probe's lock wait allowance, then a rolling upgrade of Stroom |
+| core | Internal identity provider | `stroom-e2e-internal` | Stroom's bundled configuration with its internal identity provider, without and with HTTPS, then changed to run as the stroom user |
 | extended | Node roles, HTTPS, Ingress, log sender, autoscaling | `stroom-e2e-features` | Processing and frontend node sets and their managed jobs, the key store init container, ingress-nginx, the log sender sidecar, and StroomTaskAutoscaler with metrics-server |
 | extended | Volume claim delete policies | `stroom-e2e-volumes` | Each `volumeClaimDeletePolicy`, on scale-down and cluster deletion |
 | extended | Operator restarts | `stroom-e2e-restart` | Restarting the operator while idle, during a scale-up, and during cluster deletion |
+| extended | Sample deployment with an operator-managed database | `stroom-e2e-samples` | `samples/operator-database`, applied with kustomize: Stroom starting within the default startup probe, the Ingress, a backup, and the NetworkPolicies refusing other connections |
+| extended | Sample deployment with an external database | `stroom-e2e-samples-external` | `samples/external-database`, applied with kustomize, against a MySQL server not managed by the operator |
 
 The volume claim and operator restart suites run the pause image in place of Stroom, as they only need the operator
 to manage pods and volumes. Processing tasks are simulated by adding rows to Stroom's database, so draining can be
@@ -59,6 +61,11 @@ error. `external-idp-stroom-config.yaml` and `external-idp-stroom-config-https.y
 configuration with Keycloak as the identity provider, the first without the HTTPS connector. They are applied
 with only the namespace substituted, as they contain Stroom's own `${VAR}` references.
 
+The sample suites deploy `samples/` through the overlays in `testdata/samples`, which size them for a kind cluster.
+The tests replace the samples' placeholders (`keycloak.example.com`, `mysql.example.com` and the `replace-with-...`
+secrets) with the test Keycloak and MySQL server, and run Keycloak in the cluster's namespace, so the overlay for
+`operator-database` adds NetworkPolicies allowing connections to it. kind enforces NetworkPolicies from v0.24.
+
 ## Known issues pinned by the tests
 
 Some specs assert the current behaviour where it is a known bug or limitation, marked `BASELINE` in the code. A fix
@@ -66,18 +73,13 @@ changes the spec to assert the fixed behaviour, in the same change.
 
 | Spec | Current behaviour | Reference |
 |---|---|---|
-| DatabaseServer: StroomCluster without a log sender | Never deployed, as the operator can't add its finalizer. Other StroomCluster fixtures set a disabled log sender to work around it. | Typed update sends empty log sender settings |
-| DatabaseServer: root password with an image that doesn't read it from a file | Root password is `/etc/mysql/password/root` | Security review L1 |
-| DatabaseServer: backup CronJob | Not created, as the controller looks up `batch/v1beta1` CronJobs | Docs review |
-| DatabaseServer: readiness (unit test) | The pod is ready before MySQL accepts connections, as the probe always succeeds. The tests wait for MySQL itself. | Docs review |
-| External identity provider: probe paths | Liveness and readiness run all health checks | #62 |
-| External identity provider: outage | Every node is restarted | #62 |
-| External identity provider: cluster deletion | Jobs are disabled on every node whose name starts with the cluster's resource name, including other clusters' nodes sharing the database | `disableTaskProcessing` matches node names with `LIKE` |
-| External identity provider: scaling up | Existing nodes are not restarted, as the startup probe doesn't depend on the node count | Changes with the startup lock allowance |
-| Operator upgrade | Nodes aren't restarted, as the previous release renders the same pod template | Changes with any pod template change |
-| Bootstrap lock | Nodes waiting on the lock longer than the startup probe allows are restarted | Startup lock allowance |
-| Internal identity provider: bundled configuration without HTTPS | Stroom exits as it starts, as the bundled configuration always has an HTTPS connector, whose key store only exists when HTTPS is enabled. The suite then enables HTTPS. | Found by the e2e tests |
-| Internal identity provider: HTTPS | Stroom exits as it starts, as the key store init container runs as root and creates the key store readable only by root, while Stroom runs as the stroom user. The suite, and the extended suite, then run the pods as the stroom user, which works around it. | Found by the e2e tests |
-| Internal identity provider: changing to the stroom user | The node lifecycle scripts' logs, created by root, can't be written by the stroom user, so the suite recreates the cluster with a new volume | Found by the e2e tests |
-| Internal identity provider | Stroom starts, but node startup can't obtain a token, so the node never becomes ready | Stroom 7.13 rejects client credentials token requests with its internal identity provider |
-| Extended: datafeed Ingress with HTTPS | Requests fail, as the Ingress sends plain HTTP to the nodes' HTTPS port | Docs review |
+| Internal identity provider | Stroom starts, but node startup can't obtain a token, so the node never becomes ready | Stroom 7.13 rejects client credentials token requests with its internal identity provider, with 400 Bad Request |
+| Operator upgrade | The previous release never deploys a StroomCluster without a log sender, so the suite sets a disabled one | Fixed in 1.2.0 |
+
+The tests found, and pinned, these bugs in 1.1.5, which 1.2.0 fixes: a StroomCluster without a log sender was never
+deployed; the official `mysql` image's root password was the password file's path; backups never ran; the
+DatabaseServer was ready before MySQL; liveness and readiness ran every health check, so an identity provider outage
+restarted every node; cluster deletion disabled jobs on other clusters' nodes; scaling didn't extend the startup
+probe; nodes waiting on the bootstrap lock were restarted; the bundled configuration needed HTTPS; Stroom couldn't
+read the key store; the lifecycle scripts' logs weren't writable after changing to the stroom user; and the datafeed
+Ingress sent plain HTTP to the nodes' HTTPS port.

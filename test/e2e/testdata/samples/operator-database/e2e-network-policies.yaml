@@ -1,0 +1,33 @@
+# Connections the tests need that the sample's NetworkPolicies don't allow, as the tests run Keycloak and the job
+# creating the operator's Stroom user in the cluster's namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: e2e-keycloak
+spec:
+  podSelector:
+    matchLabels:
+      app: keycloak
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: e2e-provision-users
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: database-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              batch.kubernetes.io/job-name: provision-users
+      ports:
+        - port: 3306

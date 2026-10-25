@@ -28,8 +28,10 @@ const (
 	// processingTaskStatus is the Stroom processor task status of a task being processed
 	processingTaskStatus = 3
 
-	// disabledLogSender is set on StroomClusters that don't use the log sender. BASELINE: works around a known bug,
-	// where a StroomCluster without a log sender is never deployed.
+	// noLogSender is set on StroomClusters that don't use the log sender
+	noLogSender = "# No logSender"
+	// disabledLogSender is set on StroomClusters deployed by the previous release, which works around its bug where a
+	// StroomCluster without a log sender is never deployed
 	disabledLogSender = "logSender: {enabled: false, image: {repository: gchq/stroom-log-sender, tag: " + logSenderTag + "}}"
 
 	// noHttps and withHttps are the HTTPS settings of a StroomCluster. withHttps needs the Secrets in tls-secrets.yaml.
@@ -91,62 +93,57 @@ func databaseServerSpecs() {
 		}
 	})
 
-	It("should not deploy a StroomCluster without a log sender", func() {
-		// BASELINE: known bug. The operator can't add its finalizer, as the update sends empty log sender settings
-		// that fail validation, and it doesn't create the cluster's resources until it has.
+	It("should deploy a StroomCluster without a log sender, and delete it before any node has started", func() {
 		applyTestData(namespace, "stroom-cluster-pause.yaml", map[string]string{
-			"CLUSTER_NAME": "no-log-sender", "DATABASE_SERVER_NAME": "oracle", "NODE_COUNT": "1",
-			"VOLUME_CLAIM_DELETE_POLICY": "# No volumeClaimDeletePolicy", "LOG_SENDER": "# No logSender",
+			"CLUSTER_NAME": "no-log-sender", "DATABASE_SERVER_REF": "{serverRef: {name: oracle}}", "NODE_COUNT": "1",
+			"VOLUME_CLAIM_DELETE_POLICY": "# No volumeClaimDeletePolicy", "LOG_SENDER": noLogSender,
 		})
-		Eventually(operatorLogs, 2*time.Minute, 5*time.Second).Should(ContainSubstring("spec.logSender.image.repository"))
-		Consistently(func() error {
+		Eventually(func() error {
 			_, err := kubectl("get", "statefulset", "-n", namespace, "stroom-no-log-sender-node-node")
 			return err
-		}, 30*time.Second, 5*time.Second).Should(HaveOccurred(), "the StroomCluster's StatefulSet should not be created")
-		mustKubectl("delete", "stroomcluster", "no-log-sender", "-n", namespace, "--wait=true", "--timeout=2m")
-	})
+		}, 2*time.Minute, 5*time.Second).Should(Succeed(), "the StroomCluster's StatefulSet should be created")
+		Expect(mustKubectl("get", "stroomcluster", "no-log-sender", "-n", namespace, "-o", "jsonpath={.metadata.finalizers}")).
+			ToNot(BeEmpty())
 
-	// effectiveRootPassword is the root password each server ends up with
-	effectiveRootPassword := func(name string) string {
-		if name == "official" {
-			// BASELINE: known issue, see security review L1
-			return "/etc/mysql/password/root"
-		}
-		return rootPassword(namespace, name)
-	}
+		// The database has no Stroom tables, as Stroom has never run, so there's nothing to drain
+		mustKubectl("delete", "stroomcluster", "no-log-sender", "-n", namespace, "--wait=true", "--timeout=2m")
+		Expect(operatorLogs()).To(ContainSubstring("The Stroom database has no job_node table"))
+	})
 
 	It("should create the Stroom databases", func() {
 		for name := range servers {
-			output := mysqlAsRoot(namespace, name, effectiveRootPassword(name), "SHOW DATABASES")
+			output := mysqlAsRoot(namespace, name, rootPassword(namespace, name), "SHOW DATABASES")
 			Expect(output).To(ContainSubstring("stroom"))
 			Expect(output).To(ContainSubstring("stats"))
 		}
 	})
 
-	It("should set the root password from the Secret, with an image that reads the password from a file", func() {
-		Expect(mysqlAsRoot(namespace, "oracle", rootPassword(namespace, "oracle"), "SELECT 'ok'")).To(ContainSubstring("ok"))
+	It("should set the root password from the Secret, with each image", func() {
+		for name := range servers {
+			Expect(mysqlAsRoot(namespace, name, rootPassword(namespace, name), "SELECT 'ok'")).To(ContainSubstring("ok"), name)
+			_, err := execInPod(namespace, fmt.Sprintf("stroom-%v-db-0", name), "mysql",
+				"MYSQL_PWD='/etc/mysql/password/root' mysql -uroot -N -e \"SELECT 'ok'\"")
+			Expect(err).To(HaveOccurred(), "%v: the password file's path should not be the password", name)
+		}
 	})
 
-	It("should set the root password to the password file path, with an image that doesn't read it from a file", func() {
-		// BASELINE: known issue, see security review L1
-		Expect(mysqlAsRoot(namespace, "official", "/etc/mysql/password/root", "SELECT 'ok'")).To(ContainSubstring("ok"))
-		_, err := execInPod(namespace, "stroom-official-db-0", "mysql",
-			fmt.Sprintf("MYSQL_PWD='%v' mysql -uroot -N -e \"SELECT 'ok'\"", rootPassword(namespace, "official")))
-		Expect(err).To(HaveOccurred())
-	})
-
-	It("should not create a backup CronJob", func() {
-		// BASELINE: known bug. The DatabaseBackup controller looks up batch/v1beta1 CronJobs, which Kubernetes 1.25
-		// removed, so it fails before creating the CronJob.
+	It("should back up the databases on the schedule's CronJob", func() {
+		// The backup runs in the official image, as the mysql/mysql-server image has no gzip, and its mysqldump
+		// needs a privilege the database user doesn't have. The official image's mysqldump can back up 8.0 servers.
 		applyTestData(namespace, "database-backup.yaml", map[string]string{
-			"DATABASE_SERVER_NAME": "oracle", "MYSQL_REPOSITORY": "mysql/mysql-server", "MYSQL_TAG": "8.0.32",
+			"DATABASE_SERVER_NAME": "oracle", "MYSQL_REPOSITORY": "mysql", "MYSQL_TAG": "8.4",
 		})
-		Consistently(func() string {
-			output, _ := kubectl("get", "cronjobs", "-n", namespace, "-o", "name")
-			return output
-		}, time.Minute, 10*time.Second).Should(BeEmpty())
-		Expect(operatorLogs()).
-			To(ContainSubstring("batch/v1beta1"))
+		Eventually(func() error {
+			_, err := kubectl("get", "cronjob", "-n", namespace, "stroom-oracle-db-backup")
+			return err
+		}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+		By("running a backup now, as the docs describe")
+		mustKubectl("create", "job", "-n", namespace, "--from=cronjob/stroom-oracle-db-backup", "e2e-backup")
+		waitForCondition(namespace, "job/e2e-backup", "condition=Complete", defaultTimeout)
+		output := mustKubectl("logs", "-n", namespace, "job/e2e-backup")
+		Expect(output).To(ContainSubstring("Backing up databases (stroom,stats) to: /var/lib/mysql/backup/"))
+		Expect(output).To(ContainSubstring("Backup successful"))
 	})
 }
 
@@ -210,9 +207,10 @@ func keycloakClusterValues(database databaseSource, namespace string) map[string
 		"HTTPS":                       noHttps,
 		"POD_SECURITY_CONTEXT":        defaultSecurityContext,
 		"STROOM_NODES":                stroomNodes,
-		"LOG_SENDER":                  disabledLogSender,
+		"LOG_SENDER":                  noLogSender,
 		"STARTUP_INITIAL_DELAY":       "10",
 		"STARTUP_FAILURE_THRESHOLD":   "60",
+		"LOCK_WAIT_ALLOWANCE":         "# Default lockWaitAllowanceSeconds",
 	}
 	for name, value := range databaseValues(database, namespace) {
 		values[name] = value
@@ -297,19 +295,19 @@ func stroomClusterSpecs(namespace string, pods []string) {
 		}
 	})
 
-	It("should probe liveness and readiness with all health checks", func() {
-		// BASELINE: known issue, see #62
-		for _, probe := range []string{"livenessProbe", "readinessProbe"} {
-			path := mustKubectl("get", "statefulset", "-n", namespace, "stroom-e2e-node-node", "-o",
+	It("should probe liveness with only the deadlocks check, and readiness without the identity provider check", func() {
+		probePath := func(probe string) string {
+			return mustKubectl("get", "statefulset", "-n", namespace, "stroom-e2e-node-node", "-o",
 				fmt.Sprintf(`jsonpath={.spec.template.spec.containers[?(@.name=="stroom-node")].%v.httpGet.path}`, probe))
-			Expect(path).To(Equal("/stroomAdmin/filteredhealthcheck"))
 		}
+		Expect(probePath("livenessProbe")).To(Equal("/stroomAdmin/filteredhealthcheck?allow=deadlocks"))
+		Expect(probePath("readinessProbe")).To(Equal("/stroomAdmin/filteredhealthcheck?deny=" + externalIdpCheck))
 	})
 
 	It("should report health for the checks a probe filter would name", func() {
 		statusCode := func(query string) string {
 			output, err := execInPod(namespace, pods[0], "stroom-node",
-				"curl -s -o /dev/null -w '%{http_code}' 'http://localhost:8081/stroomAdmin/filteredhealthcheck"+query+"'")
+				"curl -s --max-time 30 -o /dev/null -w '%{http_code}' 'http://localhost:8081/stroomAdmin/filteredhealthcheck"+query+"'")
 			Expect(err).ToNot(HaveOccurred())
 			return output
 		}
@@ -350,14 +348,24 @@ func scalingSpecs(namespace string, pods []string) {
 			`jsonpath={.spec.template.spec.containers[?(@.name=="stroom-node")].startupProbe.failureThreshold}`)
 	}
 
-	It("should start a node when the node set is scaled up, without restarting the existing nodes", func() {
+	// Under the Parallel pod management policy, the startup probe allows the default 30 seconds, 3 more failures, for
+	// each node after the first, so scaling changes the pod template, and rolls the existing nodes
+	startupFailureThresholdFor := func(nodes int) string {
+		return fmt.Sprint(60 + 3*(nodes-1))
+	}
+	rollout := func() {
+		mustKubectl("rollout", "status", "statefulset/stroom-e2e-node-node", "-n", namespace, "--timeout=30m")
+		for _, pod := range pods {
+			waitForCondition(namespace, "pod/"+pod, "condition=Ready", stroomStartTimeout)
+		}
+	}
+
+	It("should start a node when the node set is scaled up, and roll the existing nodes with a longer startup", func() {
+		Expect(startupFailureThreshold()).To(Equal(startupFailureThresholdFor(len(pods))))
 		uids := map[string]string{}
-		restarts := map[string]int{}
 		for _, pod := range pods {
 			uids[pod] = podUid(pod)
-			restarts[pod] = podRestartCount(namespace, pod)
 		}
-		threshold := startupFailureThreshold()
 
 		scaleTo(len(pods) + 1)
 		waitForCondition(namespace, "pod/"+addedPod, "condition=Ready", stroomStartTimeout)
@@ -365,17 +373,18 @@ func scalingSpecs(namespace string, pods []string) {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(output).To(ContainSubstring("jobs enabled"))
 
-		// BASELINE: the startup probe doesn't depend on the number of nodes, so the pod template is unchanged
-		Expect(startupFailureThreshold()).To(Equal(threshold))
+		Expect(startupFailureThreshold()).To(Equal(startupFailureThresholdFor(len(pods) + 1)))
+		rollout()
 		for _, pod := range pods {
-			Expect(podUid(pod)).To(Equal(uids[pod]), pod)
-			Expect(podRestartCount(namespace, pod)).To(Equal(restarts[pod]), pod)
+			Expect(podUid(pod)).ToNot(Equal(uids[pod]), "%v should have been replaced", pod)
 		}
 	})
 
 	It("should drain and remove the node when the node set is scaled down, keeping its volume", func() {
 		scaleTo(len(pods))
 		waitForCondition(namespace, "pod/"+addedPod, "delete", defaultTimeout)
+		Expect(startupFailureThreshold()).To(Equal(startupFailureThresholdFor(len(pods))))
+		rollout()
 
 		// The pre-stop hook disables the node in Stroom before it stops
 		enabled := mysqlAsRoot(namespace, "e2e", rootPassword(namespace, "e2e"),
@@ -448,9 +457,8 @@ func clusterDeletionSpecs(database databaseSource, namespace string, pods []stri
 		Expect(operatorLogs()).
 			To(ContainSubstring("All tasks drained, deletion commencing"))
 
-		// BASELINE: known bug. The operator disables jobs on every node whose name starts with the cluster's
-		// resource name, including nodes of other clusters sharing the database.
-		Expect(enabledJobCount(otherClusterNode)).To(Equal("0"))
+		// The other cluster's node is left alone, although its name starts with this cluster's resource name
+		Expect(enabledJobCount(otherClusterNode)).ToNot(Equal("0"))
 	})
 
 	It("should remove the cluster's Ingresses, and keep its volumes", func() {
@@ -487,8 +495,8 @@ func stroomDatabaseQuery(database databaseSource, namespace string, statement st
 
 // identityProviderOutageSpecs tests how a running StroomCluster behaves while Keycloak is unavailable
 func identityProviderOutageSpecs(namespace string, pods []string) {
-	It("should restart every node during an identity provider outage", func() {
-		// BASELINE: known issue, see #62. The liveness probe includes the identity provider health check.
+	It("should keep every node running and ready during an identity provider outage", func() {
+		// The liveness probe only runs the deadlocks check, and the readiness probe skips the identity provider's
 		restarts := map[string]int{}
 		for _, pod := range pods {
 			restarts[pod] = podRestartCount(namespace, pod)
@@ -496,11 +504,20 @@ func identityProviderOutageSpecs(namespace string, pods []string) {
 
 		By("stopping Keycloak")
 		mustKubectl("scale", "deployment/keycloak", "-n", namespace, "--replicas=0")
-		Eventually(func(g Gomega) {
+		Eventually(func() string {
+			// The identity provider's health check reports the outage, or doesn't answer within a probe's timeout, so
+			// the probes would fail without their filters. curl gives up after 10 seconds, reporting 000.
+			output, _ := execInPod(namespace, pods[0], "stroom-node",
+				"curl -s --max-time 10 -o /dev/null -w '%{http_code}' 'http://localhost:8081/stroomAdmin/filteredhealthcheck?allow="+externalIdpCheck+"'")
+			return output
+		}, 5*time.Minute, 15*time.Second).ShouldNot(Equal("200"))
+		Consistently(func(g Gomega) {
 			for _, pod := range pods {
-				g.Expect(podRestartCount(namespace, pod)).To(BeNumerically(">", restarts[pod]), pod)
+				g.Expect(podRestartCount(namespace, pod)).To(Equal(restarts[pod]), pod)
+				g.Expect(mustKubectl("get", "pod", "-n", namespace, pod, "-o",
+					`jsonpath={.status.conditions[?(@.type=="Ready")].status}`)).To(Equal("True"), pod)
 			}
-		}, defaultTimeout, 15*time.Second).Should(Succeed())
+		}, 3*time.Minute, 15*time.Second).Should(Succeed())
 
 		By("restarting Keycloak")
 		mustKubectl("scale", "deployment/keycloak", "-n", namespace, "--replicas=1")
@@ -523,10 +540,11 @@ func internalIdpSpecs() {
 		"HTTPS":                  noHttps,
 		"POD_SECURITY_CONTEXT":   defaultSecurityContext,
 		"STROOM_NODES":           "1",
-		"LOG_SENDER":             disabledLogSender,
+		"LOG_SENDER":             noLogSender,
 		"STARTUP_INITIAL_DELAY":  "10",
 		// Allow time for the initial database migration, then give up
 		"STARTUP_FAILURE_THRESHOLD": "90",
+		"LOCK_WAIT_ALLOWANCE":       "# Default lockWaitAllowanceSeconds",
 	}
 
 	for name, value := range databaseValues(operatorDatabase, namespace) {
@@ -539,16 +557,22 @@ func internalIdpSpecs() {
 		deployDatabase(operatorDatabase, namespace, values)
 	})
 
-	It("should fail to start Stroom without HTTPS", func() {
-		// BASELINE: known bug. The bundled configuration always has an HTTPS connector, whose key store only exists
-		// when HTTPS is enabled, so Stroom exits as it starts.
+	// waitForStroom waits for the node's Stroom to report healthy. It never becomes ready, as its startup probe fails.
+	waitForStroom := func() {
+		Eventually(func() string {
+			output, _ := execInPod(namespace, pod, "stroom-node",
+				"curl -s --max-time 30 -o /dev/null -w '%{http_code}' http://localhost:8081/stroomAdmin/filteredhealthcheck")
+			return output
+		}, stroomStartTimeout, 15*time.Second).Should(Equal("200"))
+	}
+
+	It("should start Stroom without HTTPS, with the bundled configuration", func() {
 		applyTestData(namespace, "stroom-cluster.yaml", values)
-		expectNodeRestarted(namespace, pod, "KeyStore Path not accessible: /stroom/pki/tls/keystore.p12")
+		waitForStroom()
+		Expect(podRestartCount(namespace, pod)).To(Equal(0))
 	})
 
-	It("should fail to start Stroom with HTTPS, as Stroom can't read the key store", func() {
-		// BASELINE: known bug. The key store init container runs as root, and creates the key store and trust store
-		// readable only by root, while the Stroom image runs Stroom as the stroom user.
+	It("should start Stroom with HTTPS, with the key store readable by the stroom user", func() {
 		for name, value := range generateTls(namespace) {
 			values[name] = value
 		}
@@ -557,33 +581,26 @@ func internalIdpSpecs() {
 		applyTestData(namespace, "stroom-cluster.yaml", values)
 		replaceNodePod(namespace, pod, "{.spec.template.spec.initContainers[*].name}", "generate-keystore")
 
-		expectNodeRestarted(namespace, pod, "KeyStore Path not accessible: /stroom/pki/tls/keystore.p12")
-		exitCode := mustKubectl("get", "pod", "-n", namespace, pod, "-o",
-			`jsonpath={.status.initContainerStatuses[?(@.name=="generate-keystore")].state.terminated.exitCode}`)
-		Expect(exitCode).To(Equal("0"))
+		waitForStroom()
+		Expect(httpStatus(namespace, pod, "https://localhost:8443/")).To(MatchRegexp(`^[1-5][0-9]{2}$`))
+		owner, err := execInPod(namespace, pod, "stroom-node", "stat -c '%U %a' /stroom/pki/tls/keystore.p12")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(strings.TrimSpace(owner)).To(Equal("stroom 400"))
 	})
 
-	It("should start Stroom with HTTPS, as the stroom user", func() {
-		// BASELINE: works around the key store bug. Running the pod as the stroom user makes the init container
-		// create the key store as that user.
-		// BASELINE: known bug. The node lifecycle scripts, run as root until now, created their logs on the node's
-		// volume readable only by root, so the stroom user can't add to them. The cluster is recreated with a new
-		// volume.
-		By("recreating the cluster, with a new volume")
-		mustKubectl("delete", "stroomcluster", "e2e", "-n", namespace, "--wait=true", "--timeout=5m")
-		mustKubectl("delete", "pvc", "data-"+pod, "-n", namespace, "--wait=true", "--timeout=5m")
+	It("should keep running Stroom when the node set is changed to run as the stroom user", func() {
+		// The lifecycle scripts have been running as root, and give their logs to the stroom user
 		values["POD_SECURITY_CONTEXT"] = stroomUserSecurityContext
 		applyTestData(namespace, "stroom-cluster.yaml", values)
+		replaceNodePod(namespace, pod, "{.spec.template.spec.securityContext.runAsUser}", "1000")
 
-		Eventually(func() string {
-			output, _ := execInPod(namespace, pod, "stroom-node",
-				"curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/stroomAdmin/filteredhealthcheck")
-			return output
-		}, stroomStartTimeout, 15*time.Second).Should(Equal("200"))
+		waitForStroom()
 		Expect(httpStatus(namespace, pod, "https://localhost:8443/")).To(MatchRegexp(`^[1-5][0-9]{2}$`))
 		user, err := execInPod(namespace, pod, "stroom-node", "id -u")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(strings.TrimSpace(user)).To(Equal("1000"))
+		_, err = execInPod(namespace, pod, "stroom-node", "test -w /stroom/logs/k8s/api.log")
+		Expect(err).ToNot(HaveOccurred(), "the lifecycle scripts' log should be writable by the stroom user")
 	})
 
 	It("should fail to obtain a token for the node startup script", func() {

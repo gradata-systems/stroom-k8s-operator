@@ -9,9 +9,8 @@ spec:
     repository: registry.k8s.io/pause
     tag: "3.10"
   imagePullPolicy: IfNotPresent
-  databaseServerRef:
-    serverRef:
-      name: ${DATABASE_SERVER_NAME}
+  # A DatabaseServer can only be used by one StroomCluster, so clusters sharing one connect to it by address
+  databaseServerRef: ${DATABASE_SERVER_REF}
   appDatabaseName: stroom
   statsDatabaseName: stats
   openId:

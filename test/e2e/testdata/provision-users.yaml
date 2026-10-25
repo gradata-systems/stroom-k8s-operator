@@ -33,6 +33,12 @@ spec:
               value: -XX:MaxRAMPercentage=70
             - name: STROOM_NODE
               value: provisioning
+            # The node's address, which the operator sets for Stroom nodes. With Stroom's internal identity provider,
+            # Stroom requests its own tokens from it.
+            - name: POD_HOSTNAME
+              value: localhost
+            - name: POD_SUBDOMAIN
+              value: localdomain
             - name: STROOM_JDBC_DRIVER_URL
               value: jdbc:mysql://${DB_HOST}:3306/stroom?serverTimezone=UTC&useUnicode=yes&characterEncoding=UTF-8
             - name: STROOM_JDBC_DRIVER_USERNAME

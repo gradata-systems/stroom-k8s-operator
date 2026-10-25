@@ -16,6 +16,7 @@ func operatorUpgradeSpecs() {
 	const namespace = "stroom-e2e-upgrade"
 	pods := stroomPodNames("e2e", "node", stroomNodeCount())
 	values := keycloakClusterValues(operatorDatabase, namespace)
+	values["LOG_SENDER"] = disabledLogSender
 
 	BeforeAll(func() {
 		By("installing operator " + previousRelease)
@@ -27,27 +28,56 @@ func operatorUpgradeSpecs() {
 	})
 
 	It("should run Stroom with the previous release", func() {
-		Expect(operatorImage()).To(Equal(operatorRepository + ":" + previousRelease))
+		Expect(operatorImage()).To(Equal(previousRepository + ":" + previousRelease))
 		for _, pod := range pods {
 			waitForCondition(namespace, "pod/"+pod, "condition=Ready", stroomStartTimeout)
 		}
 	})
 
-	It("should keep the nodes running when the operator is upgraded", func() {
-		uids := podUids(namespace, pods)
+	It("should update the database server, then roll the nodes, draining each, when the operator is upgraded", func() {
+		const dbPod = "stroom-e2e-db-0"
+		uids := podUids(namespace, append([]string{dbPod}, pods...))
+		drains := map[string]int{}
+		for _, pod := range pods {
+			drains[pod] = drainCount(namespace, pod)
+		}
 		revision := mustKubectl("get", statefulSet, "-n", namespace, "-o", "jsonpath={.status.updateRevision}")
 
 		By("upgrading the operator")
 		deployOperator()
 		Expect(operatorImage()).To(Equal(operatorRepository + ":" + operatorTag))
-		Eventually(operatorLogs, 2*time.Minute, 5*time.Second).Should(ContainSubstring("StatefulSet reconciled"))
 
-		// BASELINE: the previous release renders the same pod template as this build, so the nodes are untouched.
-		// A change to the pod template rolls each node set.
-		Consistently(func() map[string]string {
-			return podUids(namespace, pods)
-		}, time.Minute, 10*time.Second).Should(Equal(uids))
-		Expect(mustKubectl("get", statefulSet, "-n", namespace, "-o", "jsonpath={.status.updateRevision}")).To(Equal(revision))
+		// This release changes the database server's pod template, and the nodes' (the probes and security settings).
+		// The database server is updated first, as the nodes need it to drain.
+		Eventually(func() string {
+			output, _ := kubectl("get", "pod", "-n", namespace, dbPod, "-o", "jsonpath={.metadata.uid}")
+			return output
+		}, defaultTimeout, 5*time.Second).ShouldNot(Or(BeEmpty(), Equal(uids[dbPod])), "the database server should be replaced")
+		waitForCondition(namespace, "pod/"+dbPod, "condition=Ready", defaultTimeout)
+		dbStarted := mustKubectl("get", "pod", "-n", namespace, dbPod, "-o", "jsonpath={.metadata.creationTimestamp}")
+
+		Eventually(func() string {
+			return mustKubectl("get", statefulSet, "-n", namespace, "-o", "jsonpath={.status.updateRevision}")
+		}, 2*time.Minute, 5*time.Second).ShouldNot(Equal(revision))
+		mustKubectl("rollout", "status", statefulSet, "-n", namespace, "--timeout=30m")
+		for _, pod := range pods {
+			waitForCondition(namespace, "pod/"+pod, "condition=Ready", stroomStartTimeout)
+			Expect(podUids(namespace, []string{pod})[pod]).ToNot(Equal(uids[pod]), "%v should have been replaced", pod)
+			// RFC 3339 timestamps in UTC sort as strings
+			nodeStarted := mustKubectl("get", "pod", "-n", namespace, pod, "-o", "jsonpath={.metadata.creationTimestamp}")
+			Expect(nodeStarted >= dbStarted).To(BeTrue(), "%v (%v) should have been replaced after the database server (%v)", pod, nodeStarted, dbStarted)
+			Expect(drainCount(namespace, pod)).To(BeNumerically(">", drains[pod]), "%v should have drained:\n%v", pod,
+				lifecycleLogs(namespace, pod))
+		}
+	})
+
+	It("should give the nodes the new health check filters", func() {
+		// The StroomCluster has no allow or deny lists stored, as the previous release had none, so the defaults apply
+		for _, pod := range pods {
+			paths := mustKubectl("get", "pod", "-n", namespace, pod, "-o",
+				`jsonpath={.spec.containers[?(@.name=="stroom-node")].livenessProbe.httpGet.path} {.spec.containers[?(@.name=="stroom-node")].readinessProbe.httpGet.path}`)
+			Expect(paths).To(Equal("/stroomAdmin/filteredhealthcheck?allow=deadlocks /stroomAdmin/filteredhealthcheck?deny=" + externalIdpCheck))
+		}
 	})
 
 	It("should keep the StroomCluster's stored probe timings", func() {
@@ -62,42 +92,45 @@ func operatorUpgradeSpecs() {
 func bootstrapLockSpecs() {
 	const (
 		namespace = "stroom-e2e-lock"
-		// The startup probe allows 10 + 9 x 10 seconds, which the lock is held for longer than
-		startupInitialDelay     = "10"
-		startupFailureThreshold = "9"
-		lockHoldSeconds         = 150
+		// Without the lock wait allowance, the startup probe allows 10 + 9 x 10 seconds, which the lock is held for
+		// longer than. The allowance adds 300 seconds for the second node, so 30 more failures.
+		startupInitialDelay      = "10"
+		startupFailureThreshold  = "9"
+		lockWaitAllowance        = "300"
+		expectedFailureThreshold = "39"
+		lockHoldSeconds          = 150
 	)
-	pods := stroomPodNames("e2e", "node", stroomNodeCount())
+	// The allowance is for each node after the first, so at least two are needed
+	nodes := max(2, stroomNodeCount())
+	pods := stroomPodNames("e2e", "node", nodes)
 	values := keycloakClusterValues(operatorDatabase, namespace)
 	values["PROVISIONING_STROOM_TAG"] = previousStroomTag
 	values["STROOM_TAG"] = previousStroomTag
+	values["STROOM_NODES"] = fmt.Sprint(nodes)
 	values["STARTUP_INITIAL_DELAY"] = startupInitialDelay
 	values["STARTUP_FAILURE_THRESHOLD"] = startupFailureThreshold
+	values["LOCK_WAIT_ALLOWANCE"] = "lockWaitAllowanceSeconds: " + lockWaitAllowance
 
 	BeforeAll(func() {
 		deployKeycloakAndDatabase(operatorDatabase, namespace, values)
 	})
 
-	It("should restart nodes that wait on the bootstrap lock for longer than the startup probe allows", func() {
+	It("should let nodes wait on the bootstrap lock without restarting them", func() {
 		By("making the nodes upgrade the database, while the lock is held")
 		holdBootstrapLock(namespace, lockHoldSeconds)
 		applyTestData(namespace, "stroom-cluster.yaml", values)
 
-		// BASELINE: the startup probe doesn't allow for the lock wait, so the nodes are restarted while waiting
-		Eventually(func(g Gomega) {
-			for _, pod := range pods {
-				g.Expect(podRestartCount(namespace, pod)).To(BeNumerically(">=", 1), pod)
-			}
-		}, lockHoldSeconds*time.Second+3*time.Minute, 10*time.Second).Should(Succeed())
-
-		By("waiting for the nodes to start once the lock is released")
 		for _, pod := range pods {
 			waitForCondition(namespace, "pod/"+pod, "condition=Ready", stroomStartTimeout)
-			// Logs are kept on the node's volume, so include those of restarted containers, some of which are archived
+			threshold := mustKubectl("get", "pod", "-n", namespace, pod, "-o",
+				`jsonpath={.spec.containers[?(@.name=="stroom-node")].startupProbe.failureThreshold}`)
+			Expect(threshold).To(Equal(expectedFailureThreshold), pod)
+			Expect(podRestartCount(namespace, pod)).To(Equal(0), "%v should not have been restarted", pod)
+
 			// zcat exits with an error for a file being written as it's read, so only its output is checked
 			output, err := execInPod(namespace, pod, "stroom-node", "zcat -f /stroom/logs/app/app* 2> /dev/null; true")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(output).To(ContainSubstring("Waiting to acquire bootstrap lock"))
+			Expect(output).To(ContainSubstring("Waiting to acquire bootstrap lock"), "%v should have waited on the lock", pod)
 		}
 	})
 
@@ -137,6 +170,15 @@ func holdBootstrapLock(namespace string, seconds int) {
 		return strings.TrimSpace(mysqlAsRoot(namespace, "e2e", password,
 			"SELECT COUNT(*) FROM performance_schema.data_locks WHERE OBJECT_SCHEMA = 'stroom' AND OBJECT_NAME = 'build_version'"))
 	}, time.Minute, 2*time.Second).ShouldNot(Equal("0"), "the bootstrap lock should be held")
+}
+
+// lifecycleLogs returns a node's lifecycle script logs, which are kept on its volume, for diagnosing a failed spec
+func lifecycleLogs(namespace string, pod string) string {
+	output, err := execInPod(namespace, pod, "stroom-node", "ls -la /stroom/logs/k8s; tail -n 30 /stroom/logs/k8s/*.log")
+	if err != nil {
+		return fmt.Sprintf("%v: %v", err, output)
+	}
+	return output
 }
 
 // drainCount returns how many times a node's pre-stop hook has drained it

@@ -53,5 +53,6 @@ spec:
         initialDelaySeconds: ${STARTUP_INITIAL_DELAY}
         periodSeconds: 10
         failureThreshold: ${STARTUP_FAILURE_THRESHOLD}
+        ${LOCK_WAIT_ALLOWANCE}
       readinessProbeTimings: {}
       livenessProbeTimings: {}
