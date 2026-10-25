@@ -45,13 +45,16 @@ type NodeSet struct {
 	IngressLabels map[string]string `json:"ingressLabels,omitempty"`
 	// StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
 	// typically takes to start up and respond to health checks.
-	StartupProbeTimings ProbeTimings `json:"startupProbeTimings,omitempty"`
+	// +kubebuilder:default:={}
+	StartupProbeTimings StartupProbeTimings `json:"startupProbeTimings,omitempty"`
 	// ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
 	// removing them from service while they are non-responsive to health checks.
-	ReadinessProbeTimings ProbeTimings `json:"readinessProbeTimings,omitempty"`
+	// +kubebuilder:default:={}
+	ReadinessProbeTimings ReadinessProbeTimings `json:"readinessProbeTimings,omitempty"`
 	// LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is
 	// restarted.
-	LivenessProbeTimings ProbeTimings `json:"livenessProbeTimings,omitempty"`
+	// +kubebuilder:default:={}
+	LivenessProbeTimings LivenessProbeTimings `json:"livenessProbeTimings,omitempty"`
 	// PodAnnotations are additional annotations to set for each NodeSet Pod
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// PodSecurityContext applies to each NodeSet Pod

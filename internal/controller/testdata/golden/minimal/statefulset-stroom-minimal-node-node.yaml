@@ -101,9 +101,14 @@ spec:
               - bash
               - /stroom/scripts/node-pre-stop.sh
         livenessProbe:
+          failureThreshold: 10
           httpGet:
-            path: /stroomAdmin/filteredhealthcheck
+            path: /stroomAdmin/filteredhealthcheck?allow=deadlocks
             port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 5
         name: stroom-node
         ports:
         - containerPort: 8080
@@ -116,9 +121,14 @@ spec:
           name: admin
           protocol: TCP
         readinessProbe:
+          failureThreshold: 10
           httpGet:
-            path: /stroomAdmin/filteredhealthcheck
+            path: /stroomAdmin/filteredhealthcheck?deny=stroom.security.common.impl.ExternalIdpConfigurationProvider
             port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 5
         resources: {}
         securityContext: {}
         startupProbe:
@@ -126,6 +136,11 @@ spec:
             command:
             - bash
             - /stroom/scripts/node-start.sh
+          failureThreshold: 24
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 5
         volumeMounts:
         - mountPath: /stroom/scripts/utils.sh
           name: static-content

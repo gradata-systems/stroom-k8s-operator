@@ -4,6 +4,8 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"math"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -19,23 +21,26 @@ import (
 )
 
 const (
-	AppHttpPortName             = "app-http"
-	AppHttpPortNumber           = 8080
-	AppHttpsPortName            = "app-https"
-	AppHttpsPortNumber          = 8443
-	AdminPortName               = "admin"
-	AdminPortNumber             = 8081
-	StaticContentVolumeName     = "static-content"
-	StroomNodePvcName           = "data"
-	StroomNodeContainerName     = "stroom-node"
-	StroomKeystoreVolumeName    = "keystore"
-	StroomTlsVolumeName         = "tls"
-	StroomApiTokenVolumeName    = "api-token"
-	StroomApiTokenMountPath     = "/stroom/auth"
-	LogSenderConfigMapName      = "log-sender-configmap"
-	LogSenderDefaultCpuLimit    = "500m"
-	LogSenderDefaultMemoryLimit = "256Mi"
-	LogSenderCertsVolumeName    = "log-sender-certs"
+	AppHttpPortName              = "app-http"
+	AppHttpPortNumber            = 8080
+	AppHttpsPortName             = "app-https"
+	AppHttpsPortNumber           = 8443
+	AdminPortName                = "admin"
+	AdminPortNumber              = 8081
+	HealthCheckPath              = "/stroomAdmin/filteredhealthcheck"
+	DefaultProbePeriodSeconds    = 10
+	DefaultProbeFailureThreshold = 3
+	StaticContentVolumeName      = "static-content"
+	StroomNodePvcName            = "data"
+	StroomNodeContainerName      = "stroom-node"
+	StroomKeystoreVolumeName     = "keystore"
+	StroomTlsVolumeName          = "tls"
+	StroomApiTokenVolumeName     = "api-token"
+	StroomApiTokenMountPath      = "/stroom/auth"
+	LogSenderConfigMapName       = "log-sender-configmap"
+	LogSenderDefaultCpuLimit     = "500m"
+	LogSenderDefaultMemoryLimit  = "256Mi"
+	LogSenderCertsVolumeName     = "log-sender-certs"
 )
 
 func (r *StroomClusterReconciler) createNodeSetPvcLabels(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) map[string]string {
@@ -484,23 +489,9 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			ContainerPort: AdminPortNumber,
 			Protocol:      corev1.ProtocolTCP,
 		}},
-		StartupProbe: &corev1.Probe{
-			ProbeHandler: corev1.ProbeHandler{
-				Exec: &corev1.ExecAction{
-					Command: []string{
-						"bash",
-						"/stroom/scripts/node-start.sh",
-					},
-				},
-			},
-			InitialDelaySeconds: nodeSet.StartupProbeTimings.InitialDelaySeconds,
-			PeriodSeconds:       nodeSet.StartupProbeTimings.PeriodSeconds,
-			TimeoutSeconds:      nodeSet.StartupProbeTimings.TimeoutSeconds,
-			SuccessThreshold:    nodeSet.StartupProbeTimings.SuccessThreshold,
-			FailureThreshold:    nodeSet.StartupProbeTimings.FailureThreshold,
-		},
-		ReadinessProbe: r.createProbe(&nodeSet.ReadinessProbeTimings, AdminPortName),
-		LivenessProbe:  r.createProbe(&nodeSet.LivenessProbeTimings, AdminPortName),
+		StartupProbe:   createStartupProbe(stroomCluster, nodeSet),
+		ReadinessProbe: createHealthCheckProbe(&nodeSet.ReadinessProbeTimings.ProbeTimings, derefSlice(nodeSet.ReadinessProbeTimings.Allow), derefSlice(nodeSet.ReadinessProbeTimings.Deny), AdminPortName),
+		LivenessProbe:  createHealthCheckProbe(&nodeSet.LivenessProbeTimings.ProbeTimings, derefSlice(nodeSet.LivenessProbeTimings.Allow), derefSlice(nodeSet.LivenessProbeTimings.Deny), AdminPortName),
 		Resources:      nodeSet.Resources,
 		Lifecycle: &corev1.Lifecycle{
 			PreStop: &corev1.LifecycleHandler{
@@ -691,11 +682,49 @@ func (r *StroomClusterReconciler) getJvmOptions(stroomCluster *stroomv1.StroomCl
 	return strings.Join(jvmOpts, " ")
 }
 
-func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTimings, portName string) *corev1.Probe {
+// createStartupProbe creates a probe that runs the node startup script. When nodes in the NodeSet start in parallel,
+// the time allowed is extended by LockWaitAllowanceSeconds for each additional node, as nodes wait on the Stroom
+// bootstrap lock while another node upgrades the database.
+func createStartupProbe(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet) *corev1.Probe {
+	timings := nodeSet.StartupProbeTimings
+	failureThreshold := timings.FailureThreshold
+	if stroomCluster.Spec.PodManagementPolicy == appsv1.ParallelPodManagement && nodeSet.Count > 1 && timings.LockWaitAllowanceSeconds > 0 {
+		periodSeconds := timings.PeriodSeconds
+		if periodSeconds <= 0 {
+			periodSeconds = DefaultProbePeriodSeconds
+		}
+		if failureThreshold <= 0 {
+			failureThreshold = DefaultProbeFailureThreshold
+		}
+		allowanceSeconds := int64(timings.LockWaitAllowanceSeconds) * int64(nodeSet.Count-1)
+		extraFailures := (allowanceSeconds + int64(periodSeconds) - 1) / int64(periodSeconds)
+		failureThreshold += int32(min(extraFailures, int64(math.MaxInt32-failureThreshold)))
+	}
+
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{
+					"bash",
+					"/stroom/scripts/node-start.sh",
+				},
+			},
+		},
+		InitialDelaySeconds: timings.InitialDelaySeconds,
+		PeriodSeconds:       timings.PeriodSeconds,
+		TimeoutSeconds:      timings.TimeoutSeconds,
+		SuccessThreshold:    timings.SuccessThreshold,
+		FailureThreshold:    failureThreshold,
+	}
+}
+
+// createHealthCheckProbe creates a probe that queries the Stroom filtered health check endpoint, running only the
+// health checks permitted by the allow and deny lists
+func createHealthCheckProbe(probeTimings *stroomv1.ProbeTimings, allow []string, deny []string, portName string) *corev1.Probe {
 	probe := &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Path: "/stroomAdmin/filteredhealthcheck",
+				Path: healthCheckPath(allow, deny),
 				Port: intstr.IntOrString{
 					Type:   intstr.String,
 					StrVal: portName,
@@ -708,7 +737,7 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 		probe.InitialDelaySeconds = probeTimings.InitialDelaySeconds
 	}
 	if probeTimings.PeriodSeconds != 0 {
-		probe.PeriodSeconds = probeTimings.InitialDelaySeconds
+		probe.PeriodSeconds = probeTimings.PeriodSeconds
 	}
 	if probeTimings.TimeoutSeconds != 0 {
 		probe.TimeoutSeconds = probeTimings.TimeoutSeconds
@@ -721,6 +750,37 @@ func (r *StroomClusterReconciler) createProbe(probeTimings *stroomv1.ProbeTiming
 	}
 
 	return probe
+}
+
+// derefSlice returns the slice a pointer refers to, or nil
+func derefSlice(slice *[]string) []string {
+	if slice == nil {
+		return nil
+	}
+	return *slice
+}
+
+// healthCheckPath returns the path of the Stroom filtered health check endpoint, with query parameters that filter
+// which health checks are run. Stroom expects each list as a single comma-delimited parameter and doesn't trim
+// whitespace, so names are trimmed and blank names omitted.
+func healthCheckPath(allow []string, deny []string) string {
+	query := url.Values{}
+	for name, checks := range map[string][]string{"allow": allow, "deny": deny} {
+		var names []string
+		for _, check := range checks {
+			if check = strings.TrimSpace(check); check != "" {
+				names = append(names, check)
+			}
+		}
+		if len(names) > 0 {
+			query.Set(name, strings.Join(names, ","))
+		}
+	}
+
+	if len(query) == 0 {
+		return HealthCheckPath
+	}
+	return HealthCheckPath + "?" + query.Encode()
 }
 
 func (r *StroomClusterReconciler) createService(stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, name string, clusterIp string) *corev1.Service {

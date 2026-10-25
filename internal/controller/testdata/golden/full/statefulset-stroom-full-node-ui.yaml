@@ -114,7 +114,7 @@ spec:
         livenessProbe:
           failureThreshold: 10
           httpGet:
-            path: /stroomAdmin/filteredhealthcheck
+            path: /stroomAdmin/filteredhealthcheck?allow=deadlocks
             port: admin
           initialDelaySeconds: 5
           periodSeconds: 5
@@ -134,7 +134,7 @@ spec:
         readinessProbe:
           failureThreshold: 10
           httpGet:
-            path: /stroomAdmin/filteredhealthcheck
+            path: /stroomAdmin/filteredhealthcheck?deny=stroom.security.common.impl.ExternalIdpConfigurationProvider
             port: admin
           initialDelaySeconds: 5
           periodSeconds: 5
@@ -153,7 +153,7 @@ spec:
             command:
             - bash
             - /stroom/scripts/node-start.sh
-          failureThreshold: 10
+          failureThreshold: 24
           initialDelaySeconds: 5
           periodSeconds: 5
           successThreshold: 1
