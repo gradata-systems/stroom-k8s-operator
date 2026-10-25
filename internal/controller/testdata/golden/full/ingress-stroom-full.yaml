@@ -1,0 +1,41 @@
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/affinity-mode: persistent
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+  labels:
+    app.kubernetes.io/component: stroom-cluster
+    app.kubernetes.io/name: stroom
+    stroom/cluster: full
+  name: stroom-full
+  namespace: golden-full
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: stroom.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: stroom-full-node-data-http
+            port:
+              name: app-https
+        path: /stroom/noauth/datafeed
+        pathType: Exact
+  - host: stroom.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: stroom-full-node-ui-http
+            port:
+              name: app-https
+        path: /
+        pathType: Prefix
+  tls:
+  - hosts:
+    - stroom.example.com
+    secretName: stroom-tls
+status:
+  loadBalancer: {}

@@ -1,9 +1,9 @@
 #!/bin/bash
 # Executed by the pod pre-start hook.
 
-source /stroom/scripts/utils.sh
+source "${STROOM_SCRIPT_ROOT:-/stroom}/scripts/utils.sh"
 
-log_file='/stroom/logs/k8s/node-start.log'
+log_file="$stroom_root/logs/k8s/node-start.log"
 
 mkdir -p "$(dirname $log_file)"
 

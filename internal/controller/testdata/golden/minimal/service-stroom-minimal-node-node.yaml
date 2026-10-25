@@ -1,0 +1,35 @@
+metadata:
+  labels:
+    app.kubernetes.io/component: stroom-cluster
+    app.kubernetes.io/name: stroom
+    stroom/cluster: minimal
+  name: stroom-minimal-node-node
+  namespace: golden-minimal
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: StroomCluster
+    name: minimal
+    uid: <uid>
+spec:
+  clusterIP: None
+  ports:
+  - name: app-https
+    port: 8443
+    protocol: TCP
+    targetPort: 0
+  - name: app-http
+    port: 8080
+    protocol: TCP
+    targetPort: 0
+  - name: admin
+    port: 8081
+    protocol: TCP
+    targetPort: 0
+  selector:
+    stroom/cluster: minimal
+    stroom/nodeSet: node
+  type: ClusterIP
+status:
+  loadBalancer: {}

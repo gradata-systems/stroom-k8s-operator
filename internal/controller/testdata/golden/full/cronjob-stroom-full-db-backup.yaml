@@ -1,0 +1,61 @@
+metadata:
+  labels:
+    app.kubernetes.io/component: database-backup
+    app.kubernetes.io/instance: full
+    app.kubernetes.io/name: stroom
+  name: stroom-full-db-backup
+  namespace: golden-full
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: DatabaseBackup
+    name: full
+    uid: <uid>
+spec:
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata: {}
+    spec:
+      template:
+        metadata: {}
+        spec:
+          containers:
+          - command:
+            - bash
+            - -c
+            - |-
+              archivePath="/var/lib/mysql/backup/$(date +'%Y-%m')/$(date +'full_%Y-%m-%d_%H-%M-%S.sql.gz')"
+              echo "Backing up databases (stroom,stats) to: $archivePath"
+              mkdir -p /var/lib/mysql/backup/$(date +'%Y-%m')
+              mysqldump --user=${MYSQL_USER} --password=${MYSQL_PASSWORD} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces --databases stroom stats | gzip > "$archivePath"
+              if [ -f "$archivePath" ]; then
+                chmod 444 "$archivePath"
+                echo "Backup successful"
+              fi
+            env:
+            - name: MYSQL_HOST
+              value: stroom-full-db
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: stroomuser
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: stroomuser
+                  name: stroom-full-db
+            image: mysql/mysql-server:8.0.32
+            name: backup-job
+            resources: {}
+            volumeMounts:
+            - mountPath: /var/lib/mysql/backup
+              name: data
+          restartPolicy: OnFailure
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: backups
+      ttlSecondsAfterFinished: 300
+  schedule: 0 2 * * *
+status: {}

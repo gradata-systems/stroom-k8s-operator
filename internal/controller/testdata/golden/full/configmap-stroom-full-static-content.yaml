@@ -1,0 +1,20 @@
+data:
+  generate-keystore.sh: <sha256:163438aa02a3a9e996a8990e8d87adedbae572711a57eedebb09aabca4815936>
+  node-pre-stop.sh: <sha256:ef0096e932147628552ca5015f39f67127dff302bbe5c397bc62e9a2c63a0b69>
+  node-start.sh: <sha256:4713299f0985ddca7a5a0ed495dd12987fac9ba3618c4dc2b7a55a5894b559a7>
+  stroomcluster-config.yaml: <sha256:5d863f92870f0ca5bf4566b47b3bb171f18aa61d2a979a312873055ed1ee64b3>
+  utils.sh: <sha256:7be0bae3d0fabcdb357423c42c263e508801aa9da4a26478560c65d8a1bf83be>
+metadata:
+  labels:
+    app.kubernetes.io/component: stroom-cluster
+    app.kubernetes.io/name: stroom
+    stroom/cluster: full
+  name: stroom-full-static-content
+  namespace: golden-full
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: StroomCluster
+    name: full
+    uid: <uid>

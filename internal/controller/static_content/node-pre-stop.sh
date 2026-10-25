@@ -1,9 +1,9 @@
 #!/bin/bash
 # Executed by the pod pre-stop hook.
 
-source /stroom/scripts/utils.sh
+source "${STROOM_SCRIPT_ROOT:-/stroom}/scripts/utils.sh"
 
-log_file='/stroom/logs/k8s/pre-stop.log'
+log_file="$stroom_root/logs/k8s/pre-stop.log"
 
 mkdir -p "$(dirname $log_file)"
 
@@ -29,5 +29,5 @@ do
     log "Shutdown blocked for node ${STROOM_NODE}, as there are still $task_count active tasks" $log_file
   fi
 
-  sleep 5
+  sleep "${STROOM_DRAIN_POLL_SECONDS:-5}"
 done

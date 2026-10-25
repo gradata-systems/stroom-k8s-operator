@@ -1,0 +1,158 @@
+# A StroomCluster using most optional features, with the DatabaseServer and DatabaseBackup it relies on
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseServer
+metadata:
+  name: full
+spec:
+  image:
+    repository: mysql/mysql-server
+    tag: 8.0.32
+  databaseNames:
+    - stroom
+    - stats
+  additionalConfig:
+    - max_connections=500
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  volumeClaim:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+  readinessProbeTimings: {}
+  livenessProbeTimings: {}
+---
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseBackup
+metadata:
+  name: full
+spec:
+  image:
+    repository: mysql/mysql-server
+    tag: 8.0.32
+  databaseServerRef:
+    serverRef:
+      name: full
+  databaseNames:
+    - stroom
+    - stats
+  volume:
+    persistentVolumeClaim:
+      claimName: backups
+  schedule: "0 2 * * *"
+---
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: full
+spec:
+  image:
+    repository: gchq/stroom
+    tag: v7.13.2
+  imagePullPolicy: IfNotPresent
+  databaseServerRef:
+    serverRef:
+      name: full
+  appDatabaseName: stroom
+  statsDatabaseName: stats
+  configMapRef:
+    name: stroom-config
+    itemName: config.yml
+  openId:
+    clientId: stroom
+    clientSecret:
+      secretName: stroom-openid
+      key: client-secret
+  https:
+    tlsSecretName: stroom-tls
+    tlsKeystorePasswordSecret:
+      secretName: stroom-keystore
+      key: password
+  ingress:
+    hostName: stroom.example.com
+    secretName: stroom-tls
+    className: nginx
+  podManagementPolicy: Parallel
+  nodeTerminationPeriodSecs: 300
+  volumeClaimDeletePolicy: DeleteOnScaledownOnly
+  extraJvmOpts:
+    - -XX:+UseG1GC
+  extraEnv:
+    - name: STROOM_LOGGING_LEVEL
+      value: INFO
+  extraVolumes:
+    - name: shared
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: shared
+      mountPath: /stroom/shared
+  logSender:
+    enabled: true
+    image:
+      repository: gchq/stroom-log-sender
+      tag: v2.2.1
+    destinationUrl: https://stroom.example.com/stroom/datafeed
+    environmentName: TEST
+    systemName: STROOM
+  nodeSets:
+    - name: data
+      count: 3
+      role: Processing
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+      resources:
+        requests:
+          cpu: "1"
+          memory: 4Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75
+      startupProbeTimings:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        failureThreshold: 30
+      readinessProbeTimings:
+        initialDelaySeconds: 15
+        periodSeconds: 20
+      livenessProbeTimings:
+        initialDelaySeconds: 30
+        periodSeconds: 60
+        failureThreshold: 5
+      podAnnotations:
+        example.com/annotation: data
+    - name: ui
+      count: 1
+      role: Frontend
+      ingressEnabled: true
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 2Gi
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75
+      startupProbeTimings: {}
+      readinessProbeTimings: {}
+      livenessProbeTimings: {}

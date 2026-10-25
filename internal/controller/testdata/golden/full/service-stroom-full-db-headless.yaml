@@ -1,0 +1,28 @@
+metadata:
+  labels:
+    app.kubernetes.io/component: database-server
+    app.kubernetes.io/instance: full
+    app.kubernetes.io/name: stroom
+  name: stroom-full-db-headless
+  namespace: golden-full
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: DatabaseServer
+    name: full
+    uid: <uid>
+spec:
+  clusterIP: None
+  ports:
+  - name: tcp
+    port: 3306
+    protocol: TCP
+    targetPort: 0
+  selector:
+    app.kubernetes.io/component: database-server
+    app.kubernetes.io/instance: full
+    app.kubernetes.io/name: stroom
+  type: ClusterIP
+status:
+  loadBalancer: {}

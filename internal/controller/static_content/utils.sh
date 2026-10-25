@@ -1,7 +1,8 @@
 #!/bin/bash
 
-api_log_file='/stroom/logs/k8s/api.log'
-auth_token_file='/stroom/auth/token'
+stroom_root="${STROOM_SCRIPT_ROOT:-/stroom}"
+api_log_file="$stroom_root/logs/k8s/api.log"
+auth_token_file="$stroom_root/auth/token"
 token_expiry_threshold_seconds=10
 base_url="http://localhost:${STROOM_APP_HTTP_PORT}/api"
 token_request_path='authproxy/v1/fetchClientCredsToken'
