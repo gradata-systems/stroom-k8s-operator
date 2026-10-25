@@ -7,6 +7,7 @@ type DatabaseServerSpec struct {
 	Image           Image             `json:"image"`
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
 	// Names of the databases to be created on startup (if they don't already exist)
+	// +kubebuilder:validation:items:Pattern=`^[A-Za-z0-9_]{1,64}$`
 	DatabaseNames []string `json:"databaseNames"`
 	// Any additional configuration lines to append to the MySQL server configuration file `/etc/my.cnf`
 	AdditionalConfig      []string                         `json:"additionalConfig,omitempty"`

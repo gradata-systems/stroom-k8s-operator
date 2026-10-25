@@ -25,9 +25,11 @@ function log() {
 function get_auth_token() {
   if [ "$(is_token_expired)" -eq "1" ]; then
     url="$base_url/$token_request_path"
-    client_credentials=$(printf '{ "clientId": "%s", "clientSecret": "%s" }' "${STROOM_OPERATOR_OPENID_CLIENT_ID}" "${STROOM_OPERATOR_OPENID_CLIENT_SECRET}")
-    response=$(curl -s "$url" \
-      -X POST -d "$client_credentials" \
+    # Read the client credentials from the environment and send them via stdin, so the secret doesn't appear in any
+    # process' arguments
+    response=$(jq -n '{ clientId: env.STROOM_OPERATOR_OPENID_CLIENT_ID, clientSecret: env.STROOM_OPERATOR_OPENID_CLIENT_SECRET }' |
+      curl -s "$url" \
+      -X POST --data-binary @- \
       -H 'Accept: text/plain' \
       -H 'Content-Type: application/json' \
       -w '\nhttp_code=%{http_code}')

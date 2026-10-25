@@ -4,10 +4,10 @@ data:
     CREATE USER 'healthcheck'@'localhost';
   init-stroom-db.sql: |-
     -- Initialise Stroom databases
-    CREATE DATABASE IF NOT EXISTS stroom;
-    GRANT ALL PRIVILEGES ON stroom.* TO 'stroomuser'@'%';
-    CREATE DATABASE IF NOT EXISTS stats;
-    GRANT ALL PRIVILEGES ON stats.* TO 'stroomuser'@'%';
+    CREATE DATABASE IF NOT EXISTS `stroom`;
+    GRANT ALL PRIVILEGES ON `stroom`.* TO 'stroomuser'@'%';
+    CREATE DATABASE IF NOT EXISTS `stats`;
+    GRANT ALL PRIVILEGES ON `stats`.* TO 'stroomuser'@'%';
 
 
     SELECT 'Dumping list of databases' AS '';

@@ -42,7 +42,7 @@ spec:
               appDatabaseName:
                 default: stroom
                 description: Name of the main Stroom database, usually `stroom`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               configMapRef:
                 description: |-
@@ -4495,7 +4495,7 @@ spec:
               statsDatabaseName:
                 default: stats
                 description: Name of the statistics database, usually `stats`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               volumeClaimDeletePolicy:
                 description: Delete Stroom node `PersistentVolumeClaim`s in accordance

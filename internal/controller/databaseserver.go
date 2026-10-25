@@ -71,8 +71,8 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 	databaseCreateStatements := ""
 	for _, databaseName := range dbServer.Spec.DatabaseNames {
 		databaseCreateStatements += "" +
-			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %v;\n", databaseName) +
-			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", databaseName, DatabaseServiceUserName)
+			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %v;\n", quoteSqlIdentifier(databaseName)) +
+			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", quoteSqlIdentifier(databaseName), DatabaseServiceUserName)
 	}
 
 	configMap := &corev1.ConfigMap{
@@ -101,9 +101,6 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.DatabaseServer) *appsv1.StatefulSet {
 	var replicas int32 = 1
 
-	// DefaultSecretFileMode is the file mode to use for Secret volume mounts
-	secretFileMode := stroomv1.SecretFileMode
-
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetBaseName(),
@@ -127,8 +124,16 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						Image:           dbServer.Spec.Image.String(),
 						ImagePullPolicy: dbServer.Spec.ImagePullPolicy,
 						Env: []corev1.EnvVar{{
-							Name:  "MYSQL_ROOT_PASSWORD",
-							Value: "/etc/mysql/password/root",
+							// Set the password value, as MySQL images differ in whether they accept a file path here
+							Name: "MYSQL_ROOT_PASSWORD",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: dbServer.GetBaseName(),
+									},
+									Key: DatabaseRootUserName,
+								},
+							},
 						}, {
 							Name:  "MYSQL_USER",
 							Value: DatabaseServiceUserName,
@@ -164,11 +169,6 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						}, {
 							Name:      "data",
 							MountPath: "/var/lib/mysql",
-						}, {
-							Name:      "root-password",
-							MountPath: "/etc/mysql/password/root",
-							SubPath:   DatabaseRootUserName,
-							ReadOnly:  true,
 						}},
 					}},
 					SecurityContext: &dbServer.Spec.PodSecurityContext,
@@ -191,18 +191,6 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 								LocalObjectReference: corev1.LocalObjectReference{
 									Name: r.getInitConfigName(dbServer),
 								},
-							},
-						},
-					}, {
-						Name: "root-password",
-						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: dbServer.GetBaseName(),
-								Items: []corev1.KeyToPath{{
-									Key:  DatabaseRootUserName,
-									Path: DatabaseRootUserName,
-									Mode: &secretFileMode,
-								}},
 							},
 						},
 					}},

@@ -26,9 +26,9 @@ spec:
             - -c
             - |-
               archivePath="/var/lib/mysql/backup/$(date +'%Y-%m')/$(date +'full_%Y-%m-%d_%H-%M-%S.sql.gz')"
-              echo "Backing up databases (stroom,stats) to: $archivePath"
+              echo "Backing up "'databases (stroom,stats)'" to: $archivePath"
               mkdir -p /var/lib/mysql/backup/$(date +'%Y-%m')
-              mysqldump --user=${MYSQL_USER} --password=${MYSQL_PASSWORD} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces --databases stroom stats | gzip > "$archivePath"
+              mysqldump --user=${MYSQL_USER} --password=${MYSQL_PASSWORD} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces --databases 'stroom' 'stats' | gzip > "$archivePath"
               if [ -f "$archivePath" ]; then
                 chmod 444 "$archivePath"
                 echo "Backup successful"

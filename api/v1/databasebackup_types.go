@@ -32,6 +32,7 @@ type DatabaseBackupSpec struct {
 	// +kubebuilder:validation:Required
 	DatabaseServerRef DatabaseServerRef `json:"databaseServerRef"`
 	// Backup the specified database names. If unspecified, all user databases are backed up
+	// +kubebuilder:validation:items:Pattern=`^[A-Za-z0-9_]{1,64}$`
 	DatabaseNames []string `json:"databaseNames,omitempty"`
 	// File system location to store the backup files
 	TargetVolume corev1.VolumeSource `json:"volume"`

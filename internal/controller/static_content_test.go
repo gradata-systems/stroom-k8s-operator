@@ -23,6 +23,7 @@ echo "$*" >> "$FAKE_CURL_DIR/arguments"
 
 case "$url" in
   */authproxy/v1/fetchClientCredsToken)
+    cat > "$FAKE_CURL_DIR/token-request-body"
     printf 'header.eyJleHAiOjk5OTk5OTk5OTl9.signature\nhttp_code=200' ;;
   */task/v1/list/*)
     call=$(grep -c '/task/v1/list/' "$FAKE_CURL_DIR/requests")
@@ -70,7 +71,7 @@ var _ = Describe("Node lifecycle scripts", func() {
 			"STROOM_NODE=node-1",
 			"STROOM_NODE_MANAGED_JOBS="+managedJobs,
 			"STROOM_OPERATOR_OPENID_CLIENT_ID=stroom-operator",
-			"STROOM_OPERATOR_OPENID_CLIENT_SECRET=s3cret",
+			`STROOM_OPERATOR_OPENID_CLIENT_SECRET=s3cret"value`,
 		)
 		output, err := cmd.CombinedOutput()
 		return string(output), err
@@ -105,12 +106,13 @@ var _ = Describe("Node lifecycle scripts", func() {
 			Expect(readFile("arguments")).To(ContainSubstring("Authorization:Bearer header.eyJleHAiOjk5OTk5OTk5OTl9.signature"))
 		})
 
-		It("should pass the client credentials to curl as an argument", func() {
-			// BASELINE: known issue, see security review M5. The client secret is visible in the process list.
+		It("should send the client credentials in the request body, not as an argument", func() {
+			// Arguments are visible to every process in the container, in the process list
 			output, err := runScript("node-start.sh", "")
 			Expect(err).ToNot(HaveOccurred(), output)
 
-			Expect(readFile("arguments")).To(ContainSubstring(`{ "clientId": "stroom-operator", "clientSecret": "s3cret" }`))
+			Expect(readFile("token-request-body")).To(MatchJSON(`{"clientId": "stroom-operator", "clientSecret": "s3cret\"value"}`))
+			Expect(readFile("arguments")).ToNot(ContainSubstring("s3cret"))
 		})
 
 		It("should enable all jobs when no managed jobs are listed", func() {

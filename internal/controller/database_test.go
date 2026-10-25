@@ -27,13 +27,13 @@ var _ = Describe("Database resources", func() {
 
 		It("should create each database and grant the service user access to it", func() {
 			sql := reconciler.createDbInitConfigMap(newDatabaseServer("stroom", "stats")).Data["init-stroom-db.sql"]
-			Expect(sql).To(ContainSubstring("CREATE DATABASE IF NOT EXISTS stroom;\nGRANT ALL PRIVILEGES ON stroom.* TO 'stroomuser'@'%';"))
-			Expect(sql).To(ContainSubstring("CREATE DATABASE IF NOT EXISTS stats;\nGRANT ALL PRIVILEGES ON stats.* TO 'stroomuser'@'%';"))
+			Expect(sql).To(ContainSubstring("CREATE DATABASE IF NOT EXISTS `stroom`;\nGRANT ALL PRIVILEGES ON `stroom`.* TO 'stroomuser'@'%';"))
+			Expect(sql).To(ContainSubstring("CREATE DATABASE IF NOT EXISTS `stats`;\nGRANT ALL PRIVILEGES ON `stats`.* TO 'stroomuser'@'%';"))
 		})
-		It("should include database names in the init SQL unquoted", func() {
-			// BASELINE: known issue, see security review H1. The init SQL runs as root.
-			sql := reconciler.createDbInitConfigMap(newDatabaseServer("x; DROP DATABASE mysql; --")).Data["init-stroom-db.sql"]
-			Expect(sql).To(ContainSubstring("CREATE DATABASE IF NOT EXISTS x; DROP DATABASE mysql; --;"))
+		It("should quote database names in the init SQL", func() {
+			// The CRD only accepts plain names, so this guards against names that bypass validation
+			sql := reconciler.createDbInitConfigMap(newDatabaseServer("x`; DROP DATABASE mysql; -- ")).Data["init-stroom-db.sql"]
+			Expect(sql).To(ContainSubstring("CREATE DATABASE IF NOT EXISTS `x``; DROP DATABASE mysql; -- `;"))
 		})
 		It("should report ready even when MySQL can't be queried", func() {
 			// BASELINE: known bug. The readiness probe prints its result instead of exiting with it, so the pod is
@@ -49,12 +49,15 @@ var _ = Describe("Database resources", func() {
 			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 			Expect(cmd.Run()).To(Succeed())
 		})
-		It("should set the root password variable to the path of the mounted password file", func() {
-			// BASELINE: known issue, see security review L1. Only images that read a file path from this variable,
-			// such as mysql/mysql-server, use the generated password. Others use the path as the password.
+		It("should set the root password from the generated Secret", func() {
 			container := reconciler.createStatefulSet(newDatabaseServer("stroom")).Spec.Template.Spec.Containers[0]
-			Expect(container.Env).To(ContainElement(corev1.EnvVar{Name: "MYSQL_ROOT_PASSWORD", Value: "/etc/mysql/password/root"}))
-			Expect(container.VolumeMounts).To(ContainElement(HaveField("MountPath", "/etc/mysql/password/root")))
+			Expect(container.Env).To(ContainElement(corev1.EnvVar{Name: "MYSQL_ROOT_PASSWORD", ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "stroom-db-db"},
+					Key:                  "root",
+				},
+			}}))
+			Expect(container.VolumeMounts).ToNot(ContainElement(HaveField("MountPath", "/etc/mysql/password/root")))
 		})
 	})
 
@@ -76,12 +79,12 @@ var _ = Describe("Database resources", func() {
 			Expect(newCronJobCommand()).To(ContainSubstring("--all-databases"))
 		})
 		It("should back up the listed databases", func() {
-			Expect(newCronJobCommand("stroom", "stats")).To(ContainSubstring("--databases stroom stats"))
+			Expect(newCronJobCommand("stroom", "stats")).To(ContainSubstring("--databases 'stroom' 'stats'"))
 		})
-		It("should include database names in the backup shell command unquoted", func() {
-			// BASELINE: known issue, see security review H2
-			Expect(newCronJobCommand("$(id)")).To(ContainSubstring("--databases $(id)"))
-			Expect(newCronJobCommand("$(id)")).To(ContainSubstring(`echo "Backing up databases ($(id)) to: $archivePath"`))
+		It("should quote database names in the backup shell command", func() {
+			// The CRD only accepts plain names, so this guards against names that bypass validation
+			Expect(newCronJobCommand("$(id)")).To(ContainSubstring(`--databases '$(id)'`))
+			Expect(newCronJobCommand("$(id)")).To(ContainSubstring(`echo "Backing up "'databases ($(id))'" to: $archivePath"`))
 		})
 	})
 })

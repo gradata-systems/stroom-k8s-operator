@@ -31,7 +31,10 @@ spec:
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
-          value: /etc/mysql/password/root
+          valueFrom:
+            secretKeyRef:
+              key: root
+              name: stroom-full-db
         - name: MYSQL_USER
           value: stroomuser
         - name: MYSQL_PASSWORD
@@ -88,10 +91,6 @@ spec:
           readOnly: true
         - mountPath: /var/lib/mysql
           name: data
-        - mountPath: /etc/mysql/password/root
-          name: root-password
-          readOnly: true
-          subPath: root
       securityContext: {}
       volumes:
       - configMap:
@@ -100,13 +99,6 @@ spec:
       - configMap:
           name: stroom-full-db-init
         name: config-init
-      - name: root-password
-        secret:
-          items:
-          - key: root
-            mode: 256
-            path: root
-          secretName: stroom-full-db
   updateStrategy: {}
   volumeClaimTemplates:
   - metadata:

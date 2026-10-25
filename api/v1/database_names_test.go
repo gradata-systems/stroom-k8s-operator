@@ -27,11 +27,21 @@ var _ = Describe("Database names", func() {
 		Expect(k8sClient.Delete(context.Background(), dbServer)).To(Succeed())
 	})
 
-	It("should accept any database name", func() {
-		// BASELINE: known issue, see security review H1/H2. Names are not validated, and are later interpolated into
-		// SQL and shell commands.
-		dbServer := newDatabaseServer("x; DROP DATABASE mysql", "$(id)")
-		Expect(k8sClient.Create(context.Background(), dbServer)).To(Succeed())
-		Expect(k8sClient.Delete(context.Background(), dbServer)).To(Succeed())
+	for _, name := range []string{"x; DROP DATABASE mysql", "x`y", "$(id)", "a b", "", "a2345678901234567890123456789012345678901234567890123456789012345"} {
+		It("should reject the database name '"+name+"'", func() {
+			Expect(k8sClient.Create(context.Background(), newDatabaseServer(name))).ToNot(Succeed())
+		})
+	}
+
+	It("should reject an invalid database name in a DatabaseBackup", func() {
+		dbBackup := &DatabaseBackup{
+			ObjectMeta: metav1.ObjectMeta{Name: "backup-" + rand.String(5), Namespace: "default"},
+			Spec: DatabaseBackupSpec{
+				Image:         Image{Repository: "mysql"},
+				DatabaseNames: []string{"stroom $(id)"},
+				Schedule:      "0 0 * * *",
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), dbBackup)).ToNot(Succeed())
 	})
 })

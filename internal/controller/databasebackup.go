@@ -25,7 +25,11 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 	plainTextDatabaseList := ""
 	databaseNames := dbBackup.Spec.DatabaseNames
 	if len(databaseNames) > 0 {
-		mysqlDumpCommand += " --databases " + strings.Join(databaseNames, " ")
+		quotedDatabaseNames := make([]string, len(databaseNames))
+		for i, databaseName := range databaseNames {
+			quotedDatabaseNames[i] = shellQuote(databaseName)
+		}
+		mysqlDumpCommand += " --databases " + strings.Join(quotedDatabaseNames, " ")
 		plainTextDatabaseList = fmt.Sprintf("databases (%v)", strings.Join(databaseNames, ","))
 	} else {
 		mysqlDumpCommand += " --all-databases"
@@ -58,7 +62,7 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 									"bash",
 									"-c",
 									fmt.Sprintf("archivePath=\"%v\"", archivePath) + "\n" +
-										fmt.Sprintf("echo \"Backing up %v to: $archivePath\"", plainTextDatabaseList) + "\n" +
+										fmt.Sprintf("echo \"Backing up \"%v\" to: $archivePath\"", shellQuote(plainTextDatabaseList)) + "\n" +
 										fmt.Sprintf("mkdir -p %v", backupDirectory) + "\n" +
 										fmt.Sprintf("%v | gzip > \"$archivePath\"", mysqlDumpCommand) + "\n" +
 										"if [ -f \"$archivePath\" ]; then\n" +
