@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
+	"strconv"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -64,8 +66,7 @@ func OpenDatabase(client client.Reader, ctx context.Context, dbInfo *DatabaseCon
 	}
 
 	password := string(dbSecret.Data[dbInfo.UserName])
-	dataSourceName := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", dbInfo.UserName, password, dbInfo.Host, dbInfo.Port, databaseName)
-	if db, err := sql.Open("mysql", dataSourceName); err != nil {
+	if db, err := sql.Open("mysql", dataSourceName(dbInfo, password, databaseName)); err != nil {
 		logger.Error(err, "Could not connect to database", "HostName", dbInfo.Host, "Database", databaseName, "User", dbInfo.UserName)
 		return nil, err
 	} else {
@@ -77,4 +78,18 @@ func CloseDatabase(database *sql.DB) {
 	if err := database.Close(); err != nil {
 		// Handle silently
 	}
+}
+
+// dataSourceName returns the MySQL data source name for a database. TLS is used if the server supports it, so the
+// password isn't sent in clear text. The server's certificate isn't verified, as MySQL servers generate their own by
+// default.
+func dataSourceName(dbInfo *DatabaseConnectionInfo, password string, databaseName string) string {
+	config := mysql.NewConfig()
+	config.User = dbInfo.UserName
+	config.Passwd = password
+	config.Net = "tcp"
+	config.Addr = net.JoinHostPort(dbInfo.Host, strconv.Itoa(int(dbInfo.Port)))
+	config.DBName = databaseName
+	config.TLSConfig = "preferred"
+	return config.FormatDSN()
 }

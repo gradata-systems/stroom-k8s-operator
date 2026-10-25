@@ -49,10 +49,10 @@ Don't set `serverRef` as well: if `serverRef` is set, the operator uses the `Dat
 
 - **Network access.** The operator Pod, as well as the Stroom Pods, connects to the database: it drains the cluster
   through the database when the `StroomCluster` is deleted, and the autoscaler reads and sets task limits there.
-- **TLS.** The operator connects without TLS, and the JDBC URL it gives Stroom has no TLS options. If your server
-  requires encrypted connections, Stroom can be configured for them in your own
-  [configuration](../configuration/stroom-config.md), but the operator's connections fail, so cluster deletion
-  can't drain the nodes and the autoscaler doesn't work.
+- **TLS.** The operator and Stroom both use TLS when the server supports it, which MySQL 8 does by default, so
+  passwords aren't sent in clear text. Neither verifies the server's certificate, as MySQL servers generate their
+  own by default. If you need certificate verification for Stroom's connections, configure it in your own
+  [configuration](../configuration/stroom-config.md).
 - **Password changes.** The password is read from the Secret when each Pod starts. After changing it, update the
   Secret and restart the nodes; see [Rolling restarts](../operations/node-lifecycle.md#rolling-restarts).
 - **Backups.** A [`DatabaseBackup`](backups.md) can back up an external server too, but your database service's own
