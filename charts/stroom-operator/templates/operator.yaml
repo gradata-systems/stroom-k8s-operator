@@ -414,7 +414,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: {{ if .Values.registry }}{{ printf "%s/" .Values.registry }}{{ end }}{{ "gradata/stroom-k8s-operator" }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+        image: {{ include "stroom-operator.image" . }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         livenessProbe:
           httpGet:

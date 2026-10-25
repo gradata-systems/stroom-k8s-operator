@@ -6,5 +6,5 @@ generatorOptions:
   disableNameSuffixHash: true
 images:
 - name: controller
-  newName: gradata/stroom-k8s-operator
+  newName: ghcr.io/gradata-systems/stroom-k8s-operator
   newTag: 1.1.5

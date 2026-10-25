@@ -2,10 +2,12 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Specify a private registry to use when pulling images
+# Specify a private registry to pull the operator image from, in place of the registry in image.repository. For
+# example, `registry.example.com` pulls `registry.example.com/gradata-systems/stroom-k8s-operator`.
 registry: ""
 
 image:
+  repository: ghcr.io/gradata-systems/stroom-k8s-operator
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""

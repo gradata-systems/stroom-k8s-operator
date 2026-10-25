@@ -53,7 +53,8 @@ The `stroom-operator` chart accepts these values:
 
 | Value | Default | Description |
 | --- | --- | --- |
-| `registry` | `""` | Private registry to pull the operator image from. The image becomes `<registry>/gradata/stroom-k8s-operator:<tag>`. |
+| `registry` | `""` | Private registry to pull the operator image from, in place of the registry in `image.repository`. The image becomes `<registry>/gradata-systems/stroom-k8s-operator:<tag>`. |
+| `image.repository` | `ghcr.io/gradata-systems/stroom-k8s-operator` | Operator image repository. |
 | `image.tag` | Chart `appVersion` | Operator image tag. |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy. |
 | `resources` | Requests `cpu: 500m`, `memory: 512Mi`; limit `memory: 1Gi` | Controller resources. |

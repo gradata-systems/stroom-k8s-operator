@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE: gradata/stroom-k8s-operator
+  IMAGE: ghcr.io/gradata-systems/stroom-k8s-operator
   CHART_REGISTRY: oci://ghcr.io/gradata-systems/helm-charts
   HELM_VERSION: v3.22.1
 
@@ -53,18 +53,26 @@ jobs:
     name: Publish image
     needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push image
         uses: docker/build-push-action@v7
         with:
           push: true
           tags: ${{ env.IMAGE }}:${{ needs.verify.outputs.version }}
+          # Links the image's GHCR package to this repository
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
 
   charts:
     name: Publish charts and manifests

@@ -30,7 +30,8 @@ kubectl -n stroom-operator-system rollout status deployment/stroom-operator-cont
 ## Use a private registry
 
 Edit every `image:` in the manifest so that it points at your registry before you apply it. For example,
-`gradata/stroom-k8s-operator:1.1.5` becomes `registry.example.com/gradata/stroom-k8s-operator:1.1.5`.
+`ghcr.io/gradata-systems/stroom-k8s-operator:<version>` becomes
+`registry.example.com/gradata-systems/stroom-k8s-operator:<version>`.
 
 ## Change the controller's resources
 

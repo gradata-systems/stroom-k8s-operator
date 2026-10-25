@@ -83,8 +83,7 @@ template.
 readiness probe runs every check except `stroom.security.common.impl.ExternalIdpConfigurationProvider`. Previously
 both ran every check, so an outage of the IdP or database could fail liveness on every node and restart the whole
 cluster. Existing `StroomCluster`s pick up the new defaults automatically, because the `allow` and `deny` fields are
-new. If you relied on the old behaviour, set `livenessProbeTimings.allow: []` (see the
-[caveat](../configuration/health-probes.md#examples) about empty lists).
+new. If you relied on the old behaviour, set `livenessProbeTimings.allow: []`.
 
 **`periodSeconds`.** Previously the readiness and liveness probes took their period from `initialDelaySeconds`,
 and `periodSeconds` had no effect. It's now honoured. With the default values (both 5) nothing changes; if you set
@@ -117,3 +116,11 @@ its startup probe, so scaling also rolls the node set's existing nodes.
 **Draining.** The `preStop` drain no longer treats a failed task list request as "no tasks". It keeps retrying
 until the node has no active tasks or the termination grace period runs out. See
 [Node lifecycle](node-lifecycle.md#stopping).
+
+### Operator image registry
+
+The operator image moves from Docker Hub (`gradata/stroom-k8s-operator`) to GitHub Container Registry
+(`ghcr.io/gradata-systems/stroom-k8s-operator`). Releases up to 1.1.5 remain on Docker Hub. The Helm chart has a
+new `image.repository` value, and the `registry` value now replaces the registry in it, so a mirror is expected at
+`<registry>/gradata-systems/stroom-k8s-operator` rather than `<registry>/gradata/stroom-k8s-operator`. If you mirror
+images, see [Air-gapped environments](../installation/air-gapped.md).

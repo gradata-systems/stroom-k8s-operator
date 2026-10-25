@@ -22,7 +22,7 @@ the image used by the all-in-one manifest, which may lag behind the chart.
 
 ```shell
 images="
-gradata/stroom-k8s-operator:<operator version>
+ghcr.io/gradata-systems/stroom-k8s-operator:<operator version>
 gchq/stroom:v7.13.2
 mysql:<MySQL 8 version>
 gchq/stroom-log-sender:v2.2.1
@@ -36,14 +36,19 @@ Leave out the MySQL image if you use an external database, and the log sender if
 ## 3. Transfer and push
 
 Copy the chart archives and `stroom-images.tar` into the isolated environment, then load the images and push them
-to your registry, keeping the same repository paths:
+to your registry, keeping the same repository paths without their original registry (so
+`ghcr.io/gradata-systems/stroom-k8s-operator` becomes `registry.example.com/gradata-systems/stroom-k8s-operator`):
 
 ```shell
 registry=registry.example.com
 docker image load --input stroom-images.tar
 for image in $images; do
-  docker tag "$image" "$registry/$image"
-  docker push "$registry/$image"
+  # Remove the image's registry, if it has one, such as ghcr.io
+  path=$image
+  first=${image%%/*}
+  if [[ $image == */* && ( $first == *.* || $first == *:* ) ]]; then path=${image#*/}; fi
+  docker tag "$image" "$registry/$path"
+  docker push "$registry/$path"
 done
 ```
 
@@ -58,8 +63,8 @@ helm install stroom-operator ./stroom-operator-<version>.tgz \
   --set registry=registry.example.com
 ```
 
-The `registry` value is prepended to the operator image, giving
-`registry.example.com/gradata/stroom-k8s-operator:<tag>`. If you use the
+The `registry` value replaces the registry in the operator image, giving
+`registry.example.com/gradata-systems/stroom-k8s-operator:<tag>`. If you use the
 [all-in-one manifest](manifest.md) instead, edit its `image:` lines.
 
 ## 5. Point your resources at the registry

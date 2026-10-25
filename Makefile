@@ -24,7 +24,7 @@ BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
 endif
 BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
+# IMAGE_TAG_BASE defines the registry, namespace and image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # If a `PRIVATE_REGISTRY` URL is defined, it is prepended to the repository name.
@@ -32,9 +32,9 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # gchq.github.io/stroom-k8s-operator-bundle:$VERSION and gchq.github.io/stroom-k8s-operator-catalog:$VERSION.
 ifneq ($(origin PRIVATE_REGISTRY), undefined)
-IMAGE_TAG_BASE = $(PRIVATE_REGISTRY)/gradata/stroom-k8s-operator
+IMAGE_TAG_BASE = $(PRIVATE_REGISTRY)/gradata-systems/stroom-k8s-operator
 else
-IMAGE_TAG_BASE ?= gradata/stroom-k8s-operator
+IMAGE_TAG_BASE ?= ghcr.io/gradata-systems/stroom-k8s-operator
 endif
 
 # BUNDLE_IMG defines the image:tag used for the bundle.

@@ -58,7 +58,7 @@ private registry (see [Air-gapped environments](../installation/air-gapped.md)):
 
 | Image | Used for |
 | --- | --- |
-| `gradata/stroom-k8s-operator` | The operator |
+| `ghcr.io/gradata-systems/stroom-k8s-operator` | The operator |
 | `gchq/stroom` (7.13 release, for example `v7.13.2`) | Stroom nodes |
 | A MySQL 8 server image | `DatabaseServer` and `DatabaseBackup` (the backup job needs `bash`, `mysqldump` and `gzip`) |
 | `gchq/stroom-log-sender` | Only if [log shipping](../configuration/log-shipping.md) is enabled |
