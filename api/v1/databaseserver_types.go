@@ -33,7 +33,7 @@ type DatabaseServerStatus struct {
 //+kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 //+kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
 
-// DatabaseServer is the Schema for the databases API
+// DatabaseServer is a MySQL database server for a StroomCluster, managed by the operator
 type DatabaseServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

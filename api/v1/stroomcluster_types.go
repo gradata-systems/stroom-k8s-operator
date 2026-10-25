@@ -34,7 +34,7 @@ type StroomClusterStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// StroomCluster is the Schema for the stroomclusters API
+// StroomCluster is a cluster of Stroom nodes, in one or more NodeSets
 type StroomCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

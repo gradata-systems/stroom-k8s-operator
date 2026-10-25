@@ -17,7 +17,8 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: DatabaseBackup is the Schema for the databasebackups API
+        description: DatabaseBackup backs up the databases on a database server on
+          a schedule, with mysqldump
         properties:
           apiVersion:
             description: |-
@@ -66,8 +67,9 @@ spec:
                         format: int32
                         type: integer
                       secretName:
-                        description: SecretName is the name of the secret containing
-                          the `password` of the database user `stroomuser`
+                        description: |-
+                          SecretName is the name of the Secret containing the database user's password, under a key named after the
+                          user (`userName`, by default `stroomuser`)
                         type: string
                     type: object
                   serverRef:

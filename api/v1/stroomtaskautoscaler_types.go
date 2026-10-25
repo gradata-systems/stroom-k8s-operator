@@ -70,7 +70,7 @@ type StroomTaskAutoscalerStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers API
+// StroomTaskAutoscaler adjusts the task limit of a Stroom job on a StroomCluster's nodes, according to their CPU use
 type StroomTaskAutoscaler struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -17,7 +17,7 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: StroomCluster is the Schema for the stroomclusters API
+        description: StroomCluster is a cluster of Stroom nodes, in one or more NodeSets
         properties:
           apiVersion:
             description: |-
@@ -77,8 +77,9 @@ spec:
                         format: int32
                         type: integer
                       secretName:
-                        description: SecretName is the name of the secret containing
-                          the `password` of the database user `stroomuser`
+                        description: |-
+                          SecretName is the name of the Secret containing the database user's password, under a key named after the
+                          user (`userName`, by default `stroomuser`)
                         type: string
                     type: object
                   serverRef:
@@ -2242,8 +2243,9 @@ spec:
                     - secretName
                     type: object
                   tlsSecretName:
-                    description: Name of the TLS secret containing the items `keystore.p12`
-                      and `truststore.p12`
+                    description: |-
+                      Name of the TLS Secret containing the nodes' certificate (`tls.crt`), its private key (`tls.key`) and the CA
+                      certificate (`ca.crt`), from which each node's key store and trust store are created
                     type: string
                 required:
                 - tlsKeystorePasswordSecret
@@ -3844,9 +3846,9 @@ spec:
                     managedJobs:
                       description: |-
                         Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.
-                        If omitted, the default is for processing nodes to handle all enabled jobs, while frontend nodes are
-                        only assigned the job `Reindex Content`.
-                        All other jobs may be managed manually via the Stroom Jobs pane.
+                        If omitted, nodes with the `Processing` role or no role enable and disable all jobs, while `Frontend` nodes
+                        only manage the job `Reindex Content`.
+                        Jobs that aren't managed may be enabled or disabled via the Stroom Jobs pane.
                       items:
                         type: string
                       type: array
@@ -4226,10 +4228,13 @@ spec:
                       type: object
                     role:
                       description: |-
-                        Role of each node in the NodeSet. ProcessingNodeRole nodes are limited to receiving and processing data,
-                        while FrontendNodeRole nodes host the Stroom.
+                        Role of each node in the NodeSet. `Processing` nodes receive and process data, while `Frontend` nodes serve
+                        the Stroom user interface and API.
 
                         If this property is omitted, nodes in the NodeSet will assume both Processing and Frontend roles.
+                      enum:
+                      - Processing
+                      - Frontend
                       type: string
                     securityContext:
                       description: SecurityContext overrides the PodSecurityContext
@@ -4550,6 +4555,9 @@ spec:
               volumeClaimDeletePolicy:
                 description: Delete Stroom node `PersistentVolumeClaim`s in accordance
                   with this policy
+                enum:
+                - DeleteOnScaledownAndClusterDeletion
+                - DeleteOnScaledownOnly
                 type: string
             required:
             - appDatabaseName

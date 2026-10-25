@@ -40,7 +40,7 @@ All resources belong to the API group and version `stroom.gchq.github.io/v1`.
 ### DatabaseBackup
 
 
-DatabaseBackup is the Schema for the databasebackups API
+DatabaseBackup backs up the databases on a database server on a schedule, with mysqldump
 
 
 
@@ -56,7 +56,7 @@ DatabaseBackup is the Schema for the databasebackups API
 ### DatabaseServer
 
 
-DatabaseServer is the Schema for the databases API
+DatabaseServer is a MySQL database server for a StroomCluster, managed by the operator
 
 
 
@@ -73,7 +73,7 @@ DatabaseServer is the Schema for the databases API
 ### StroomCluster
 
 
-StroomCluster is the Schema for the stroomclusters API
+StroomCluster is a cluster of Stroom nodes, in one or more NodeSets
 
 
 
@@ -89,7 +89,7 @@ StroomCluster is the Schema for the stroomclusters API
 ### StroomTaskAutoscaler
 
 
-StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers API
+StroomTaskAutoscaler adjusts the task limit of a Stroom job on a StroomCluster's nodes, according to their CPU use
 
 
 
@@ -216,7 +216,7 @@ _Appears in:_ [StroomClusterSpec](#stroomclusterspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `tlsSecretName` _string_ | Name of the TLS secret containing the items `keystore.p12` and `truststore.p12` |  |  |
+| `tlsSecretName` _string_ | Name of the TLS Secret containing the nodes' certificate (`tls.crt`), its private key (`tls.key`) and the CA<br />certificate (`ca.crt`), from which each node's key store and trust store are created |  |  |
 | `tlsKeystorePasswordSecret` _[SecretItem](#secretitem)_ | Password of the keystore and truststore |  |  |
 
 
@@ -312,12 +312,14 @@ _Underlying type:_ string
 
 
 
+_Validation:_ Enum: [Processing Frontend]
 
 _Appears in:_ [NodeSet](#nodeset)
 
 | Value | Description |
 | --- | --- |
 | `Processing` | ProcessingNodeRole applies to a NodeSet that is dedicated to receiving and processing data and does not serve<br />web front-end (UI) requests<br /> |
+| `Frontend` | FrontendNodeRole applies to a NodeSet that is dedicated to serving web front-end (UI) requests only<br /> |
 
 
 ### NodeSet
@@ -332,8 +334,8 @@ _Appears in:_ [StroomClusterSpec](#stroomclusterspec)
 | --- | --- | --- | --- |
 | `name` _string_ | Name uniquely identifies the NodeSet within a StroomCluster. Should be a short name like "prod".<br />The NodeSet name determines the name of the Stroom node, which follows the format:<br />`stroom-<cluster name>-node-<nodeset name>-<pod ordinal>`.<br />For example, the first Stroom node in StroomCluster `dev`, NodeSet `data` will be named:<br />`stroom-dev-node-data-0`. |  |  |
 | `count` _integer_ | Number of replicas (discrete Stroom nodes) to deploy in the NodeSet |  | Minimum: 1 |
-| `role` _[NodeRole](#noderole)_ | Role of each node in the NodeSet. ProcessingNodeRole nodes are limited to receiving and processing data,<br />while FrontendNodeRole nodes host the Stroom.<br />If this property is omitted, nodes in the NodeSet will assume both Processing and Frontend roles. |  |  |
-| `managedJobs` _string array_ | Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.<br />If omitted, the default is for processing nodes to handle all enabled jobs, while frontend nodes are<br />only assigned the job `Reindex Content`.<br />All other jobs may be managed manually via the Stroom Jobs pane. |  |  |
+| `role` _[NodeRole](#noderole)_ | Role of each node in the NodeSet. `Processing` nodes receive and process data, while `Frontend` nodes serve<br />the Stroom user interface and API.<br />If this property is omitted, nodes in the NodeSet will assume both Processing and Frontend roles. |  | Enum: [Processing Frontend] |
+| `managedJobs` _string array_ | Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.<br />If omitted, nodes with the `Processing` role or no role enable and disable all jobs, while `Frontend` nodes<br />only manage the job `Reindex Content`.<br />Jobs that aren't managed may be enabled or disabled via the Stroom Jobs pane. |  |  |
 | `localDataVolumeClaim` _[PersistentVolumeClaimSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#persistentvolumeclaimspec-v1-core)_ | LocalDataVolumeClaim provides persistent storage for each Stroom node's data |  |  |
 | `extraVolumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#volumemount-v1-core) array_ | Extra volume mounts to add to each NodeSet pod, in addition to volume mounts defined at the StroomCluster level. |  |  |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#resourcerequirements-v1-core)_ | Resources determine how much CPU and memory each individual Stroom node Pod within the NodeSet requests and is<br />limited to. |  |  |
@@ -444,7 +446,7 @@ _Appears in:_ [DatabaseServerRef](#databaseserverref)
 | --- | --- | --- | --- |
 | `host` _string_ | Host is the hostname or IP of the database server |  |  |
 | `port` _integer_ | Port number the database server is listening on | `3306` |  |
-| `secretName` _string_ | SecretName is the name of the secret containing the `password` of the database user `stroomuser` |  |  |
+| `secretName` _string_ | SecretName is the name of the Secret containing the database user's password, under a key named after the<br />user (`userName`, by default `stroomuser`) |  |  |
 
 
 ### StartupProbeTimings
@@ -486,7 +488,7 @@ _Appears in:_ [StroomCluster](#stroomcluster)
 | `ingress` _[IngressSettings](#ingresssettings)_ |  |  | Required |
 | `podManagementPolicy` _[PodManagementPolicyType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#podmanagementpolicytype-v1-apps)_ | Pod management policy to use when deploying or scaling the StroomCluster |  |  |
 | `nodeTerminationPeriodSecs` _integer_ | Amount of time granted to nodes to drain their active tasks before being terminated | `60` |  |
-| `volumeClaimDeletePolicy` _[VolumeClaimDeletePolicy](#volumeclaimdeletepolicy)_ | Delete Stroom node `PersistentVolumeClaim`s in accordance with this policy |  |  |
+| `volumeClaimDeletePolicy` _[VolumeClaimDeletePolicy](#volumeclaimdeletepolicy)_ | Delete Stroom node `PersistentVolumeClaim`s in accordance with this policy |  | Enum: [DeleteOnScaledownAndClusterDeletion DeleteOnScaledownOnly] |
 | `nodeSets` _[NodeSet](#nodeset) array_ | Each NodeSet is a functional grouping of Stroom nodes with a particular role, within the cluster.<br />It is recommended two NodeSets should be provided: one for storing and processing data and a separate one for<br />serving the Stroom front-end. |  | MinItems: 1 |
 | `extraJvmOpts` _string array_ | Additional Java Virtual Machine (JVM) options to use. Example of a valid entry: `-Xms1g` |  |  |
 | `extraEnv` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#envvar-v1-core) array_ | Additional environment variables provided to each NodeSet pod |  |  |
@@ -556,13 +558,16 @@ _Appears in:_ [LogSenderSettings](#logsendersettings)
 
 _Underlying type:_ string
 
+VolumeClaimDeletePolicy determines when Stroom node PersistentVolumeClaims are deleted. If unset, they're never
+deleted by the operator.
 
-
+_Validation:_ Enum: [DeleteOnScaledownAndClusterDeletion DeleteOnScaledownOnly]
 
 _Appears in:_ [StroomClusterSpec](#stroomclusterspec)
 
 | Value | Description |
 | --- | --- |
-| `DeleteOnScaledownAndClusterDeletion` |  |
+| `DeleteOnScaledownAndClusterDeletion` | DeleteOnScaledownAndClusterDeletionPolicy deletes a node's PersistentVolumeClaim when its NodeSet is scaled<br />down, and every node's when the StroomCluster is deleted<br /> |
+| `DeleteOnScaledownOnly` | DeleteOnScaledownOnlyPolicy deletes a node's PersistentVolumeClaim when its NodeSet is scaled down<br /> |
 
 

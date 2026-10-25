@@ -17,8 +17,8 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers
-          API
+        description: StroomTaskAutoscaler adjusts the task limit of a Stroom job on
+          a StroomCluster's nodes, according to their CPU use
         properties:
           apiVersion:
             description: |-

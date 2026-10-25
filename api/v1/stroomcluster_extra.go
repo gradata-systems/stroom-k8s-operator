@@ -1,14 +1,21 @@
 package v1
 
+// VolumeClaimDeletePolicy determines when Stroom node PersistentVolumeClaims are deleted. If unset, they're never
+// deleted by the operator.
+// +kubebuilder:validation:Enum=DeleteOnScaledownAndClusterDeletion;DeleteOnScaledownOnly
 type VolumeClaimDeletePolicy string
 
 const (
+	// DeleteOnScaledownAndClusterDeletionPolicy deletes a node's PersistentVolumeClaim when its NodeSet is scaled
+	// down, and every node's when the StroomCluster is deleted
 	DeleteOnScaledownAndClusterDeletionPolicy VolumeClaimDeletePolicy = "DeleteOnScaledownAndClusterDeletion"
-	DeleteOnScaledownOnlyPolicy                                       = "DeleteOnScaledownOnly"
+	// DeleteOnScaledownOnlyPolicy deletes a node's PersistentVolumeClaim when its NodeSet is scaled down
+	DeleteOnScaledownOnlyPolicy VolumeClaimDeletePolicy = "DeleteOnScaledownOnly"
 )
 
 type HttpsSettings struct {
-	// Name of the TLS secret containing the items `keystore.p12` and `truststore.p12`
+	// Name of the TLS Secret containing the nodes' certificate (`tls.crt`), its private key (`tls.key`) and the CA
+	// certificate (`ca.crt`), from which each node's key store and trust store are created
 	TlsSecretName string `json:"tlsSecretName"`
 	// Password of the keystore and truststore
 	TlsKeystorePasswordSecretRef SecretItem `json:"tlsKeystorePasswordSecret"`

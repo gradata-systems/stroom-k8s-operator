@@ -24,7 +24,8 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: DatabaseServer is the Schema for the databases API
+        description: DatabaseServer is a MySQL database server for a StroomCluster,
+          managed by the operator
         properties:
           apiVersion:
             description: |-

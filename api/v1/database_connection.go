@@ -19,6 +19,7 @@ type ServerAddress struct {
 	// Port number the database server is listening on
 	// +kubebuilder:default:=3306
 	Port int32 `json:"port,omitempty"`
-	// SecretName is the name of the secret containing the `password` of the database user `stroomuser`
+	// SecretName is the name of the Secret containing the database user's password, under a key named after the
+	// user (`userName`, by default `stroomuser`)
 	SecretName string `json:"secretName,omitempty"`
 }
