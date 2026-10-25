@@ -14,9 +14,7 @@ import (
 // with only its required fields must survive a typed update
 var _ = Describe("StroomCluster updates", func() {
 
-	It("should reject a typed update of a StroomCluster without a log sender", func() {
-		// BASELINE: known bug. The empty log sender settings are sent with an empty image repository, which fails
-		// validation, so the operator can't add its finalizer to such a StroomCluster.
+	It("should accept a typed update of a StroomCluster without a log sender", func() {
 		cluster := &unstructured.Unstructured{}
 		cluster.SetAPIVersion(GroupVersion.String())
 		cluster.SetKind("StroomCluster")
@@ -40,11 +38,16 @@ var _ = Describe("StroomCluster updates", func() {
 			Expect(k8sClient.Delete(context.Background(), cluster)).To(Succeed())
 		})
 
+		key := types.NamespacedName{Name: cluster.GetName(), Namespace: cluster.GetNamespace()}
 		fetched := &StroomCluster{}
-		Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: cluster.GetName(), Namespace: cluster.GetNamespace()}, fetched)).To(Succeed())
+		Expect(k8sClient.Get(context.Background(), key, fetched)).To(Succeed())
+		Expect(fetched.Spec.LogSender).To(BeNil())
 		fetched.Labels = map[string]string{"updated": "true"}
-		err := k8sClient.Update(context.Background(), fetched)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("spec.logSender.image.repository"))
+		Expect(k8sClient.Update(context.Background(), fetched)).To(Succeed())
+
+		updated := &StroomCluster{}
+		Expect(k8sClient.Get(context.Background(), key, updated)).To(Succeed())
+		Expect(updated.Labels).To(HaveKeyWithValue("updated", "true"))
+		Expect(updated.Spec.LogSender).To(BeNil())
 	})
 })

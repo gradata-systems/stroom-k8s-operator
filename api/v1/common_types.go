@@ -47,7 +47,6 @@ type LivenessProbeTimings struct {
 	// Allow lists the health checks to run. If empty, all health checks are run, except those listed in Deny.
 	// Defaults to the JVM thread deadlock check, so nodes are not restarted when an external dependency is down.
 	// Set to an empty list to run all health checks.
-	// A pointer, so an empty list is kept when the resource is updated, rather than replaced with the default.
 	// +kubebuilder:default:={"deadlocks"}
 	// +kubebuilder:validation:items:Pattern=`^[^,]+$`
 	Allow *[]string `json:"allow,omitempty"`
@@ -66,7 +65,6 @@ type ReadinessProbeTimings struct {
 	Allow *[]string `json:"allow,omitempty"`
 	// Deny lists the health checks to exclude. Defaults to the external identity provider check, so nodes keep
 	// receiving data while the identity provider is unavailable. Set to an empty list to exclude no health checks.
-	// A pointer, so an empty list is kept when the resource is updated, rather than replaced with the default.
 	// +kubebuilder:default:={"stroom.security.common.impl.ExternalIdpConfigurationProvider"}
 	// +kubebuilder:validation:items:Pattern=`^[^,]+$`
 	Deny *[]string `json:"deny,omitempty"`

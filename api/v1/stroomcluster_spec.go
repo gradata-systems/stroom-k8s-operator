@@ -55,7 +55,7 @@ type StroomClusterSpec struct {
 	ExtraVolumeMounts []corev1.VolumeMount `json:"extraVolumeMounts,omitempty"`
 
 	// Configures the mechanism that posts internal audit and logging to Stroom
-	LogSender LogSenderSettings `json:"logSender,omitempty"`
+	LogSender *LogSenderSettings `json:"logSender,omitempty"`
 }
 
 type ConfigMapRef struct {

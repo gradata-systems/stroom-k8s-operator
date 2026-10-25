@@ -45,7 +45,7 @@ var _ = Describe("StroomCluster", func() {
 							MaxPercentage:     75,
 						},
 					}},
-					LogSender: LogSenderSettings{
+					LogSender: &LogSenderSettings{
 						Image: Image{
 							Repository: "gchq/stroom-log-sender",
 						},

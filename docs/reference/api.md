@@ -281,7 +281,7 @@ _Appears in:_ [NodeSet](#nodeset)
 | `periodSeconds` _integer_ |  | `5` |  |
 | `successThreshold` _integer_ |  | `1` |  |
 | `failureThreshold` _integer_ |  | `10` |  |
-| `allow` _string_ | Allow lists the health checks to run. If empty, all health checks are run, except those listed in Deny.<br />Defaults to the JVM thread deadlock check, so nodes are not restarted when an external dependency is down.<br />Set to an empty list to run all health checks.<br />A pointer, so an empty list is kept when the resource is updated, rather than replaced with the default. | `[deadlocks]` | items:Pattern: `^[^,]+$` |
+| `allow` _string_ | Allow lists the health checks to run. If empty, all health checks are run, except those listed in Deny.<br />Defaults to the JVM thread deadlock check, so nodes are not restarted when an external dependency is down.<br />Set to an empty list to run all health checks. | `[deadlocks]` | items:Pattern: `^[^,]+$` |
 | `deny` _string_ | Deny lists the health checks to exclude. |  | items:Pattern: `^[^,]+$` |
 
 
@@ -401,7 +401,7 @@ _Appears in:_ [NodeSet](#nodeset)
 | `successThreshold` _integer_ |  | `1` |  |
 | `failureThreshold` _integer_ |  | `10` |  |
 | `allow` _string_ | Allow lists the health checks to run. If empty, all health checks are run, except those listed in Deny. |  | items:Pattern: `^[^,]+$` |
-| `deny` _string_ | Deny lists the health checks to exclude. Defaults to the external identity provider check, so nodes keep<br />receiving data while the identity provider is unavailable. Set to an empty list to exclude no health checks.<br />A pointer, so an empty list is kept when the resource is updated, rather than replaced with the default. | `[stroom.security.common.impl.ExternalIdpConfigurationProvider]` | items:Pattern: `^[^,]+$` |
+| `deny` _string_ | Deny lists the health checks to exclude. Defaults to the external identity provider check, so nodes keep<br />receiving data while the identity provider is unavailable. Set to an empty list to exclude no health checks. | `[stroom.security.common.impl.ExternalIdpConfigurationProvider]` | items:Pattern: `^[^,]+$` |
 
 
 ### ResourceRef
