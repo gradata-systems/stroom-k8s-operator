@@ -11,7 +11,6 @@ metadata:
   name: stroom-minimal
   namespace: golden-minimal
 spec:
-  ingressClassName: ""
   rules:
   - host: stroom.example.com
     http:
@@ -33,7 +32,5 @@ spec:
               name: app-http
         path: /
         pathType: Prefix
-  tls:
-  - {}
 status:
   loadBalancer: {}

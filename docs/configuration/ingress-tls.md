@@ -6,8 +6,8 @@
 spec:
   ingress:
     hostName: stroom.example.com   # public DNS name (required)
-    className: nginx               # IngressClass to use; always set this
-    secretName: stroom-tls         # TLS Secret for the Ingress; used only when spec.https is set
+    className: nginx               # IngressClass to use; if omitted, the cluster's default IngressClass is used
+    secretName: stroom-tls         # TLS Secret for the Ingress; if omitted, the Ingresses have no TLS section
     pathTypeOverride: false        # true: use pathType ImplementationSpecific for every path
 ```
 
@@ -44,12 +44,10 @@ The operator adds these annotations, intended for [ingress-nginx](https://kubern
 | | `nginx.ingress.kubernetes.io/affinity` | `cookie` (sticky sessions for the UI) |
 | | `nginx.ingress.kubernetes.io/affinity-mode` | `persistent` |
 | | `nginx.ingress.kubernetes.io/proxy-body-size` | `0` (no request size limit) |
-| `stroom-<cluster>-datafeed` | `nginx.ingress.kubernetes.io/rewrite-target` | `/stroom/noauth/datafeed` |
+| `stroom-<cluster>-datafeed` | `nginx.ingress.kubernetes.io/backend-protocol` | `HTTPS` if `spec.https` is set, otherwise `HTTP` |
+| | `nginx.ingress.kubernetes.io/rewrite-target` | `/stroom/noauth/datafeed` |
 | | `haproxy.router.openshift.io/rewrite-target` | `/stroom/noauth/datafeed` |
 | | `nginx.ingress.kubernetes.io/proxy-body-size` | `0` |
-
-The datafeed Ingress has no `backend-protocol` annotation. If you set `spec.https`, add
-`nginx.ingress.kubernetes.io/backend-protocol: HTTPS` to the processing node set's `ingressAnnotations`.
 
 Add or override annotations and labels per node set. They apply to the Ingresses created for that node set:
 
@@ -71,12 +69,17 @@ interpret paths as regular expressions), set `ingress.pathTypeOverride: true`.
 
 ## TLS at the Ingress
 
-When `spec.https` is set, each Ingress has a TLS section for `ingress.hostName` using the Secret
-`ingress.secretName`, a standard `kubernetes.io/tls` Secret with `tls.crt` and `tls.key`.
+When `ingress.secretName` is set, each Ingress has a TLS section for `ingress.hostName` using that Secret, a
+standard `kubernetes.io/tls` Secret with `tls.crt` and `tls.key`. Otherwise the Ingresses have no TLS section, and
+whether clients can use HTTPS depends on your Ingress controller. TLS at the Ingress is independent of
+[HTTPS inside the cluster](#https-inside-the-cluster), which encrypts traffic from the Ingress controller to the
+nodes.
 
-When `spec.https` isn't set, `ingress.secretName` is ignored and the Ingresses have an empty TLS entry, so the
-certificate served depends on your Ingress controller's defaults (ingress-nginx, for example, serves its default
-certificate).
+!!! note "Operator 1.1.5 and earlier"
+    Earlier versions only used `ingress.secretName` when `spec.https` was set, and otherwise gave the Ingresses an
+    empty TLS entry, so ingress-nginx served its default certificate and redirected HTTP to HTTPS. They also sent
+    an empty `ingressClassName` when `className` was omitted, and the datafeed Ingress had no `backend-protocol`
+    annotation, so it failed when `spec.https` was set.
 
 ## HTTPS inside the cluster
 

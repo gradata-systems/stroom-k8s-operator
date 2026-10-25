@@ -245,8 +245,8 @@ _Appears in:_ [StroomClusterSpec](#stroomclusterspec)
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `hostName` _string_ | DNS name at which the application will be reached (e.g. stroom.example.com) |  |  |
-| `secretName` _string_ | Name of the TLS `Secret` containing the private key and server certificate for the `Ingress` |  | Optional |
-| `className` _string_ | Ingress class name (e.g. nginx) |  |  |
+| `secretName` _string_ | Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`. If omitted, the<br />Ingresses have no TLS section. |  | Optional |
+| `className` _string_ | Ingress class name (e.g. nginx). If omitted, the cluster's default IngressClass is used. |  |  |
 | `pathTypeOverride` _boolean_ | Override path type for all ingress resources as `ImplementationSpecific` |  |  |
 
 

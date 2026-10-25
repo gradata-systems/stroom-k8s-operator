@@ -25,10 +25,11 @@ func (in *HttpsSettings) IsZero() bool {
 type IngressSettings struct {
 	// DNS name at which the application will be reached (e.g. stroom.example.com)
 	HostName string `json:"hostName"`
-	// Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`
+	// Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`. If omitted, the
+	// Ingresses have no TLS section.
 	// +kubebuilder:validation:Optional
 	SecretName string `json:"secretName,omitempty"`
-	// Ingress class name (e.g. nginx)
+	// Ingress class name (e.g. nginx). If omitted, the cluster's default IngressClass is used.
 	ClassName string `json:"className,omitempty"`
 	// Override path type for all ingress resources as `ImplementationSpecific`
 	PathTypeOverride bool `json:"pathTypeOverride,omitempty"`

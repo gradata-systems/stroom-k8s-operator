@@ -2266,7 +2266,8 @@ spec:
               ingress:
                 properties:
                   className:
-                    description: Ingress class name (e.g. nginx)
+                    description: Ingress class name (e.g. nginx). If omitted, the
+                      cluster's default IngressClass is used.
                     type: string
                   hostName:
                     description: DNS name at which the application will be reached
@@ -2276,8 +2277,9 @@ spec:
                     description: Override path type for all ingress resources as `ImplementationSpecific`
                     type: boolean
                   secretName:
-                    description: Name of the TLS `Secret` containing the private key
-                      and server certificate for the `Ingress`
+                    description: |-
+                      Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`. If omitted, the
+                      Ingresses have no TLS section.
                     type: string
                 required:
                 - hostName

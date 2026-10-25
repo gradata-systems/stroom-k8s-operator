@@ -828,6 +828,26 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 		}
 	}
 
+	// Settings shared by every Ingress. Requests are sent to the nodes over HTTPS if it's enabled. TLS between
+	// clients and the Ingress controller uses the Ingress Secret, if one is specified.
+	nginxBackendProtocol := "HTTP"
+	appPortName := AppHttpPortName
+	if !stroomCluster.Spec.Https.IsZero() {
+		nginxBackendProtocol = "HTTPS"
+		appPortName = AppHttpsPortName
+	}
+	var ingressTls []netv1.IngressTLS
+	if ingressSettings.SecretName != "" {
+		ingressTls = []netv1.IngressTLS{{
+			Hosts:      []string{ingressSettings.HostName},
+			SecretName: ingressSettings.SecretName,
+		}}
+	}
+	var ingressClassName *string
+	if ingressSettings.ClassName != "" {
+		ingressClassName = &ingressSettings.ClassName
+	}
+
 	// Create an Ingress for each route in each NodeSet, where Ingress is enabled
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
 		clusterName := stroomCluster.GetBaseName()
@@ -838,11 +858,6 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 		}
 
 		if nodeSet.Role != stroomv1.ProcessingNodeRole {
-			nginxBackendProtocol := "HTTP"
-			if !stroomCluster.Spec.Https.IsZero() {
-				nginxBackendProtocol = "HTTPS"
-			}
-
 			ingressAnnotations := map[string]string{
 				"nginx.ingress.kubernetes.io/backend-protocol": nginxBackendProtocol,
 				"nginx.ingress.kubernetes.io/affinity":         "cookie",
@@ -861,17 +876,6 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ingressLabels[k] = v
 			}
 
-			// Build ingress TLS object if TLS is enabled inside the cluster
-			ingressTls := []netv1.IngressTLS{{}}
-			appPortName := AppHttpPortName
-			if !stroomCluster.Spec.Https.IsZero() {
-				ingressTls = []netv1.IngressTLS{{
-					Hosts:      []string{ingressSettings.HostName},
-					SecretName: ingressSettings.SecretName,
-				}}
-				appPortName = AppHttpsPortName
-			}
-
 			ingresses = append(ingresses,
 				netv1.Ingress{
 					// Default route (/)
@@ -882,7 +886,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 						Annotations: ingressAnnotations,
 					},
 					Spec: netv1.IngressSpec{
-						IngressClassName: &ingressSettings.ClassName,
+						IngressClassName: ingressClassName,
 						TLS:              ingressTls,
 						Rules: []netv1.IngressRule{
 							// Explicitly route datafeed traffic to the first non-UI NodeSet
@@ -897,9 +901,10 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 
 		if nodeSet.Role != stroomv1.FrontendNodeRole {
 			ingressAnnotations := map[string]string{
-				"nginx.ingress.kubernetes.io/rewrite-target":  "/stroom/noauth/datafeed",
-				"nginx.ingress.kubernetes.io/proxy-body-size": "0", // Disable client request payload size checking
-				"haproxy.router.openshift.io/rewrite-target":  "/stroom/noauth/datafeed",
+				"nginx.ingress.kubernetes.io/backend-protocol": nginxBackendProtocol,
+				"nginx.ingress.kubernetes.io/rewrite-target":   "/stroom/noauth/datafeed",
+				"nginx.ingress.kubernetes.io/proxy-body-size":  "0", // Disable client request payload size checking
+				"haproxy.router.openshift.io/rewrite-target":   "/stroom/noauth/datafeed",
 			}
 
 			// Apply any user-provided annotations
@@ -913,17 +918,6 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 				ingressLabels[k] = v
 			}
 
-			//Build ingress TLS object if TLS is enabled inside the cluster
-			ingressTls := []netv1.IngressTLS{{}}
-			appPortName := AppHttpPortName
-			if !stroomCluster.Spec.Https.IsZero() {
-				ingressTls = []netv1.IngressTLS{{
-					Hosts:      []string{ingressSettings.HostName},
-					SecretName: ingressSettings.SecretName,
-				}}
-				appPortName = AppHttpsPortName
-			}
-
 			ingresses = append(ingresses, netv1.Ingress{
 				// Rewrite requests to `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`
 				ObjectMeta: metav1.ObjectMeta{
@@ -933,7 +927,7 @@ func (r *StroomClusterReconciler) createIngresses(ctx context.Context, stroomClu
 					Annotations: ingressAnnotations,
 				},
 				Spec: netv1.IngressSpec{
-					IngressClassName: &ingressSettings.ClassName,
+					IngressClassName: ingressClassName,
 					TLS:              ingressTls,
 					Rules: []netv1.IngressRule{
 						r.createIngressRule(ingressSettings.HostName, netv1.PathTypeExact, "/stroom/datafeeddirect", serviceName, appPortName, ingressSettings.PathTypeOverride),
