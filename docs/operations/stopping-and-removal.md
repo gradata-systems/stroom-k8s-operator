@@ -10,14 +10,18 @@ kubectl -n stroom delete stroomcluster dev
 
 Before the cluster's objects are removed, the operator drains it:
 
-1. It disables every job on every node of the cluster, directly in the Stroom database.
-2. It checks the database once a minute for processing tasks still running, logging which nodes are holding up
-   the deletion. The check counts tasks on every node recorded in the database, not just this cluster's. For
-   example:
+1. It disables every job on each of the cluster's nodes, directly in the Stroom database. Nodes of other clusters
+   sharing the database aren't affected.
+2. It checks the database once a minute for processing tasks still running on the cluster's nodes, logging which
+   nodes are holding up the deletion. For example:
    `StroomCluster deletion waiting on task completion for 1 nodes: stroom-dev-node-data-0 (5)`.
 3. When no tasks remain, it allows the deletion to proceed. Kubernetes deletes the StatefulSets and their Pods (each
    of which also runs its [`preStop` drain](node-lifecycle.md#stopping)), and the operator deletes the cluster's
    Ingresses.
+
+If no Stroom node has ever started against the database, so it has no Stroom tables, there's nothing to drain and
+the deletion proceeds straight away. If the operator can't connect to the database, it keeps retrying, and the
+deletion waits until it can.
 
 `kubectl delete` waits while this happens, which can take a while. You can press ++ctrl+c++; the deletion
 continues in the background. To see progress:

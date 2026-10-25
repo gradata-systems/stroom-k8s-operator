@@ -39,7 +39,8 @@ for details.
 - A `DatabaseServer` whose name differed from its `StroomCluster`'s couldn't be used, as the claim recorded the wrong
   name.
 - Deleting a `StroomCluster` disabled jobs on other clusters' nodes whose names started the same way, and waited for
-  tasks on every node in the database.
+  tasks on every node in the database. A `StroomCluster` whose nodes had never started couldn't be deleted, as the
+  database had no Stroom tables to drain it with.
 - A node stopped without draining if its task count couldn't be retrieved.
 - The datafeed Ingress failed with `spec.https`, as it had no HTTPS backend protocol, and an omitted `className` was
   sent as an empty class.

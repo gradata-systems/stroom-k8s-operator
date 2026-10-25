@@ -2,8 +2,10 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 
+	"github.com/go-sql-driver/mysql"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -105,6 +107,19 @@ var _ = Describe("StroomCluster deletion", func() {
 			} {
 				Expect(pattern.MatchString(node)).To(BeFalse(), node)
 			}
+		})
+	})
+
+	Context("isMissingTable()", func() {
+		It("should recognise a missing table, as in a database no Stroom node has started with", func() {
+			err := &mysql.MySQLError{Number: 1146, Message: "Table 'stroom.job_node' doesn't exist"}
+			Expect(isMissingTable(err)).To(BeTrue())
+			Expect(isMissingTable(fmt.Errorf("disabling jobs: %w", err))).To(BeTrue())
+		})
+		It("should not treat other errors as a missing table", func() {
+			Expect(isMissingTable(nil)).To(BeFalse())
+			Expect(isMissingTable(&mysql.MySQLError{Number: 1045, Message: "Access denied"})).To(BeFalse())
+			Expect(isMissingTable(fmt.Errorf("connection refused"))).To(BeFalse())
 		})
 	})
 })

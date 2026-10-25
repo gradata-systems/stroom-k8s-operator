@@ -19,12 +19,14 @@ package controller
 import (
 	"context"
 	"embed"
+	goerrors "errors"
 	"fmt"
 	"path"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/go-sql-driver/mysql"
 	common "github.com/gradata-systems/stroom-k8s-operator/internal/controller/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -430,7 +432,9 @@ func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, str
 	} else {
 		defer CloseDatabase(db)
 
-		if _, err := db.Exec("update job_node set enabled = 0 where node_name regexp ?", clusterNodeNamePattern(stroomCluster)); err != nil {
+		if _, err := db.Exec("update job_node set enabled = 0 where node_name regexp ?", clusterNodeNamePattern(stroomCluster)); isMissingTable(err) {
+			logger.Info("The Stroom database has no job_node table, so no node has run. Nothing to disable.", "StroomCluster", stroomCluster.Name)
+		} else if err != nil {
 			logger.Error(err, "Failed to disable Stroom node task processing", "StroomCluster", stroomCluster.Name)
 			return err
 		}
@@ -438,6 +442,16 @@ func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, str
 
 	return nil
 }
+
+// isMissingTable returns whether a database error is because a table doesn't exist. The Stroom tables are created by
+// the first Stroom node to start, so a cluster whose nodes have never started has none, and nothing to drain.
+func isMissingTable(err error) bool {
+	var mysqlErr *mysql.MySQLError
+	return goerrors.As(err, &mysqlErr) && mysqlErr.Number == mysqlErrNoSuchTable
+}
+
+// mysqlErrNoSuchTable is MySQL's ER_NO_SUCH_TABLE error number
+const mysqlErrNoSuchTable = 1146
 
 // clusterNodeNamePattern returns a regular expression matching the Stroom node names of the cluster's node sets, which
 // are their pod names. Other clusters sharing the database may have node names that start the same way, so the
@@ -467,7 +481,10 @@ func (r *StroomClusterReconciler) countRemainingTasks(ctx context.Context, stroo
 			"where pt.status = ? and n.name regexp ? "+
 			"group by n.name", common.NodeTaskStatusProcessing, clusterNodeNamePattern(stroomCluster))
 
-		if err != nil {
+		if isMissingTable(err) {
+			logger.Info("The Stroom database has no task tables, so no node has run. No tasks to wait for.", "StroomCluster", stroomCluster.Name)
+			return nil
+		} else if err != nil {
 			logger.Error(err, fmt.Sprintf("Failed to query the active Stroom processor tasks for cluster '%v'", stroomCluster.Name))
 			return err
 		}
