@@ -2,8 +2,8 @@ data:
   generate-keystore.sh: <sha256:f9dd771f1f009dee535523dd98f1f11807806402e932c80e4d733c064c6eb2a2>
   node-pre-stop.sh: <sha256:da983acec6be7adf8098afd088a641c795e88cfc28007e105ac21a9a7c7ea6d3>
   node-start.sh: <sha256:7ccd9092da7ace7bf0bf575ec3f5301e0e9a1423688bc52212cd8c9e0081f568>
-  stroomcluster-config-https.yaml: <sha256:3591ead9102701525d8c127e1ba29f844307cba565f51f342bbf8fbee7eef186>
-  stroomcluster-config.yaml: <sha256:0d51d9d42d5cf92b61191f2261208b404456dfe9d549619d6341e0494d836a31>
+  stroomcluster-config-https.yaml: <sha256:658d99e6082609ae4799e3bbd8387e321e982481ea1e4e7523bb4838c2a2a143>
+  stroomcluster-config.yaml: <sha256:74fbcc7c132e48fca034912ff8d813c07f6679367eef5fc6456c7b07c4567ed3>
   utils.sh: <sha256:998578648b3895c901e398d0cbb867c7e563824c7d220ed2ffcfcb51eeaecebb>
 metadata:
   labels:

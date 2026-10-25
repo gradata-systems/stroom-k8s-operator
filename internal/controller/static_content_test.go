@@ -79,6 +79,11 @@ var _ = Describe("generate-keystore.sh", func() {
 		if os.Getuid() == 0 {
 			Skip("the script gives the files to the stroom user when run as root, which this test can't check")
 		}
+		// The trust store needs -jdktrust, from OpenSSL 3.2, which the Stroom image has. The e2e tests cover the
+		// script where the local OpenSSL is older.
+		if help, _ := exec.Command("openssl", "pkcs12", "-help").CombinedOutput(); !strings.Contains(string(help), "-jdktrust") {
+			Skip("the key store script needs OpenSSL 3.2 or later, for -jdktrust")
+		}
 
 		root := GinkgoT().TempDir()
 		tlsDir := filepath.Join(root, "tls")
