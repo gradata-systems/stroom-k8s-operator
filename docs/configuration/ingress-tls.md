@@ -62,6 +62,12 @@ Add or override annotations and labels per node set. They apply to the Ingresses
 
 ### Other Ingress controllers
 
+!!! warning "ingress-nginx is retired"
+    The Kubernetes project retired ingress-nginx in March 2026, and no longer releases fixes for it, including
+    security fixes. Existing installations keep working, and the operator's tests still run against its last
+    release, but plan to move to another controller. The operator keeps adding the ingress-nginx annotations, which
+    other controllers ignore.
+
 With a controller other than ingress-nginx, use `ingressAnnotations` to configure the equivalent behaviour:
 rewriting `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`, the backend protocol, unlimited request bodies and
 sticky sessions for the user interface. If your controller needs `pathType: ImplementationSpecific` (for example to

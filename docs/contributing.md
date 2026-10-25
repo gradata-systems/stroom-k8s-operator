@@ -5,6 +5,10 @@ This site is built with [MkDocs](https://www.mkdocs.org/) and
 [`docs/`](https://github.com/gradata-systems/stroom-k8s-operator/tree/master/docs), and published to GitHub Pages
 from the `master` branch. Every page has an edit button that opens the file on GitHub.
 
+!!! note "Material for MkDocs end of life"
+    Material for MkDocs reaches end of life on 5 May 2027, after which it gets no fixes. Its maintainers' successor,
+    [Zensical](https://zensical.org/), reads the existing `mkdocs.yml`, so the site should move to it before then.
+
 ## Building the site locally
 
 You need Python 3.11 or later.

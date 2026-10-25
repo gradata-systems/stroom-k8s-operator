@@ -9,8 +9,8 @@
   ClusterRoleBinding.
 - [Helm](https://helm.sh/) 3.8 or later, if you install with Helm. The charts are published as OCI artifacts.
 - An **Ingress controller**. The operator adds [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
-  annotations by default. Other controllers work if you supply equivalent annotations; see
-  [Ingress and TLS](../configuration/ingress-tls.md).
+  annotations by default. Other controllers work if you supply equivalent annotations, and ingress-nginx is now
+  retired; see [Ingress and TLS](../configuration/ingress-tls.md#other-ingress-controllers).
 - [metrics-server](https://github.com/kubernetes-sigs/metrics-server), if you want to use the
   [`StroomTaskAutoscaler`](../autoscaling.md). Some Kubernetes distributions include it.
 
