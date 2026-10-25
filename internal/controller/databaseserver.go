@@ -155,7 +155,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						}},
 						ReadinessProbe:  r.createReadinessProbe(dbServer.Spec.ReadinessProbeTimings),
 						LivenessProbe:   r.createLivenessProbe(dbServer.Spec.LivenessProbeTimings),
-						SecurityContext: &dbServer.Spec.SecurityContext,
+						SecurityContext: containerSecurityContext(dbServer.Spec.SecurityContext),
 						Resources:       dbServer.Spec.Resources,
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "config",
@@ -171,10 +171,11 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 							MountPath: "/var/lib/mysql",
 						}},
 					}},
-					SecurityContext: &dbServer.Spec.PodSecurityContext,
-					NodeSelector:    dbServer.Spec.NodeSelector,
-					Affinity:        &dbServer.Spec.Affinity,
-					Tolerations:     dbServer.Spec.Tolerations,
+					AutomountServiceAccountToken: &automountServiceAccountToken,
+					SecurityContext:              podSecurityContext(dbServer.Spec.PodSecurityContext),
+					NodeSelector:                 dbServer.Spec.NodeSelector,
+					Affinity:                     &dbServer.Spec.Affinity,
+					Tolerations:                  dbServer.Spec.Tolerations,
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{

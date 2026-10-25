@@ -26,6 +26,7 @@ spec:
         stroom/nodeSet: node
     spec:
       affinity: {}
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: API_GATEWAY_HOST
@@ -130,7 +131,8 @@ spec:
           successThreshold: 1
           timeoutSeconds: 5
         resources: {}
-        securityContext: {}
+        securityContext:
+          allowPrivilegeEscalation: false
         startupProbe:
           exec:
             command:
@@ -190,7 +192,9 @@ spec:
           name: static-content
           readOnly: true
           subPath: stroomcluster-config.yaml
-      securityContext: {}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: stroom-minimal
       terminationGracePeriodSeconds: 60
       volumes:

@@ -29,6 +29,7 @@ spec:
         stroom/nodeSet: data
     spec:
       affinity: {}
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: API_GATEWAY_HOST
@@ -148,7 +149,8 @@ spec:
           requests:
             cpu: "1"
             memory: 4Gi
-        securityContext: {}
+        securityContext:
+          allowPrivilegeEscalation: false
         startupProbe:
           exec:
             command:
@@ -234,7 +236,8 @@ spec:
           limits:
             cpu: 500m
             memory: 256Mi
-        securityContext: {}
+        securityContext:
+          allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /stroom-log-sender/log-volumes/stroom
           name: data
@@ -257,6 +260,8 @@ spec:
         imagePullPolicy: IfNotPresent
         name: generate-keystore
         resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /opt/scripts/generate-keystore.sh
           name: static-content
@@ -267,7 +272,9 @@ spec:
           readOnly: true
         - mountPath: /data
           name: keystore
-      securityContext: {}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       serviceAccountName: stroom-full
       terminationGracePeriodSeconds: 300
       volumes:

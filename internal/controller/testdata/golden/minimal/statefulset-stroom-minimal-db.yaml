@@ -28,6 +28,7 @@ spec:
         app.kubernetes.io/name: stroom
     spec:
       affinity: {}
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
@@ -64,7 +65,8 @@ spec:
             - -e
             - SELECT 1
         resources: {}
-        securityContext: {}
+        securityContext:
+          allowPrivilegeEscalation: false
         volumeMounts:
         - mountPath: /etc/my.cnf
           name: config
@@ -75,7 +77,9 @@ spec:
           readOnly: true
         - mountPath: /var/lib/mysql
           name: data
-      securityContext: {}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
       - configMap:
           name: stroom-minimal-db

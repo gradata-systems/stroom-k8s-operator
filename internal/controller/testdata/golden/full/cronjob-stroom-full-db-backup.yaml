@@ -20,6 +20,7 @@ spec:
       template:
         metadata: {}
         spec:
+          automountServiceAccountToken: false
           containers:
           - command:
             - bash
@@ -48,10 +49,15 @@ spec:
             image: mysql/mysql-server:8.0.32
             name: backup-job
             resources: {}
+            securityContext:
+              allowPrivilegeEscalation: false
             volumeMounts:
             - mountPath: /var/lib/mysql/backup
               name: data
           restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           volumes:
           - name: data
             persistentVolumeClaim:

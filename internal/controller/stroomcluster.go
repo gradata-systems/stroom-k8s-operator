@@ -436,6 +436,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 			Name:            "generate-keystore",
 			Image:           stroomCluster.Spec.Image.String(),
 			ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
+			SecurityContext: containerSecurityContext(corev1.SecurityContext{}),
 			Command: []string{
 				"sh",
 				"-c",
@@ -475,7 +476,7 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 		ImagePullPolicy: stroomCluster.Spec.ImagePullPolicy,
 		Env:             env,
 		VolumeMounts:    volumeMounts,
-		SecurityContext: &nodeSet.SecurityContext,
+		SecurityContext: containerSecurityContext(nodeSet.SecurityContext),
 		Ports: []corev1.ContainerPort{{
 			Name:          AppHttpPortName,
 			ContainerPort: AppHttpPortNumber,
@@ -529,7 +530,8 @@ func (r *StroomClusterReconciler) createStatefulSet(stroomCluster *stroomv1.Stro
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName:            stroomCluster.GetBaseName(),
-					SecurityContext:               &nodeSet.PodSecurityContext,
+					AutomountServiceAccountToken:  &automountServiceAccountToken,
+					SecurityContext:               podSecurityContext(nodeSet.PodSecurityContext),
 					TerminationGracePeriodSeconds: &stroomCluster.Spec.NodeTerminationPeriodSecs,
 					InitContainers:                initContainers,
 					Containers:                    containers,
@@ -606,7 +608,7 @@ func (r *StroomClusterReconciler) createLogSenderContainer(stroomCluster *stroom
 		Name:            "log-sender",
 		Image:           logSender.Image.String(),
 		ImagePullPolicy: logSender.ImagePullPolicy,
-		SecurityContext: &logSender.SecurityContext,
+		SecurityContext: containerSecurityContext(logSender.SecurityContext),
 		Env: []corev1.EnvVar{{
 			Name:  "LOG_SENDER_SCRIPT",
 			Value: "/stroom-log-sender/send_to_stroom.sh",

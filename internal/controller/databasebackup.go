@@ -53,11 +53,14 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
-							RestartPolicy: corev1.RestartPolicyOnFailure,
+							RestartPolicy:                corev1.RestartPolicyOnFailure,
+							AutomountServiceAccountToken: &automountServiceAccountToken,
+							SecurityContext:              podSecurityContext(corev1.PodSecurityContext{}),
 							Containers: []corev1.Container{{
 								Name:            "backup-job",
 								Image:           dbBackup.Spec.Image.String(),
 								ImagePullPolicy: dbBackup.Spec.ImagePullPolicy,
+								SecurityContext: containerSecurityContext(corev1.SecurityContext{}),
 								Command: []string{
 									"bash",
 									"-c",
