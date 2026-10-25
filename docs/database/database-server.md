@@ -43,7 +43,7 @@ See also [`samples/database-server.yaml`](https://github.com/gradata-systems/str
 | --- | --- |
 | `image` | A MySQL 8 server image. The operator relies on the image's standard entrypoint (`MYSQL_USER`, `MYSQL_PASSWORD` and `/docker-entrypoint-initdb.d`). |
 | `databaseNames` | Databases to create on first start. Include the `StroomCluster`'s `appDatabaseName` and `statsDatabaseName` (by default `stroom` and `stats`). |
-| `additionalConfig` | Lines appended to the `[mysqld]` section of `/etc/my.cnf`. |
+| `additionalConfig` | Lines appended to the `[mysqld]` section of `/etc/my.cnf`, each a single option such as `max_connections=500`. Options the operator sets (`datadir`, `port`, `user`), and options that give access to the server's files or bypass authentication (such as `secure_file_priv`, `local_infile`, `init_file` and `skip_grant_tables`), are rejected. |
 | `resources` | Container requests and limits. |
 | `volumeClaim` | PersistentVolumeClaim spec for the data directory. Use fast, low-latency storage. |
 | `readinessProbeTimings`, `livenessProbeTimings` | Probe timings. If omitted, Kubernetes' probe defaults apply. |

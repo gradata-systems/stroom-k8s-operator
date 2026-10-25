@@ -178,7 +178,7 @@ _Appears in:_ [DatabaseServer](#databaseserver)
 | `image` _[Image](#image)_ |  |  |  |
 | `imagePullPolicy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#pullpolicy-v1-core)_ |  |  |  |
 | `databaseNames` _string array_ | Names of the databases to be created on startup (if they don't already exist) |  | items:Pattern: `^[A-Za-z0-9_]{1,64}$` |
-| `additionalConfig` _string array_ | Any additional configuration lines to append to the MySQL server configuration file `/etc/my.cnf` |  |  |
+| `additionalConfig` _string array_ | Any additional configuration lines to append to the `[mysqld]` section of the MySQL server configuration file<br />`/etc/my.cnf`, each a single option, such as `max_connections=500`. Options that the operator sets, or that<br />would give access to the server's files or bypass authentication, aren't allowed. |  | MaxItems: 200<br />items:MaxLength: 1024<br />items:Pattern: `^[A-Za-z][A-Za-z0-9_-]*(\s*=.*)?$` |
 | `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#resourcerequirements-v1-core)_ |  |  |  |
 | `volumeClaim` _[PersistentVolumeClaimSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#persistentvolumeclaimspec-v1-core)_ |  |  |  |
 | `readinessProbeTimings` _[ProbeTimings](#probetimings)_ |  |  |  |

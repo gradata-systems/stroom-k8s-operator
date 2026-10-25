@@ -48,11 +48,26 @@ spec:
             description: DatabaseServerSpec defines the desired state of DatabaseServer
             properties:
               additionalConfig:
-                description: Any additional configuration lines to append to the MySQL
-                  server configuration file `/etc/my.cnf`
+                description: |-
+                  Any additional configuration lines to append to the `[mysqld]` section of the MySQL server configuration file
+                  `/etc/my.cnf`, each a single option, such as `max_connections=500`. Options that the operator sets, or that
+                  would give access to the server's files or bypass authentication, aren't allowed.
                 items:
+                  maxLength: 1024
+                  pattern: ^[A-Za-z][A-Za-z0-9_-]*(\s*=.*)?$
                   type: string
+                maxItems: 200
                 type: array
+                x-kubernetes-validations:
+                - message: additionalConfig can't set datadir, port, user, secure_file_priv,
+                    local_infile, plugin_dir, plugin_load, plugin_load_add, init_file,
+                    skip_grant_tables, general_log_file, slow_query_log_file, log_error,
+                    pid_file, socket or tmpdir
+                  rule: self.all(line, !(line.split('=')[0].trim().lowerAscii().replace('-',
+                    '_') in ['datadir', 'port', 'user', 'secure_file_priv', 'local_infile',
+                    'plugin_dir', 'plugin_load', 'plugin_load_add', 'init_file', 'skip_grant_tables',
+                    'general_log_file', 'slow_query_log_file', 'log_error', 'pid_file',
+                    'socket', 'tmpdir']))
               affinity:
                 description: Affinity is a group of affinity scheduling rules.
                 properties:
