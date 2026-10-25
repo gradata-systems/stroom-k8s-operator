@@ -119,6 +119,10 @@ func saveDiagnostics(namespace string) {
 		save("logs-"+pod+".txt", "logs", pod, "--all-containers", "--prefix")
 		save("logs-previous-"+pod+".txt", "logs", pod, "--all-containers", "--prefix", "--previous")
 	}
+	// The operator, which is removed when the suite ends
+	operatorLog, _ := kubectl("logs", "-n", operatorNamespace, "deployment/stroom-operator-controller-manager",
+		"--all-containers", "--tail=2000")
+	_ = os.WriteFile(filepath.Join(dir, "logs-operator.txt"), []byte(operatorLog), 0o644)
 	_, _ = fmt.Fprintf(GinkgoWriter, "saved diagnostics for namespace %v to %v\n", namespace, dir)
 }
 
