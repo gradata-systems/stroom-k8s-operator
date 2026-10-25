@@ -11,7 +11,7 @@ Each Stroom node has three Kubernetes probes, configured per node set:
 !!! info "Version note"
     The health check filters (`allow` and `deny`), the separate startup probe settings (with
     `lockWaitAllowanceSeconds`) and the fix that makes `periodSeconds` take effect on the readiness and liveness
-    probes were introduced after operator version 1.1.5. For existing clusters, see the
+    probes were introduced in operator version 1.2.0. For existing clusters, see the
     [upgrade notes](../operations/upgrading.md#probe-changes).
 
 ## Defaults

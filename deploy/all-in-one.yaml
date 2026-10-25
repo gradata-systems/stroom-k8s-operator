@@ -23,7 +23,8 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: DatabaseBackup is the Schema for the databasebackups API
+        description: DatabaseBackup backs up the databases on a database server on
+          a schedule, with mysqldump
         properties:
           apiVersion:
             description: |-
@@ -49,6 +50,7 @@ spec:
                 description: Backup the specified database names. If unspecified,
                   all user databases are backed up
                 items:
+                  pattern: ^[A-Za-z0-9_]{1,64}$
                   type: string
                 type: array
               databaseServerRef:
@@ -71,8 +73,9 @@ spec:
                         format: int32
                         type: integer
                       secretName:
-                        description: SecretName is the name of the secret containing
-                          the `password` of the database user `stroomuser`
+                        description: |-
+                          SecretName is the name of the Secret containing the database user's password, under a key named after the
+                          user (`userName`, by default `stroomuser`)
                         type: string
                     type: object
                   serverRef:
@@ -2036,7 +2039,8 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: DatabaseServer is the Schema for the databases API
+        description: DatabaseServer is a MySQL database server for a StroomCluster,
+          managed by the operator
         properties:
           apiVersion:
             description: |-
@@ -2059,11 +2063,26 @@ spec:
             description: DatabaseServerSpec defines the desired state of DatabaseServer
             properties:
               additionalConfig:
-                description: Any additional configuration lines to append to the MySQL
-                  server configuration file `/etc/my.cnf`
+                description: |-
+                  Any additional configuration lines to append to the `[mysqld]` section of the MySQL server configuration file
+                  `/etc/my.cnf`, each a single option, such as `max_connections=500`. Options that the operator sets, or that
+                  would give access to the server's files or bypass authentication, aren't allowed.
                 items:
+                  maxLength: 1024
+                  pattern: ^[A-Za-z][A-Za-z0-9_-]*(\s*=.*)?$
                   type: string
+                maxItems: 200
                 type: array
+                x-kubernetes-validations:
+                - message: additionalConfig can't set datadir, port, user, secure_file_priv,
+                    local_infile, plugin_dir, plugin_load, plugin_load_add, init_file,
+                    skip_grant_tables, general_log_file, slow_query_log_file, log_error,
+                    pid_file, socket or tmpdir
+                  rule: self.all(line, !(line.split('=')[0].trim().lowerAscii().replace('-',
+                    '_') in ['datadir', 'port', 'user', 'secure_file_priv', 'local_infile',
+                    'plugin_dir', 'plugin_load', 'plugin_load_add', 'init_file', 'skip_grant_tables',
+                    'general_log_file', 'slow_query_log_file', 'log_error', 'pid_file',
+                    'socket', 'tmpdir']))
               affinity:
                 description: Affinity is a group of affinity scheduling rules.
                 properties:
@@ -2980,6 +2999,7 @@ spec:
                 description: Names of the databases to be created on startup (if they
                   don't already exist)
                 items:
+                  pattern: ^[A-Za-z0-9_]{1,64}$
                   type: string
                 type: array
               image:
@@ -3829,7 +3849,7 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: StroomCluster is the Schema for the stroomclusters API
+        description: StroomCluster is a cluster of Stroom nodes, in one or more NodeSets
         properties:
           apiVersion:
             description: |-
@@ -3854,7 +3874,7 @@ spec:
               appDatabaseName:
                 default: stroom
                 description: Name of the main Stroom database, usually `stroom`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               configMapRef:
                 description: |-
@@ -3889,8 +3909,9 @@ spec:
                         format: int32
                         type: integer
                       secretName:
-                        description: SecretName is the name of the secret containing
-                          the `password` of the database user `stroomuser`
+                        description: |-
+                          SecretName is the name of the Secret containing the database user's password, under a key named after the
+                          user (`userName`, by default `stroomuser`)
                         type: string
                     type: object
                   serverRef:
@@ -6040,12 +6061,8 @@ spec:
                   type: object
                 type: array
               https:
-                description: HTTPS settings
+                description: HTTPS settings. Omit to use plain-text (HTTP)
                 properties:
-                  enabled:
-                    description: Boolean value controling if TLS is enabled within
-                      the cluster
-                    type: boolean
                   tlsKeystorePasswordSecret:
                     description: Password of the keystore and truststore
                     properties:
@@ -6058,11 +6075,13 @@ spec:
                     - secretName
                     type: object
                   tlsSecretName:
-                    description: Name of the TLS secret containing the items `keystore.p12`
-                      and `truststore.p12`
+                    description: |-
+                      Name of the TLS Secret containing the nodes' certificate (`tls.crt`), its private key (`tls.key`) and the CA
+                      certificate (`ca.crt`), from which each node's key store and trust store are created
                     type: string
                 required:
-                - enabled
+                - tlsKeystorePasswordSecret
+                - tlsSecretName
                 type: object
               image:
                 properties:
@@ -6081,7 +6100,8 @@ spec:
               ingress:
                 properties:
                   className:
-                    description: Ingress class name (e.g. nginx)
+                    description: Ingress class name (e.g. nginx). If omitted, the
+                      cluster's default IngressClass is used.
                     type: string
                   hostName:
                     description: DNS name at which the application will be reached
@@ -6091,8 +6111,9 @@ spec:
                     description: Override path type for all ingress resources as `ImplementationSpecific`
                     type: boolean
                   secretName:
-                    description: Name of the TLS `Secret` containing the private key
-                      and server certificate for the `Ingress`
+                    description: |-
+                      Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`. If omitted, the
+                      Ingresses have no TLS section.
                     type: string
                 required:
                 - hostName
@@ -6127,10 +6148,6 @@ spec:
                   imagePullPolicy:
                     description: PullPolicy describes a policy for if/when to pull
                       a container image
-                    type: string
-                  mtlsEnabled:
-                    type: boolean
-                  mtlsSecretName:
                     type: string
                   resources:
                     description: ResourceRequirements describes the compute resource
@@ -6386,10 +6403,18 @@ spec:
                   systemName:
                     description: Name of the `System` to set in feed metadata
                     type: string
+                  tls:
+                    properties:
+                      secretName:
+                        description: Name of the TLS Secret containing a CA certificate
+                          (ca.crt) and client certificate/key pair (tls.crt and tls.key)
+                        type: string
+                    required:
+                    - secretName
+                    type: object
                 required:
                 - enabled
                 - image
-                - mtlsEnabled
                 type: object
               nodeSets:
                 description: |-
@@ -7324,6 +7349,72 @@ spec:
                       format: int32
                       minimum: 1
                       type: integer
+                    extraVolumeMounts:
+                      description: Extra volume mounts to add to each NodeSet pod,
+                        in addition to volume mounts defined at the StroomCluster
+                        level.
+                      items:
+                        description: VolumeMount describes a mounting of a Volume
+                          within a container.
+                        properties:
+                          mountPath:
+                            description: |-
+                              Path within the container at which the volume should be mounted.  Must
+                              not contain ':'.
+                            type: string
+                          mountPropagation:
+                            description: |-
+                              mountPropagation determines how mounts are propagated from the host
+                              to container and the other way around.
+                              When not set, MountPropagationNone is used.
+                              This field is beta in 1.10.
+                              When RecursiveReadOnly is set to IfPossible or to Enabled, MountPropagation must be None or unspecified
+                              (which defaults to None).
+                            type: string
+                          name:
+                            description: This must match the Name of a Volume.
+                            type: string
+                          readOnly:
+                            description: |-
+                              Mounted read-only if true, read-write otherwise (false or unspecified).
+                              Defaults to false.
+                            type: boolean
+                          recursiveReadOnly:
+                            description: |-
+                              RecursiveReadOnly specifies whether read-only mounts should be handled
+                              recursively.
+
+                              If ReadOnly is false, this field has no meaning and must be unspecified.
+
+                              If ReadOnly is true, and this field is set to Disabled, the mount is not made
+                              recursively read-only.  If this field is set to IfPossible, the mount is made
+                              recursively read-only, if it is supported by the container runtime.  If this
+                              field is set to Enabled, the mount is made recursively read-only if it is
+                              supported by the container runtime, otherwise the pod will not be started and
+                              an error will be generated to indicate the reason.
+
+                              If this field is set to IfPossible or Enabled, MountPropagation must be set to
+                              None (or be unspecified, which defaults to None).
+
+                              If this field is not specified, it is treated as an equivalent of Disabled.
+                            type: string
+                          subPath:
+                            description: |-
+                              Path within the volume from which the container's volume should be mounted.
+                              Defaults to "" (volume's root).
+                            type: string
+                          subPathExpr:
+                            description: |-
+                              Expanded path within the volume from which the container's volume should be mounted.
+                              Behaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.
+                              Defaults to "" (volume's root).
+                              SubPathExpr and SubPath are mutually exclusive.
+                            type: string
+                        required:
+                        - mountPath
+                        - name
+                        type: object
+                      type: array
                     ingressAnnotations:
                       additionalProperties:
                         type: string
@@ -7345,10 +7436,28 @@ spec:
                         controller provided labels.
                       type: object
                     livenessProbeTimings:
+                      default: {}
                       description: |-
                         LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is
                         restarted.
                       properties:
+                        allow:
+                          default:
+                          - deadlocks
+                          description: |-
+                            Allow lists the health checks to run. If empty, all health checks are run, except those listed in Deny.
+                            Defaults to the JVM thread deadlock check, so nodes are not restarted when an external dependency is down.
+                            Set to an empty list to run all health checks.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
+                        deny:
+                          description: Deny lists the health checks to exclude.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
                         failureThreshold:
                           default: 10
                           format: int32
@@ -7566,6 +7675,15 @@ spec:
                             PersistentVolume backing this claim.
                           type: string
                       type: object
+                    managedJobs:
+                      description: |-
+                        Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.
+                        If omitted, nodes with the `Processing` role or no role enable and disable all jobs, while `Frontend` nodes
+                        only manage the job `Reindex Content`.
+                        Jobs that aren't managed may be enabled or disabled via the Stroom Jobs pane.
+                      items:
+                        type: string
+                      type: array
                     memoryOptions:
                       description: MemoryOptions define JVM memory parameters
                       properties:
@@ -7836,10 +7954,28 @@ spec:
                           type: object
                       type: object
                     readinessProbeTimings:
+                      default: {}
                       description: |-
                         ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
-                        removing them from service while they are non-responsive to healthchecks.
+                        removing them from service while they are non-responsive to health checks.
                       properties:
+                        allow:
+                          description: Allow lists the health checks to run. If empty,
+                            all health checks are run, except those listed in Deny.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
+                        deny:
+                          default:
+                          - stroom.security.common.impl.ExternalIdpConfigurationProvider
+                          description: |-
+                            Deny lists the health checks to exclude. Defaults to the external identity provider check, so nodes keep
+                            receiving data while the identity provider is unavailable. Set to an empty list to exclude no health checks.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
                         failureThreshold:
                           default: 10
                           format: int32
@@ -7924,10 +8060,13 @@ spec:
                       type: object
                     role:
                       description: |-
-                        Role of each node in the NodeSet. ProcessingNodeRole nodes are limited to receiving and processing data,
-                        while FrontendNodeRole nodes host the Stroom.
+                        Role of each node in the NodeSet. `Processing` nodes receive and process data, while `Frontend` nodes serve
+                        the Stroom user interface and API.
 
                         If this property is omitted, nodes in the NodeSet will assume both Processing and Frontend roles.
+                      enum:
+                      - Processing
+                      - Frontend
                       type: string
                     securityContext:
                       description: SecurityContext overrides the PodSecurityContext
@@ -8122,17 +8261,29 @@ spec:
                           type: object
                       type: object
                     startupProbeTimings:
+                      default: {}
                       description: |-
                         StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
-                        typically takes to start up and respond to healthchecks.
+                        typically takes to start up and respond to health checks.
                       properties:
                         failureThreshold:
-                          default: 10
+                          default: 24
+                          description: FailureThreshold multiplied by PeriodSeconds
+                            is the base time allowed for a node to start up.
                           format: int32
                           type: integer
                         initialDelaySeconds:
                           default: 5
                           format: int32
+                          type: integer
+                        lockWaitAllowanceSeconds:
+                          default: 30
+                          description: |-
+                            LockWaitAllowanceSeconds is added to the startup time allowed for each additional node in the NodeSet, when
+                            the StroomCluster PodManagementPolicy is `Parallel`. This gives nodes time to wait on the Stroom bootstrap lock,
+                            which is held while another node upgrades the database.
+                          format: int32
+                          minimum: 0
                           type: integer
                         periodSeconds:
                           default: 5
@@ -8231,16 +8382,18 @@ spec:
               statsDatabaseName:
                 default: stats
                 description: Name of the statistics database, usually `stats`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               volumeClaimDeletePolicy:
                 description: Delete Stroom node `PersistentVolumeClaim`s in accordance
                   with this policy
+                enum:
+                - DeleteOnScaledownAndClusterDeletion
+                - DeleteOnScaledownOnly
                 type: string
             required:
             - appDatabaseName
             - databaseServerRef
-            - https
             - image
             - ingress
             - nodeSets
@@ -8280,8 +8433,8 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: StroomTaskAutoscaler is the Schema for the stroomtaskautoscalers
-          API
+        description: StroomTaskAutoscaler adjusts the task limit of a Stroom job on
+          a StroomCluster's nodes, according to their CPU use
         properties:
           apiVersion:
             description: |-
@@ -8527,7 +8680,6 @@ rules:
   resources:
   - configmaps
   - persistentvolumeclaims
-  - secrets
   - serviceaccounts
   - services
   verbs:
@@ -8547,6 +8699,13 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
 - apiGroups:
   - apps
   resources:
@@ -8783,7 +8942,8 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: gradata/stroom-k8s-operator:1.1.3
+        image: ghcr.io/gradata-systems/stroom-k8s-operator:1.2.0
+        imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
             path: /healthz

@@ -75,7 +75,7 @@ the highest ordinal. Each node is drained before it stops, and the next node isn
 
 ### Probe changes
 
-The release after operator 1.1.5 changes the Stroom node probes. See [Health probes](../configuration/health-probes.md)
+Operator 1.2.0 changes the Stroom node probes. See [Health probes](../configuration/health-probes.md)
 for the full description. Applying the upgrade rolls every node set, because the probes are part of the Pod
 template.
 
@@ -124,3 +124,24 @@ The operator image moves from Docker Hub (`gradata/stroom-k8s-operator`) to GitH
 new `image.repository` value, and the `registry` value now replaces the registry in it, so a mirror is expected at
 `<registry>/gradata-systems/stroom-k8s-operator` rather than `<registry>/gradata/stroom-k8s-operator`. If you mirror
 images, see [Air-gapped environments](../installation/air-gapped.md).
+
+### Other changes in 1.2.0
+
+See the [changelog](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/CHANGELOG.md) for every
+change. Those that affect an upgrade:
+
+- **Database servers restart once.** The operator now applies changes to a `DatabaseServer`, so its Pod is
+  updated to match after the upgrade. See [Changing a DatabaseServer](../database/database-server.md#changing-a-databaseserver).
+- **Security defaults.** Pods now disallow privilege escalation, use the container runtime's default seccomp
+  profile and don't mount a service account token, unless set otherwise. This is part of why every node set rolls.
+  See [Security](../configuration/security.md).
+- **Stricter validation.** Database names (`databaseNames`, `appDatabaseName`, `statsDatabaseName`) must be
+  letters, digits and underscores. `DatabaseServer.spec.additionalConfig` lines must each be a single option, and
+  can't set options the operator sets or that give file access or bypass authentication. Node `role` and
+  `volumeClaimDeletePolicy` must be one of their documented values. A resource with an invalid value keeps
+  running, but can't be changed until the value is fixed.
+- **Ingress TLS.** Each Ingress's TLS section now follows `ingress.secretName`, rather than `spec.https`. See
+  [TLS at the Ingress](../configuration/ingress-tls.md#tls-at-the-ingress).
+- **Operator permissions.** The operator's ClusterRole now only allows getting and creating Secrets.
+- **Log sender.** A `StroomCluster` without a `logSender` is now deployed. Earlier versions never deployed one, so
+  if you added a disabled log sender to work around that, it can be removed.
