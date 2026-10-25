@@ -24,6 +24,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -47,10 +48,10 @@ type DatabaseServerReconciler struct {
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/finalizers,verbs=update
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=stroomclusters,verbs=get;list;watch
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;create
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;create
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
@@ -93,46 +94,56 @@ func (r *DatabaseServerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return result, nil
 	}
 
-	foundConfigMap := corev1.ConfigMap{}
-	result, err = r.getOrCreateObject(ctx, dbServer.GetConfigMapName(), dbServer.Namespace, "ConfigMap", &foundConfigMap, func() error {
-		// Generate a ConfigMap containing the MySQL database configuration
-		resource := r.createConfigMap(&dbServer)
-		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
-		return r.Create(ctx, resource)
-	})
-	if err != nil {
-		return result, err
-	} else if !result.IsZero() {
-		return result, nil
+	// Reconcile the ConfigMaps containing the MySQL configuration and database initialisation scripts
+	for _, newConfigMap := range []*corev1.ConfigMap{r.createConfigMap(&dbServer), r.createDbInitConfigMap(&dbServer)} {
+		existingConfigMap := corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newConfigMap.Name,
+				Namespace: newConfigMap.Namespace,
+			},
+		}
+		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingConfigMap, func() error {
+			existingConfigMap.Labels = newConfigMap.Labels
+			existingConfigMap.OwnerReferences = newConfigMap.OwnerReferences
+			existingConfigMap.Data = newConfigMap.Data
+			return nil
+		})
+		if err != nil {
+			logger.Error(err, "Failed to reconcile ConfigMap", "Namespace", newConfigMap.Namespace, "Name", newConfigMap.Name)
+			return ctrl.Result{}, err
+		}
+		logger.Info("ConfigMap reconciled", "Result", operationResult, "Namespace", newConfigMap.Namespace, "Name", newConfigMap.Name)
 	}
 
-	foundInitConfigMap := corev1.ConfigMap{}
-	result, err = r.getOrCreateObject(ctx, dbServer.GetInitConfigMapName(), dbServer.Namespace, "ConfigMap", &foundInitConfigMap, func() error {
-		// Generate a ConfigMap containing database initialisation scripts
-		resource := r.createDbInitConfigMap(&dbServer)
-		logger.Info("Creating a new ConfigMap", "Namespace", resource.Namespace, "Name", resource.Name)
-		return r.Create(ctx, resource)
+	// Reconcile the StatefulSet running a single instance of MySQL. Its selector, service name and volume claim
+	// templates can't be changed once it's created, so only its Pod template is updated.
+	newStatefulSet := r.createStatefulSet(&dbServer)
+	existingStatefulSet := appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      newStatefulSet.Name,
+			Namespace: newStatefulSet.Namespace,
+		},
+	}
+	operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
+		existingStatefulSet.Labels = newStatefulSet.Labels
+		existingStatefulSet.OwnerReferences = newStatefulSet.OwnerReferences
+		if existingStatefulSet.Annotations == nil {
+			existingStatefulSet.Annotations = map[string]string{}
+		}
+		existingStatefulSet.Annotations[DatabaseServerTemplateHashAnnotation] = podTemplateHash(&newStatefulSet.Spec.Template)
+		if existingStatefulSet.CreationTimestamp.IsZero() {
+			existingStatefulSet.Spec = newStatefulSet.Spec
+		} else {
+			existingStatefulSet.Spec.Template = newStatefulSet.Spec.Template
+		}
+		return nil
 	})
 	if err != nil {
-		return result, err
-	} else if !result.IsZero() {
-		return result, nil
-	}
-
-	foundStatefulSet := appsv1.StatefulSet{}
-	result, err = r.getOrCreateObject(ctx, dbServer.GetBaseName(), dbServer.Namespace, "StatefulSet", &foundStatefulSet, func() error {
-		// Generate a StatefulSet for running a single instance of MySQL
-		resource := r.createStatefulSet(&dbServer)
-		logger.Info("Creating a new StatefulSet", "Namespace", resource.Namespace, "Name", resource.Name)
-		return r.Create(ctx, resource)
-	})
-	if err != nil {
+		logger.Error(err, "Failed to reconcile StatefulSet", "Namespace", newStatefulSet.Namespace, "Name", newStatefulSet.Name)
 		r.setStatusUndeployed(ctx, &dbServer)
-		return result, err
-	} else if !result.IsZero() {
-		r.setStatusUndeployed(ctx, &dbServer)
-		return result, nil
+		return ctrl.Result{}, err
 	}
+	logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", newStatefulSet.Namespace, "Name", newStatefulSet.Name)
 
 	foundService := corev1.Service{}
 	result, err = r.getOrCreateObject(ctx, dbServer.GetServiceName(), dbServer.Namespace, "Service", &foundService, func() error {

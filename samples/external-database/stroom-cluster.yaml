@@ -1,0 +1,54 @@
+# A Stroom cluster with a single node set, HTTPS and an Ingress, using a MySQL server the operator doesn't manage,
+# such as a cloud database service. The external-idp component adds its Stroom configuration and OpenID settings.
+# Probe timings are left at their defaults.
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: dev
+spec:
+  image:
+    repository: gchq/stroom
+    tag: v7.13.2
+  # The nodes and the operator connect to the server as userName, with the password in the Secret
+  # (database-secret.yaml). The operator uses the connection to disable jobs and wait for tasks when the cluster is
+  # deleted, and for task autoscaling.
+  databaseServerRef:
+    serverAddress:
+      host: mysql.example.com
+      port: 3306
+      secretName: stroom-db
+    userName: stroomuser
+  appDatabaseName: stroom
+  statsDatabaseName: stats
+  https:
+    tlsSecretName: stroom-tls
+    tlsKeystorePasswordSecret:
+      secretName: stroom-keystore
+      key: password
+  ingress:
+    hostName: stroom.example.com
+    secretName: stroom-tls
+    className: nginx
+  # Start nodes at the same time, rather than one after another
+  podManagementPolicy: Parallel
+  # Time allowed for a node to finish its tasks when it stops
+  nodeTerminationPeriodSecs: 300
+  volumeClaimDeletePolicy: DeleteOnScaledownOnly
+  nodeSets:
+    - name: node
+      count: 3
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+      resources:
+        requests:
+          cpu: "1"
+          memory: 4Gi
+        limits:
+          memory: 8Gi
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75

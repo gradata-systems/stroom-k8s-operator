@@ -24,6 +24,8 @@ import (
 
 // DatabaseBackupSpec defines the desired state of DatabaseBackup
 type DatabaseBackupSpec struct {
+	// Image the backup runs in, which must have `bash`, `mysqldump` and `gzip`, such as the official `mysql:8.4`
+	// image. The `mysql/mysql-server` images have no `gzip`.
 	// +kubebuilder:validation:Required
 	Image           Image             `json:"image"`
 	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
@@ -32,6 +34,7 @@ type DatabaseBackupSpec struct {
 	// +kubebuilder:validation:Required
 	DatabaseServerRef DatabaseServerRef `json:"databaseServerRef"`
 	// Backup the specified database names. If unspecified, all user databases are backed up
+	// +kubebuilder:validation:items:Pattern=`^[A-Za-z0-9_]{1,64}$`
 	DatabaseNames []string `json:"databaseNames,omitempty"`
 	// File system location to store the backup files
 	TargetVolume corev1.VolumeSource `json:"volume"`
@@ -46,7 +49,7 @@ type DatabaseBackupStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// DatabaseBackup is the Schema for the databasebackups API
+// DatabaseBackup backs up the databases on a database server on a schedule, with mysqldump
 type DatabaseBackup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

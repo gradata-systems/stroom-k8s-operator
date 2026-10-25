@@ -1,0 +1,4 @@
+# Python dependencies for building the documentation site. See docs/contributing.md.
+mkdocs==1.6.1
+mkdocs-material==9.8.0
+pymdown-extensions==12.3

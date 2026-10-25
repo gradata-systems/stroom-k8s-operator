@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 1.1.5
+VERSION ?= 1.2.0
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -24,7 +24,7 @@ BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
 endif
 BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
+# IMAGE_TAG_BASE defines the registry, namespace and image name for remote images.
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # If a `PRIVATE_REGISTRY` URL is defined, it is prepended to the repository name.
@@ -32,9 +32,9 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
 # gchq.github.io/stroom-k8s-operator-bundle:$VERSION and gchq.github.io/stroom-k8s-operator-catalog:$VERSION.
 ifneq ($(origin PRIVATE_REGISTRY), undefined)
-IMAGE_TAG_BASE = $(PRIVATE_REGISTRY)/gradata/stroom-k8s-operator
+IMAGE_TAG_BASE = $(PRIVATE_REGISTRY)/gradata-systems/stroom-k8s-operator
 else
-IMAGE_TAG_BASE ?= gradata/stroom-k8s-operator
+IMAGE_TAG_BASE ?= ghcr.io/gradata-systems/stroom-k8s-operator
 endif
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
@@ -115,14 +115,15 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet setup-envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+test: manifests generate fmt vet setup-envtest kustomize ## Run tests.
+	KUSTOMIZE="$(KUSTOMIZE)" KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
-# TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
-# The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
-# CertManager is installed by default; skip with:
-# - CERT_MANAGER_INSTALL_SKIP=true
-KIND_CLUSTER ?= memcached-operator-test-e2e
+# The e2e tests run the operator and Stroom in a Kind cluster, which must be installed. See test/e2e/README.md.
+# Set E2E_KEEP_CLUSTER=1 to keep the cluster after the tests, so it can be inspected or reused.
+KIND_CLUSTER ?= stroom-operator-e2e
+E2E_TIMEOUT ?= 180m
+# Ginkgo label filter selecting the suites to run: core (on merge) or extended (nightly)
+E2E_LABELS ?= core
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
@@ -130,18 +131,26 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 		echo "Kind is not installed. Please install Kind manually."; \
 		exit 1; \
 	}
-	@case "$$($(KIND) get clusters)" in \
-		*"$(KIND_CLUSTER)"*) \
-			echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation." ;; \
-		*) \
-			echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
-			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
-	esac
+	@if $(KIND) get clusters | grep -qx '$(KIND_CLUSTER)'; then \
+		echo "Kind cluster '$(KIND_CLUSTER)' already exists. Skipping creation."; \
+	else \
+		echo "Creating Kind cluster '$(KIND_CLUSTER)'..."; \
+		$(KIND) create cluster --name $(KIND_CLUSTER); \
+	fi
 
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v
-	$(MAKE) cleanup-test-e2e
+test-e2e: setup-test-e2e manifests generate fmt vet kustomize ## Run the core e2e tests. Expected an isolated environment using Kind.
+	# Ginkgo's own suite timeout, an hour by default, applies as well as go test's, which is disabled
+	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -ginkgo.label-filter='$(E2E_LABELS)' \
+		-ginkgo.timeout $(E2E_TIMEOUT) -timeout 0; \
+		status=$$?; \
+		if [ "$(E2E_KEEP_CLUSTER)" != "1" ]; then $(KIND) delete cluster --name $(KIND_CLUSTER); fi; \
+		exit $$status
+# The recipes don't use $(MAKE), which make runs even with -n, so make -n test-e2e only prints the commands
+
+.PHONY: test-e2e-extended
+test-e2e-extended: E2E_LABELS = extended
+test-e2e-extended: test-e2e ## Run the extended e2e tests, which run nightly.
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
@@ -197,19 +206,19 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	- $(CONTAINER_TOOL) buildx rm operator-builder
 	rm Dockerfile.cross
 
-.PHONY: build-installer
-build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p dist
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > dist/install.yaml
+##@ Documentation
 
-##@ Build for offline usage
+.PHONY: crd-docs
+crd-docs: ## Generate the CRD reference (docs/reference/api.md) from api/v1.
+	LOCALBIN=$(LOCALBIN) bash hack/gen-crd-docs.sh
 
-build-offline-bundle: build docker-build docker-push manifests kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > deploy/all-in-one.yaml
-	# Write a list of images for use in air-gapped environments
-	sh deploy/get-images.sh > deploy/images.txt
+.PHONY: docs
+docs: crd-docs ## Build the docs site (needs: pip install -r docs/requirements.txt).
+	mkdocs build --strict
+
+.PHONY: docs-serve
+docs-serve: crd-docs ## Preview the docs at http://127.0.0.1:8000/.
+	mkdocs serve
 
 ##@ Build Helm chart
 

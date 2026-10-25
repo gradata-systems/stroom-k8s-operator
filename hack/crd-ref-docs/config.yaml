@@ -1,0 +1,12 @@
+# Configuration for elastic/crd-ref-docs, used by hack/gen-crd-docs.sh to generate docs/reference/api.md.
+# See https://github.com/elastic/crd-ref-docs#configuration
+processor:
+  # List types (e.g. StroomClusterList) are not useful to cluster operators
+  ignoreTypes:
+    - "List$"
+  ignoreFields:
+    - "TypeMeta$"
+
+render:
+  # Kubernetes API reference version linked to for core types. Keep in step with k8s.io/api in go.mod.
+  kubernetesVersion: "1.36"

@@ -1,0 +1,86 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    # Extended e2e suites, nightly (02:00 AEDT)
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      e2e-labels:
+        description: e2e suites to run (Ginkgo label filter), e.g. core, extended or core || extended
+        default: core
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HELM_VERSION: v3.22.1
+
+jobs:
+  unit:
+    name: Unit and envtest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: make test
+      - name: Check generated files are up to date
+        run: git diff --exit-code
+      - name: Check the changelog has release notes for the operator version
+        run: bash hack/release-notes.sh "$(grep -Po '^VERSION \?= \K(.+)' Makefile)" > /dev/null
+
+  e2e:
+    name: End-to-end (${{ github.event_name == 'schedule' && 'extended' || inputs.e2e-labels || 'core' }})
+    # The core e2e suites take over an hour, so run on merge rather than on every pull request
+    if: github.event_name != 'pull_request'
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      KIND_CLUSTER: stroom-operator-e2e
+      E2E_STROOM_NODES: "2"
+      E2E_LABELS: ${{ github.event_name == 'schedule' && 'extended' || inputs.e2e-labels || 'core' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The operator upgrade suite installs the previous release from its Git tag
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Create kind cluster
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        with:
+          cluster_name: ${{ env.KIND_CLUSTER }}
+      - name: Test
+        run: E2E_KEEP_CLUSTER=1 make test-e2e E2E_LABELS="$E2E_LABELS"
+      - name: Collect diagnostics
+        if: failure()
+        run: |
+          mkdir -p diagnostics
+          kubectl get all,pvc,events -A -o wide > diagnostics/resources.txt 2>&1 || true
+          kubectl get stroomclusters,databaseservers,databasebackups,stroomtaskautoscalers -A -o yaml > diagnostics/stroom-resources.yaml 2>&1 || true
+          kubectl describe pods -A > diagnostics/pods.txt 2>&1 || true
+          for pod in $(kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}'); do
+            kubectl logs -n "${pod%%/*}" "${pod##*/}" --all-containers --prefix > "diagnostics/logs-${pod//\//_}.txt" 2>&1 || true
+            kubectl logs -n "${pod%%/*}" "${pod##*/}" --all-containers --prefix --previous > "diagnostics/logs-previous-${pod//\//_}.txt" 2>&1 || true
+          done
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-diagnostics-${{ env.E2E_LABELS }}
+          path: diagnostics

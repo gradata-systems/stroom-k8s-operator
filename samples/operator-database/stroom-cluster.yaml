@@ -1,0 +1,78 @@
+# A Stroom cluster with processing and frontend node sets, HTTPS, an Ingress and log shipping, using the
+# DatabaseServer in database-server.yaml. The external-idp component adds its Stroom configuration and OpenID
+# settings. Probe timings are left at their defaults.
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: dev
+spec:
+  image:
+    repository: gchq/stroom
+    tag: v7.13.2
+  # The operator creates the databases and their user on the DatabaseServer, and gives the nodes the connection
+  # details
+  databaseServerRef:
+    serverRef:
+      name: dev
+  appDatabaseName: stroom
+  statsDatabaseName: stats
+  https:
+    tlsSecretName: stroom-tls
+    tlsKeystorePasswordSecret:
+      secretName: stroom-keystore
+      key: password
+  ingress:
+    hostName: stroom.example.com
+    secretName: stroom-tls
+    className: nginx
+  # Start nodes at the same time, rather than one after another
+  podManagementPolicy: Parallel
+  # Time allowed for a node to finish its tasks when it stops
+  nodeTerminationPeriodSecs: 300
+  volumeClaimDeletePolicy: DeleteOnScaledownOnly
+  logSender:
+    enabled: true
+    image:
+      repository: gchq/stroom-log-sender
+      tag: v2.2.1
+  nodeSets:
+    - name: data
+      count: 3
+      role: Processing
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+      resources:
+        requests:
+          cpu: "1"
+          memory: 4Gi
+        limits:
+          # A CPU limit is needed for task autoscaling (autoscaler.yaml)
+          cpu: "4"
+          memory: 8Gi
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75
+    - name: ui
+      count: 1
+      role: Frontend
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+      ingressAnnotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          memory: 4Gi
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75

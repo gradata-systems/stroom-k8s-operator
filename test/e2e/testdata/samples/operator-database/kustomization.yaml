@@ -1,0 +1,52 @@
+# The operator-database sample, sized for a kind cluster, in its own namespace. The tests also replace the sample's
+# placeholder Keycloak address and client secrets.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stroom-e2e-samples
+resources:
+  - ../../../../../samples/operator-database
+  - e2e-network-policies.yaml
+patches:
+  - target:
+      kind: StroomCluster
+    patch: |
+      - op: replace
+        path: /spec/ingress/hostName
+        value: stroom.e2e.local
+      - op: replace
+        path: /spec/nodeSets/0/count
+        value: 1
+      - op: replace
+        path: /spec/nodeSets/0/localDataVolumeClaim/resources/requests/storage
+        value: 2Gi
+      - op: replace
+        path: /spec/nodeSets/0/resources
+        value: {requests: {cpu: 250m, memory: 1Gi}, limits: {cpu: "1", memory: 2Gi}}
+      - op: replace
+        path: /spec/nodeSets/0/memoryOptions
+        value: {initialPercentage: 25, maxPercentage: 70}
+      - op: replace
+        path: /spec/nodeSets/1/localDataVolumeClaim/resources/requests/storage
+        value: 2Gi
+      - op: replace
+        path: /spec/nodeSets/1/resources
+        value: {requests: {cpu: 250m, memory: 1Gi}, limits: {memory: 2Gi}}
+      - op: replace
+        path: /spec/nodeSets/1/memoryOptions
+        value: {initialPercentage: 25, maxPercentage: 70}
+  - target:
+      kind: DatabaseServer
+    patch: |
+      - op: replace
+        path: /spec/resources
+        value: {requests: {cpu: 250m, memory: 512Mi}, limits: {memory: 1Gi}}
+      - op: replace
+        path: /spec/volumeClaim/resources/requests/storage
+        value: 2Gi
+  - target:
+      kind: PersistentVolumeClaim
+      name: stroom-db-backups
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 1Gi

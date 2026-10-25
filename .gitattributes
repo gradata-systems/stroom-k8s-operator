@@ -1,1 +1,3 @@
 *.sh text eol=lf
+# Samples are applied as they are, and config.yml is copied into a ConfigMap, so keep LF line endings on every platform
+samples/** text eol=lf

@@ -3,22 +3,36 @@ name: Build Helm Chart
 on:
   push:
     branches: [master]
-  pull_request: 
+  pull_request:
 
-jobs:    
-    build_helm_chart:
-      runs-on: ubuntu-latest
-      steps:
+permissions:
+  contents: read
+
+env:
+  HELM_VERSION: v3.22.1
+
+jobs:
+  build_helm_chart:
+    runs-on: ubuntu-latest
+    steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
-      - name: Install Helm
-        uses: azure/setup-helm@v3.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          version: v3.9.0
+          go-version-file: go.mod
+      - name: Install Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+      - name: Check the CRDs chart is up to date
+        run: |
+          make manifests kustomize
+          bin/kustomize build config/crd --output charts/stroom-operator-crds/templates/
+          git diff --exit-code charts/stroom-operator-crds/templates \
+            || { echo "::error::Regenerate the stroom-operator-crds chart templates from config/crd"; exit 1; }
+      - name: Lint charts
+        run: helm lint charts/stroom-operator-crds charts/stroom-operator
       - name: Build stroom-operator-crds chart
-        run: |
-          helm package ./charts/stroom-operator-crds
-
+        run: helm package ./charts/stroom-operator-crds
       - name: Build stroom-operator chart
-        run: |
-          helm package ./charts/stroom-operator
+        run: helm package ./charts/stroom-operator

@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 	//+kubebuilder:scaffold:imports
@@ -40,7 +41,9 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
+var apiClient client.Client
 var testEnv *envtest.Environment
+var cancelManager context.CancelFunc
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -75,6 +78,8 @@ var _ = BeforeSuite(func() {
 
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
+		// Disable the metrics server, so tests don't depend on a free port
+		Metrics: metricsserver.Options{BindAddress: "0"},
 	})
 	Expect(err).ToNot(HaveOccurred())
 
@@ -92,24 +97,25 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	// Create the manager in a cancellable context
-	ctx, cancel := context.WithCancel(context.Background())
+	// Run the manager in a cancellable context, which is cancelled when the suite completes
+	var ctx context.Context
+	ctx, cancelManager = context.WithCancel(context.Background())
 	go func() {
-		err = k8sManager.Start(ctx)
-		Expect(err).ToNot(HaveOccurred())
+		defer GinkgoRecover()
+		Expect(k8sManager.Start(ctx)).To(Succeed())
 	}()
 
 	k8sClient = k8sManager.GetClient()
-	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	// Shut down the manager
-	cancel()
-
+	// Uncached client, for tests that need to read back what they create
+	apiClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
+	cancelManager()
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })

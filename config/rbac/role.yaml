@@ -9,7 +9,6 @@ rules:
   resources:
   - configmaps
   - persistentvolumeclaims
-  - secrets
   - serviceaccounts
   - services
   verbs:
@@ -29,6 +28,13 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
 - apiGroups:
   - apps
   resources:

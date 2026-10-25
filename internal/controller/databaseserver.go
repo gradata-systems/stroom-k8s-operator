@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,7 +19,20 @@ const (
 	DatabaseRootUserName          = "root"
 	DatabaseServiceUserName       = "stroomuser"
 	DatabasePort            int32 = 3306
+
+	// DatabaseServerTemplateHashAnnotation records, on a DatabaseServer's StatefulSet, a hash of the Pod template the
+	// operator last applied to it. StroomClusters compare it with the template the operator would apply now, to tell
+	// whether their DatabaseServer is about to be updated.
+	DatabaseServerTemplateHashAnnotation = "stroom.gchq.github.io/template-hash"
 )
+
+// podTemplateHash returns a hash identifying a Pod template
+func podTemplateHash(template *corev1.PodTemplateSpec) string {
+	// Marshalling a Pod template can't fail
+	data, _ := json.Marshal(template)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:8])
+}
 
 func (r *DatabaseServerReconciler) getInitConfigName(dbServer *stroomv1.DatabaseServer) string {
 	return fmt.Sprintf("%v-init", dbServer.GetBaseName())
@@ -71,8 +87,8 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 	databaseCreateStatements := ""
 	for _, databaseName := range dbServer.Spec.DatabaseNames {
 		databaseCreateStatements += "" +
-			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %v;\n", databaseName) +
-			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", databaseName, DatabaseServiceUserName)
+			fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %v;\n", quoteSqlIdentifier(databaseName)) +
+			fmt.Sprintf("GRANT ALL PRIVILEGES ON %v.* TO '%v'@'%%';\n", quoteSqlIdentifier(databaseName), DatabaseServiceUserName)
 	}
 
 	configMap := &corev1.ConfigMap{
@@ -101,9 +117,6 @@ func (r *DatabaseServerReconciler) createDbInitConfigMap(dbServer *stroomv1.Data
 func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.DatabaseServer) *appsv1.StatefulSet {
 	var replicas int32 = 1
 
-	// DefaultSecretFileMode is the file mode to use for Secret volume mounts
-	secretFileMode := stroomv1.SecretFileMode
-
 	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbServer.GetBaseName(),
@@ -118,7 +131,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: dbServer.Annotations,
+					Annotations: dbServer.Spec.PodAnnotations,
 					Labels:      dbServer.GetLabels(),
 				},
 				Spec: corev1.PodSpec{
@@ -127,8 +140,16 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						Image:           dbServer.Spec.Image.String(),
 						ImagePullPolicy: dbServer.Spec.ImagePullPolicy,
 						Env: []corev1.EnvVar{{
-							Name:  "MYSQL_ROOT_PASSWORD",
-							Value: "/etc/mysql/password/root",
+							// Set the password value, as MySQL images differ in whether they accept a file path here
+							Name: "MYSQL_ROOT_PASSWORD",
+							ValueFrom: &corev1.EnvVarSource{
+								SecretKeyRef: &corev1.SecretKeySelector{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: dbServer.GetBaseName(),
+									},
+									Key: DatabaseRootUserName,
+								},
+							},
 						}, {
 							Name:  "MYSQL_USER",
 							Value: DatabaseServiceUserName,
@@ -150,7 +171,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						}},
 						ReadinessProbe:  r.createReadinessProbe(dbServer.Spec.ReadinessProbeTimings),
 						LivenessProbe:   r.createLivenessProbe(dbServer.Spec.LivenessProbeTimings),
-						SecurityContext: &dbServer.Spec.SecurityContext,
+						SecurityContext: containerSecurityContext(dbServer.Spec.SecurityContext),
 						Resources:       dbServer.Spec.Resources,
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "config",
@@ -164,17 +185,13 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 						}, {
 							Name:      "data",
 							MountPath: "/var/lib/mysql",
-						}, {
-							Name:      "root-password",
-							MountPath: "/etc/mysql/password/root",
-							SubPath:   DatabaseRootUserName,
-							ReadOnly:  true,
 						}},
 					}},
-					SecurityContext: &dbServer.Spec.PodSecurityContext,
-					NodeSelector:    dbServer.Spec.NodeSelector,
-					Affinity:        &dbServer.Spec.Affinity,
-					Tolerations:     dbServer.Spec.Tolerations,
+					AutomountServiceAccountToken: &automountServiceAccountToken,
+					SecurityContext:              podSecurityContext(dbServer.Spec.PodSecurityContext),
+					NodeSelector:                 dbServer.Spec.NodeSelector,
+					Affinity:                     &dbServer.Spec.Affinity,
+					Tolerations:                  dbServer.Spec.Tolerations,
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{
@@ -191,18 +208,6 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 								LocalObjectReference: corev1.LocalObjectReference{
 									Name: r.getInitConfigName(dbServer),
 								},
-							},
-						},
-					}, {
-						Name: "root-password",
-						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: dbServer.GetBaseName(),
-								Items: []corev1.KeyToPath{{
-									Key:  DatabaseRootUserName,
-									Path: DatabaseRootUserName,
-									Mode: &secretFileMode,
-								}},
 							},
 						},
 					}},
@@ -225,11 +230,11 @@ func (r *DatabaseServerReconciler) createReadinessProbe(timings stroomv1.ProbeTi
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			Exec: &corev1.ExecAction{
+				// MySQL is ready once it accepts a query, so exit with the query's status
 				Command: []string{
-					"sh",
-					"-c",
-					"status=$(mysql -u healthcheck -e \"SELECT 'OK'\" | grep 'OK');\n" +
-						"if [[ $status ]]; then echo 1; else echo 0; fi",
+					"mysql",
+					"-u", "healthcheck",
+					"-e", "SELECT 1",
 				},
 			},
 		},

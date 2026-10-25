@@ -1,0 +1,67 @@
+# NetworkPolicies limiting which pods can connect to the dev StroomCluster and its DatabaseServer. They assume
+# ingress-nginx runs in the ingress-nginx namespace and the operator in stroom-operator-system; adjust them for your
+# cluster, and add rules for any data senders running in the cluster. NetworkPolicies need a network plugin that
+# enforces them.
+
+# Deny connections to pods in the namespace, except those allowed below
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Stroom nodes accept connections from each other, and from the Ingress controller on the application ports. The
+# admin port, which serves health checks, is only used by the kubelet and from within the node's own pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: stroom-dev-nodes
+spec:
+  podSelector:
+    matchLabels:
+      stroom/cluster: dev
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              stroom/cluster: dev
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8080
+        - port: 8443
+---
+# The database server accepts connections from the Stroom nodes, its backup jobs and the operator, which drains the
+# cluster and adjusts task limits through the database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: stroom-dev-db
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: database-server
+      app.kubernetes.io/instance: dev
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              stroom/cluster: dev
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: database-backup
+              app.kubernetes.io/instance: dev
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: stroom-operator-system
+      ports:
+        - port: 3306

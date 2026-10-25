@@ -1,0 +1,20 @@
+data:
+  my.cnf: |
+    [mysqld]
+    datadir=/var/lib/mysql
+    port=3306
+    user=mysql
+metadata:
+  labels:
+    app.kubernetes.io/component: database-server
+    app.kubernetes.io/instance: minimal
+    app.kubernetes.io/name: stroom
+  name: stroom-minimal-db
+  namespace: golden-minimal
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: DatabaseServer
+    name: minimal
+    uid: <uid>

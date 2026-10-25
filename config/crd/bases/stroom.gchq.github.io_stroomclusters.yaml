@@ -17,7 +17,7 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: StroomCluster is the Schema for the stroomclusters API
+        description: StroomCluster is a cluster of Stroom nodes, in one or more NodeSets
         properties:
           apiVersion:
             description: |-
@@ -42,7 +42,7 @@ spec:
               appDatabaseName:
                 default: stroom
                 description: Name of the main Stroom database, usually `stroom`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               configMapRef:
                 description: |-
@@ -77,8 +77,9 @@ spec:
                         format: int32
                         type: integer
                       secretName:
-                        description: SecretName is the name of the secret containing
-                          the `password` of the database user `stroomuser`
+                        description: |-
+                          SecretName is the name of the Secret containing the database user's password, under a key named after the
+                          user (`userName`, by default `stroomuser`)
                         type: string
                     type: object
                   serverRef:
@@ -2242,8 +2243,9 @@ spec:
                     - secretName
                     type: object
                   tlsSecretName:
-                    description: Name of the TLS secret containing the items `keystore.p12`
-                      and `truststore.p12`
+                    description: |-
+                      Name of the TLS Secret containing the nodes' certificate (`tls.crt`), its private key (`tls.key`) and the CA
+                      certificate (`ca.crt`), from which each node's key store and trust store are created
                     type: string
                 required:
                 - tlsKeystorePasswordSecret
@@ -2266,7 +2268,8 @@ spec:
               ingress:
                 properties:
                   className:
-                    description: Ingress class name (e.g. nginx)
+                    description: Ingress class name (e.g. nginx). If omitted, the
+                      cluster's default IngressClass is used.
                     type: string
                   hostName:
                     description: DNS name at which the application will be reached
@@ -2276,8 +2279,9 @@ spec:
                     description: Override path type for all ingress resources as `ImplementationSpecific`
                     type: boolean
                   secretName:
-                    description: Name of the TLS `Secret` containing the private key
-                      and server certificate for the `Ingress`
+                    description: |-
+                      Name of the TLS `Secret` containing the private key and server certificate for the `Ingress`. If omitted, the
+                      Ingresses have no TLS section.
                     type: string
                 required:
                 - hostName
@@ -3600,10 +3604,28 @@ spec:
                         controller provided labels.
                       type: object
                     livenessProbeTimings:
+                      default: {}
                       description: |-
                         LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is
                         restarted.
                       properties:
+                        allow:
+                          default:
+                          - deadlocks
+                          description: |-
+                            Allow lists the health checks to run. If empty, all health checks are run, except those listed in Deny.
+                            Defaults to the JVM thread deadlock check, so nodes are not restarted when an external dependency is down.
+                            Set to an empty list to run all health checks.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
+                        deny:
+                          description: Deny lists the health checks to exclude.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
                         failureThreshold:
                           default: 10
                           format: int32
@@ -3824,9 +3846,9 @@ spec:
                     managedJobs:
                       description: |-
                         Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.
-                        If omitted, the default is for processing nodes to handle all enabled jobs, while frontend nodes are
-                        only assigned the job `Reindex Content`.
-                        All other jobs may be managed manually via the Stroom Jobs pane.
+                        If omitted, nodes with the `Processing` role or no role enable and disable all jobs, while `Frontend` nodes
+                        only manage the job `Reindex Content`.
+                        Jobs that aren't managed may be enabled or disabled via the Stroom Jobs pane.
                       items:
                         type: string
                       type: array
@@ -4100,10 +4122,28 @@ spec:
                           type: object
                       type: object
                     readinessProbeTimings:
+                      default: {}
                       description: |-
                         ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
                         removing them from service while they are non-responsive to health checks.
                       properties:
+                        allow:
+                          description: Allow lists the health checks to run. If empty,
+                            all health checks are run, except those listed in Deny.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
+                        deny:
+                          default:
+                          - stroom.security.common.impl.ExternalIdpConfigurationProvider
+                          description: |-
+                            Deny lists the health checks to exclude. Defaults to the external identity provider check, so nodes keep
+                            receiving data while the identity provider is unavailable. Set to an empty list to exclude no health checks.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
                         failureThreshold:
                           default: 10
                           format: int32
@@ -4188,10 +4228,13 @@ spec:
                       type: object
                     role:
                       description: |-
-                        Role of each node in the NodeSet. ProcessingNodeRole nodes are limited to receiving and processing data,
-                        while FrontendNodeRole nodes host the Stroom.
+                        Role of each node in the NodeSet. `Processing` nodes receive and process data, while `Frontend` nodes serve
+                        the Stroom user interface and API.
 
                         If this property is omitted, nodes in the NodeSet will assume both Processing and Frontend roles.
+                      enum:
+                      - Processing
+                      - Frontend
                       type: string
                     securityContext:
                       description: SecurityContext overrides the PodSecurityContext
@@ -4386,17 +4429,29 @@ spec:
                           type: object
                       type: object
                     startupProbeTimings:
+                      default: {}
                       description: |-
                         StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
                         typically takes to start up and respond to health checks.
                       properties:
                         failureThreshold:
-                          default: 10
+                          default: 24
+                          description: FailureThreshold multiplied by PeriodSeconds
+                            is the base time allowed for a node to start up.
                           format: int32
                           type: integer
                         initialDelaySeconds:
                           default: 5
                           format: int32
+                          type: integer
+                        lockWaitAllowanceSeconds:
+                          default: 30
+                          description: |-
+                            LockWaitAllowanceSeconds is added to the startup time allowed for each additional node in the NodeSet, when
+                            the StroomCluster PodManagementPolicy is `Parallel`. This gives nodes time to wait on the Stroom bootstrap lock,
+                            which is held while another node upgrades the database.
+                          format: int32
+                          minimum: 0
                           type: integer
                         periodSeconds:
                           default: 5
@@ -4495,11 +4550,14 @@ spec:
               statsDatabaseName:
                 default: stats
                 description: Name of the statistics database, usually `stats`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               volumeClaimDeletePolicy:
                 description: Delete Stroom node `PersistentVolumeClaim`s in accordance
                   with this policy
+                enum:
+                - DeleteOnScaledownAndClusterDeletion
+                - DeleteOnScaledownOnly
                 type: string
             required:
             - appDatabaseName

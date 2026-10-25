@@ -1,0 +1,21 @@
+data:
+  my.cnf: |-
+    [mysqld]
+    datadir=/var/lib/mysql
+    port=3306
+    user=mysql
+    max_connections=500
+metadata:
+  labels:
+    app.kubernetes.io/component: database-server
+    app.kubernetes.io/instance: full
+    app.kubernetes.io/name: stroom
+  name: stroom-full-db
+  namespace: golden-full
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: DatabaseServer
+    name: full
+    uid: <uid>

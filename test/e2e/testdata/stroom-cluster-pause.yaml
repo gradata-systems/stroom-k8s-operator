@@ -1,0 +1,40 @@
+# A StroomCluster whose nodes run the pause image instead of Stroom, for tests of how the operator manages pods and
+# volumes, which don't need Stroom running. Its probes fail, which doesn't affect those tests.
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  image:
+    repository: registry.k8s.io/pause
+    tag: "3.10"
+  imagePullPolicy: IfNotPresent
+  # A DatabaseServer can only be used by one StroomCluster, so clusters sharing one connect to it by address
+  databaseServerRef: ${DATABASE_SERVER_REF}
+  appDatabaseName: stroom
+  statsDatabaseName: stats
+  openId:
+    clientId: stroom-operator
+    clientSecret:
+      secretName: stroom-operator-openid
+      key: client-secret
+  ingress:
+    hostName: ${CLUSTER_NAME}.e2e.local
+  ${VOLUME_CLAIM_DELETE_POLICY}
+  ${HTTPS}
+  ${LOG_SENDER}
+  podManagementPolicy: Parallel
+  nodeTerminationPeriodSecs: 5
+  nodeSets:
+    - name: node
+      count: ${NODE_COUNT}
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Mi
+      resources: {}
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75

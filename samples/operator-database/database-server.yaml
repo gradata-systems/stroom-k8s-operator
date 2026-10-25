@@ -1,0 +1,28 @@
+# A MySQL server for the dev StroomCluster, managed by the operator. The operator generates its passwords, in the
+# Secret stroom-dev-db.
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseServer
+metadata:
+  name: dev
+spec:
+  image:
+    repository: mysql
+    tag: "8.4"
+  databaseNames:
+    - stroom
+    - stats
+  additionalConfig:
+    # Each Stroom node opens connection pools to both databases
+    - max_connections=500
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+  volumeClaim:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 50Gi

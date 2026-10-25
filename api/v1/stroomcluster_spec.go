@@ -16,11 +16,11 @@ type StroomClusterSpec struct {
 	DatabaseServerRef DatabaseServerRef `json:"databaseServerRef"`
 	// Name of the main Stroom database, usually `stroom`
 	// +kubebuilder:default:="stroom"
-	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9_]{1,64}$`
 	AppDatabaseName string `json:"appDatabaseName"`
 	// Name of the statistics database, usually `stats`
 	// +kubebuilder:default:="stats"
-	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9_]{1,64}$`
 	StatsDatabaseName string `json:"statsDatabaseName"`
 	// Override the Stroom configuration provided to each node, by providing the name of an existing `ConfigMap`
 	// in the same namespace as the `StroomCluster`
@@ -55,7 +55,7 @@ type StroomClusterSpec struct {
 	ExtraVolumeMounts []corev1.VolumeMount `json:"extraVolumeMounts,omitempty"`
 
 	// Configures the mechanism that posts internal audit and logging to Stroom
-	LogSender LogSenderSettings `json:"logSender,omitempty"`
+	LogSender *LogSenderSettings `json:"logSender,omitempty"`
 }
 
 type ConfigMapRef struct {

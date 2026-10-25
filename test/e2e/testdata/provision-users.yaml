@@ -1,0 +1,74 @@
+# Creates the Stroom user for the operator's Keycloak service account, with only the permissions the node lifecycle
+# scripts need. This also runs the Stroom database migrations, before any Stroom node starts.
+# Database connection details are those the StroomCluster uses.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: provision-users
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: manage-users
+          image: gchq/stroom:${PROVISIONING_STROOM_TAG}
+          imagePullPolicy: IfNotPresent
+          args:
+            - ./start.sh
+            - manage_users
+            - --createUser
+            - ${OPERATOR_SERVICE_ACCOUNT_ID}
+            - --grantPermission
+            - ${OPERATOR_SERVICE_ACCOUNT_ID}
+            - Manage Nodes
+            - --grantPermission
+            - ${OPERATOR_SERVICE_ACCOUNT_ID}
+            - Manage Jobs
+            - --grantPermission
+            - ${OPERATOR_SERVICE_ACCOUNT_ID}
+            - Manage Tasks
+          env:
+            - name: JAVA_OPTS
+              value: -XX:MaxRAMPercentage=70
+            - name: STROOM_NODE
+              value: provisioning
+            # The node's address, which the operator sets for Stroom nodes. With Stroom's internal identity provider,
+            # Stroom requests its own tokens from it.
+            - name: POD_HOSTNAME
+              value: localhost
+            - name: POD_SUBDOMAIN
+              value: localdomain
+            - name: STROOM_JDBC_DRIVER_URL
+              value: jdbc:mysql://${DB_HOST}:3306/stroom?serverTimezone=UTC&useUnicode=yes&characterEncoding=UTF-8
+            - name: STROOM_JDBC_DRIVER_USERNAME
+              value: stroomuser
+            - name: STROOM_JDBC_DRIVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ${DB_SECRET_NAME}
+                  key: stroomuser
+            - name: STROOM_STATISTICS_JDBC_DRIVER_URL
+              value: jdbc:mysql://${DB_HOST}:3306/stats?serverTimezone=UTC&useUnicode=yes&characterEncoding=UTF-8
+            - name: STROOM_STATISTICS_JDBC_DRIVER_USERNAME
+              value: stroomuser
+            - name: STROOM_STATISTICS_JDBC_DRIVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ${DB_SECRET_NAME}
+                  key: stroomuser
+            - name: STROOM_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stroom-openid
+                  key: client-secret
+          resources:
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /stroom/config
+      volumes:
+        - name: config
+          configMap:
+            name: stroom-config

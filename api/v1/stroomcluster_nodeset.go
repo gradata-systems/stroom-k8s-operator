@@ -14,15 +14,15 @@ type NodeSet struct {
 	// Number of replicas (discrete Stroom nodes) to deploy in the NodeSet
 	// +kubebuilder:validation:Minimum=1
 	Count int32 `json:"count"`
-	// Role of each node in the NodeSet. ProcessingNodeRole nodes are limited to receiving and processing data,
-	// while FrontendNodeRole nodes host the Stroom.
+	// Role of each node in the NodeSet. `Processing` nodes receive and process data, while `Frontend` nodes serve
+	// the Stroom user interface and API.
 	//
 	// If this property is omitted, nodes in the NodeSet will assume both Processing and Frontend roles.
 	Role NodeRole `json:"role,omitempty"`
 	// Automatically enable the specified job(s) on node startup and disable them prior to node shutdown.
-	// If omitted, the default is for processing nodes to handle all enabled jobs, while frontend nodes are
-	// only assigned the job `Reindex Content`.
-	// All other jobs may be managed manually via the Stroom Jobs pane.
+	// If omitted, nodes with the `Processing` role or no role enable and disable all jobs, while `Frontend` nodes
+	// only manage the job `Reindex Content`.
+	// Jobs that aren't managed may be enabled or disabled via the Stroom Jobs pane.
 	ManagedJobs []string `json:"managedJobs,omitempty"`
 	// LocalDataVolumeClaim provides persistent storage for each Stroom node's data
 	LocalDataVolumeClaim corev1.PersistentVolumeClaimSpec `json:"localDataVolumeClaim"`
@@ -45,13 +45,16 @@ type NodeSet struct {
 	IngressLabels map[string]string `json:"ingressLabels,omitempty"`
 	// StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
 	// typically takes to start up and respond to health checks.
-	StartupProbeTimings ProbeTimings `json:"startupProbeTimings,omitempty"`
+	// +kubebuilder:default:={}
+	StartupProbeTimings StartupProbeTimings `json:"startupProbeTimings,omitempty"`
 	// ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
 	// removing them from service while they are non-responsive to health checks.
-	ReadinessProbeTimings ProbeTimings `json:"readinessProbeTimings,omitempty"`
+	// +kubebuilder:default:={}
+	ReadinessProbeTimings ReadinessProbeTimings `json:"readinessProbeTimings,omitempty"`
 	// LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is
 	// restarted.
-	LivenessProbeTimings ProbeTimings `json:"livenessProbeTimings,omitempty"`
+	// +kubebuilder:default:={}
+	LivenessProbeTimings LivenessProbeTimings `json:"livenessProbeTimings,omitempty"`
 	// PodAnnotations are additional annotations to set for each NodeSet Pod
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
 	// PodSecurityContext applies to each NodeSet Pod
@@ -73,6 +76,7 @@ type JvmMemoryOptions struct {
 	MaxPercentage int `json:"maxPercentage"`
 }
 
+// +kubebuilder:validation:Enum=Processing;Frontend
 type NodeRole string
 
 const (
@@ -81,5 +85,5 @@ const (
 	ProcessingNodeRole NodeRole = "Processing"
 
 	// FrontendNodeRole applies to a NodeSet that is dedicated to serving web front-end (UI) requests only
-	FrontendNodeRole = "Frontend"
+	FrontendNodeRole NodeRole = "Frontend"
 )

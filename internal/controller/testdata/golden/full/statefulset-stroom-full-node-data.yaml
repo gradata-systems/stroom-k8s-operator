@@ -1,0 +1,318 @@
+metadata:
+  labels:
+    app.kubernetes.io/component: stroom-cluster
+    app.kubernetes.io/name: stroom
+    stroom/cluster: full
+  name: stroom-full-node-data
+  namespace: golden-full
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: StroomCluster
+    name: full
+    uid: <uid>
+spec:
+  podManagementPolicy: Parallel
+  replicas: 3
+  selector:
+    matchLabels:
+      stroom/cluster: full
+      stroom/nodeSet: data
+  serviceName: stroom-full-node-data
+  template:
+    metadata:
+      annotations:
+        example.com/annotation: data
+      labels:
+        stroom/cluster: full
+        stroom/nodeSet: data
+    spec:
+      affinity: {}
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: API_GATEWAY_HOST
+          value: stroom.example.com
+        - name: ADMIN_CONTEXT_PATH
+          value: /stroomAdmin
+        - name: APPLICATION_CONTEXT_PATH
+          value: /
+        - name: DOCKER_HOST_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['statefulset.kubernetes.io/pod-name']
+        - name: DOCKER_HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['statefulset.kubernetes.io/pod-name']
+        - name: POD_SUBDOMAIN
+          value: stroom-full-node-data.golden-full.svc.cluster.local
+        - name: JAVA_OPTS
+          value: -XX:InitialRAMPercentage=50 -XX:MaxRAMPercentage=75 -XX:+UseG1GC
+        - name: STROOM_APP_HTTP_PORT
+          value: "8080"
+        - name: STROOM_APP_HTTPS_PORT
+          value: "8443"
+        - name: STROOM_ADMIN_PORT
+          value: "8081"
+        - name: STROOM_NODE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['statefulset.kubernetes.io/pod-name']
+        - name: STROOM_NODE_ROLE
+          value: Processing
+        - name: STROOM_JDBC_DRIVER_URL
+          value: jdbc:mysql://stroom-full-db:3306/stroom?serverTimezone=UTC&useUnicode=yes&characterEncoding=UTF-8
+        - name: STROOM_JDBC_DRIVER_CLASS_NAME
+          value: com.mysql.cj.jdbc.Driver
+        - name: STROOM_JDBC_DRIVER_USERNAME
+          value: stroomuser
+        - name: STROOM_JDBC_DRIVER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: stroomuser
+              name: stroom-full-db
+        - name: STROOM_STATISTICS_JDBC_DRIVER_URL
+          value: jdbc:mysql://stroom-full-db:3306/stats?serverTimezone=UTC&useUnicode=yes&characterEncoding=UTF-8
+        - name: STROOM_STATISTICS_JDBC_DRIVER_CLASS_NAME
+          value: com.mysql.cj.jdbc.Driver
+        - name: STROOM_STATISTICS_JDBC_DRIVER_USERNAME
+          value: stroomuser
+        - name: STROOM_STATISTICS_JDBC_DRIVER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: stroomuser
+              name: stroom-full-db
+        - name: STROOM_TEMP
+          value: /stroom/tmp
+        - name: STROOM_LOGGING_LEVEL
+          value: INFO
+        - name: STROOM_NODE_MANAGED_JOBS
+        - name: STROOM_KEYSTORE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: stroom-keystore
+        - name: STROOM_OPERATOR_OPENID_CLIENT_ID
+          value: stroom
+        - name: STROOM_OPERATOR_OPENID_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: client-secret
+              name: stroom-openid
+        image: gchq/stroom:v7.13.2
+        imagePullPolicy: IfNotPresent
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - bash
+              - /stroom/scripts/node-pre-stop.sh
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /stroomAdmin/filteredhealthcheck?allow=deadlocks
+            port: admin
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: stroom-node
+        ports:
+        - containerPort: 8080
+          name: app-http
+          protocol: TCP
+        - containerPort: 8443
+          name: app-https
+          protocol: TCP
+        - containerPort: 8081
+          name: admin
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /stroomAdmin/filteredhealthcheck?deny=stroom.security.common.impl.ExternalIdpConfigurationProvider
+            port: admin
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          limits:
+            cpu: "2"
+            memory: 4Gi
+          requests:
+            cpu: "1"
+            memory: 4Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+        startupProbe:
+          exec:
+            command:
+            - bash
+            - /stroom/scripts/node-start.sh
+          failureThreshold: 36
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        volumeMounts:
+        - mountPath: /stroom/scripts/utils.sh
+          name: static-content
+          readOnly: true
+          subPath: utils.sh
+        - mountPath: /stroom/scripts/node-start.sh
+          name: static-content
+          readOnly: true
+          subPath: node-start.sh
+        - mountPath: /stroom/scripts/node-pre-stop.sh
+          name: static-content
+          readOnly: true
+          subPath: node-pre-stop.sh
+        - mountPath: /stroom/auth
+          name: api-token
+        - mountPath: /stroom/logs
+          name: data
+          subPath: logs
+        - mountPath: /stroom/output
+          name: data
+          subPath: output
+        - mountPath: /stroom/tmp
+          name: data
+          subPath: tmp
+        - mountPath: /stroom/lmdb
+          name: data
+          subPath: lmdb
+        - mountPath: /stroom/lmdb_library
+          name: data
+          subPath: lmdb_library
+        - mountPath: /stroom/planb
+          name: data
+          subPath: planb
+        - mountPath: /stroom/proxy_repo
+          name: data
+          subPath: proxy-repo
+        - mountPath: /stroom/reference_data
+          name: data
+          subPath: reference-data
+        - mountPath: /stroom/reference_staging_data
+          name: data
+          subPath: reference_staging_data
+        - mountPath: /stroom/search_results
+          name: data
+          subPath: search-results
+        - mountPath: /stroom/pki/tls
+          name: keystore
+          readOnly: true
+        - mountPath: /stroom/config/config.yml
+          name: config-override
+          readOnly: true
+          subPath: config.yml
+        - mountPath: /stroom/shared
+          name: shared
+      - env:
+        - name: LOG_SENDER_SCRIPT
+          value: /stroom-log-sender/send_to_stroom.sh
+        - name: STROOM_DATAFEED_URL
+          value: https://stroom.example.com/stroom/datafeed
+        - name: STROOM_BASE_LOGS_DIR
+          value: /stroom-log-sender/log-volumes/stroom
+        - name: STROOM_FILE_REGEX
+          value: .*/[a-z]+-[0-9]+-[0-9]+-[0-9]+T[0-9]+:[0-9]+\.log(\.gz)?$
+        - name: STROOM_ENVIRONMENT_NAME
+          value: TEST
+        - name: STROOM_SYSTEM_NAME
+          value: STROOM
+        - name: STROOM_MAX_DELAY_SECS
+          value: "15"
+        image: gchq/stroom-log-sender:v2.2.1
+        name: log-sender
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /stroom-log-sender/log-volumes/stroom
+          name: data
+          subPath: logs
+        - mountPath: /stroom-log-sender/config
+          name: log-sender-configmap
+          readOnly: true
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - /opt/scripts/generate-keystore.sh
+        env:
+        - name: STROOM_KEYSTORE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: stroom-keystore
+        image: gchq/stroom:v7.13.2
+        imagePullPolicy: IfNotPresent
+        name: generate-keystore
+        resources: {}
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /opt/scripts/generate-keystore.sh
+          name: static-content
+          readOnly: true
+          subPath: generate-keystore.sh
+        - mountPath: /opt/tls
+          name: tls
+          readOnly: true
+        - mountPath: /data
+          name: keystore
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: stroom-full
+      terminationGracePeriodSeconds: 300
+      volumes:
+      - configMap:
+          defaultMode: 364
+          name: stroom-full-static-content
+        name: static-content
+      - emptyDir: {}
+        name: api-token
+      - name: tls
+        secret:
+          secretName: stroom-tls
+      - emptyDir: {}
+        name: keystore
+      - configMap:
+          name: stroom-full-log-sender
+        name: log-sender-configmap
+      - configMap:
+          name: stroom-config
+        name: config-override
+      - emptyDir: {}
+        name: shared
+  updateStrategy: {}
+  volumeClaimTemplates:
+  - metadata:
+      labels:
+        app.kubernetes.io/component: stroom-cluster
+        app.kubernetes.io/name: stroom
+        stroom/cluster: full
+        stroom/nodeSet: data
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+    status: {}
+status:
+  availableReplicas: 0
+  replicas: 0

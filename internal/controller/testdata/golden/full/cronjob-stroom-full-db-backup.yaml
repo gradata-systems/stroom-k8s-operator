@@ -1,0 +1,81 @@
+metadata:
+  labels:
+    app.kubernetes.io/component: database-backup
+    app.kubernetes.io/instance: full
+    app.kubernetes.io/name: stroom
+  name: stroom-full-db-backup
+  namespace: golden-full
+  ownerReferences:
+  - apiVersion: stroom.gchq.github.io/v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: DatabaseBackup
+    name: full
+    uid: <uid>
+spec:
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    metadata: {}
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: database-backup
+            app.kubernetes.io/instance: full
+            app.kubernetes.io/name: stroom
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - command:
+            - bash
+            - -c
+            - |-
+              set -o pipefail
+              for tool in mysqldump gzip; do
+                if ! command -v "$tool" > /dev/null; then
+                  echo "Backup failed: the image has no $tool" >&2
+                  exit 1
+                fi
+              done
+              backupDirectory="${BACKUP_ROOT:-/var/lib/mysql/backup}/$(date +'%Y-%m')"
+              archivePath="${BACKUP_ROOT:-/var/lib/mysql/backup}/$(date +'%Y-%m')/$(date +'full_%Y-%m-%d_%H-%M-%S.sql.gz')"
+              echo "Backing up "'databases (stroom,stats)'" to: $archivePath"
+              mkdir -p "$backupDirectory" || exit 1
+              if ! mysqldump --user=${MYSQL_USER} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces --databases 'stroom' 'stats' | gzip > "$archivePath"; then
+                rm -f "$archivePath"
+                echo "Backup failed" >&2
+                exit 1
+              fi
+              chmod 444 "$archivePath"
+              echo "Backup successful"
+            env:
+            - name: MYSQL_HOST
+              value: stroom-full-db
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: stroomuser
+            - name: MYSQL_PWD
+              valueFrom:
+                secretKeyRef:
+                  key: stroomuser
+                  name: stroom-full-db
+            image: mysql/mysql-server:8.0.32
+            name: backup-job
+            resources: {}
+            securityContext:
+              allowPrivilegeEscalation: false
+            volumeMounts:
+            - mountPath: /var/lib/mysql/backup
+              name: data
+          restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: backups
+      ttlSecondsAfterFinished: 300
+  schedule: 0 2 * * *
+status: {}

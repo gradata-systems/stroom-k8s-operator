@@ -16,7 +16,8 @@ spec:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: DatabaseBackup is the Schema for the databasebackups API
+        description: DatabaseBackup backs up the databases on a database server on
+          a schedule, with mysqldump
         properties:
           apiVersion:
             description: |-
@@ -42,6 +43,7 @@ spec:
                 description: Backup the specified database names. If unspecified,
                   all user databases are backed up
                 items:
+                  pattern: ^[A-Za-z0-9_]{1,64}$
                   type: string
                 type: array
               databaseServerRef:
@@ -64,8 +66,9 @@ spec:
                         format: int32
                         type: integer
                       secretName:
-                        description: SecretName is the name of the secret containing
-                          the `password` of the database user `stroomuser`
+                        description: |-
+                          SecretName is the name of the Secret containing the database user's password, under a key named after the
+                          user (`userName`, by default `stroomuser`)
                         type: string
                     type: object
                   serverRef:
@@ -87,6 +90,9 @@ spec:
                     type: string
                 type: object
               image:
+                description: |-
+                  Image the backup runs in, which must have `bash`, `mysqldump` and `gzip`, such as the official `mysql:8.4`
+                  image. The `mysql/mysql-server` images have no `gzip`.
                 properties:
                   repository:
                     minLength: 1

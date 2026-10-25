@@ -1,0 +1,13 @@
+# A Stroom cluster using a MySQL server the operator doesn't manage. Authentication is with Keycloak, from the
+# external-idp component. Apply with:
+#
+#   kubectl apply -k samples/external-database
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: stroom
+resources:
+  - secrets.yaml
+  - database-secret.yaml
+  - stroom-cluster.yaml
+components:
+  - ../external-idp

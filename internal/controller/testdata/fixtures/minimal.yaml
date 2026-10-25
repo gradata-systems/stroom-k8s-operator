@@ -1,0 +1,39 @@
+# A StroomCluster with only the required fields, relying on CRD defaults for everything else
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseServer
+metadata:
+  name: minimal
+spec:
+  image:
+    repository: mysql/mysql-server
+  databaseNames:
+    - stroom
+    - stats
+  resources: {}
+  volumeClaim: {}
+---
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: minimal
+spec:
+  image:
+    repository: gchq/stroom
+  databaseServerRef:
+    serverRef:
+      name: minimal
+  openId:
+    clientId: stroom
+    clientSecret:
+      secretName: stroom-openid
+      key: client-secret
+  ingress:
+    hostName: stroom.example.com
+  nodeSets:
+    - name: node
+      count: 1
+      localDataVolumeClaim: {}
+      resources: {}
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75

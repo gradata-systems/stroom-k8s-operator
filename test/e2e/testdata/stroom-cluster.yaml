@@ -1,0 +1,58 @@
+# A Stroom cluster with a single node set. Probe timings are left at their defaults, except for the startup probe,
+# whose default (about a minute) is shorter than Stroom takes to start.
+apiVersion: stroom.gchq.github.io/v1
+kind: StroomCluster
+metadata:
+  name: e2e
+spec:
+  image:
+    repository: gchq/stroom
+    tag: ${STROOM_TAG}
+  imagePullPolicy: IfNotPresent
+  databaseServerRef: ${DATABASE_SERVER_REF}
+  appDatabaseName: stroom
+  statsDatabaseName: stats
+  ${CONFIG_MAP_REF}
+  ${HTTPS}
+  openId:
+    clientId: stroom-operator
+    clientSecret:
+      secretName: stroom-operator-openid
+      key: client-secret
+  ingress:
+    hostName: stroom.e2e.local
+  podManagementPolicy: Parallel
+  nodeTerminationPeriodSecs: 120
+  extraEnv:
+    - name: STROOM_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: stroom-openid
+          key: client-secret
+  ${LOG_SENDER}
+  nodeSets:
+    - name: node
+      count: ${STROOM_NODES}
+      localDataVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+      resources:
+        requests:
+          cpu: 250m
+          memory: 1Gi
+        limits:
+          memory: 2Gi
+      memoryOptions:
+        initialPercentage: 25
+        maxPercentage: 70
+      ${POD_SECURITY_CONTEXT}
+      startupProbeTimings:
+        initialDelaySeconds: ${STARTUP_INITIAL_DELAY}
+        periodSeconds: 10
+        failureThreshold: ${STARTUP_FAILURE_THRESHOLD}
+        ${LOCK_WAIT_ALLOWANCE}
+      readinessProbeTimings: {}
+      livenessProbeTimings: {}

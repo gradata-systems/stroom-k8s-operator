@@ -1,0 +1,26 @@
+metadata:
+  annotations:
+    haproxy.router.openshift.io/rewrite-target: /stroom/noauth/datafeed
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/rewrite-target: /stroom/noauth/datafeed
+  labels:
+    app.kubernetes.io/component: stroom-cluster
+    app.kubernetes.io/name: stroom
+    stroom/cluster: minimal
+  name: stroom-minimal-datafeed
+  namespace: golden-minimal
+spec:
+  rules:
+  - host: stroom.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: stroom-minimal-node-node-http
+            port:
+              name: app-http
+        path: /stroom/datafeeddirect
+        pathType: Exact
+status:
+  loadBalancer: {}

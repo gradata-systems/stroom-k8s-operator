@@ -19,11 +19,14 @@ package controller
 import (
 	"context"
 	"embed"
+	goerrors "errors"
 	"fmt"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/go-sql-driver/mysql"
 	common "github.com/gradata-systems/stroom-k8s-operator/internal/controller/common"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -58,7 +61,7 @@ var StaticFiles embed.FS
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers,verbs=get;list;watch;update
 //+kubebuilder:rbac:groups=stroom.gchq.github.io,resources=databaseservers/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;create
 //+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
@@ -183,32 +186,23 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Log sender ConfigMap reconciled", "Result", operationResult, "Namespace", existingConfigMap.Namespace, "Name", existingConfigMap.Name)
 	}
 
+	// Don't create or change the nodes while their DatabaseServer is being updated, as a node stopping then can't
+	// drain: its pre-stop hook needs the database. The DatabaseServer's update is applied first, and the nodes are
+	// updated once it's ready.
+	holdNodes := false
+	if dbInfo.DatabaseServer != nil {
+		if settled, reason, err := r.databaseServerSettled(ctx, dbInfo.DatabaseServer); err != nil {
+			return ctrl.Result{}, err
+		} else if !settled {
+			logger.Info("Waiting for the DatabaseServer before creating or updating the nodes", "DatabaseServer", dbInfo.DatabaseServer.Name, "Reason", reason)
+			holdNodes = true
+		}
+	}
+
 	// Query the StroomCluster StatefulSet and if it doesn't exist, create it
 	for _, nodeSet := range stroomCluster.Spec.NodeSets {
-		// Create a StatefulSet representing the NodeSet's nodes
-		newStatefulSet := r.createStatefulSet(&stroomCluster, &nodeSet, &dbInfo)
-		existingStatefulSet := appsv1.StatefulSet{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      newStatefulSet.Name,
-				Namespace: newStatefulSet.Namespace,
-			},
-		}
-		var oldReplicaCount int32
-		operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
-			oldReplicaCount = existingStatefulSet.Status.Replicas
-			existingStatefulSet.Labels = newStatefulSet.Labels
-			existingStatefulSet.Annotations = newStatefulSet.Annotations
-			existingStatefulSet.OwnerReferences = newStatefulSet.OwnerReferences
-			existingStatefulSet.Spec = newStatefulSet.Spec
-			return nil
-		})
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
-		if operationResult == controllerutil.OperationResultUpdated {
-			// StatefulSet may have been scaled down, so delete excess PVCs, depending on deletion policy
-			if err := r.deletePvcs(ctx, &stroomCluster, &nodeSet, oldReplicaCount, *newStatefulSet.Spec.Replicas); err != nil {
+		if !holdNodes {
+			if err := r.reconcileNodeStatefulSet(ctx, &stroomCluster, &nodeSet, &dbInfo); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -278,7 +272,77 @@ func (r *StroomClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		logger.Info("Ingress reconciled", "Result", operationResult, "Namespace", existingIngress.Namespace, "Name", existingIngress.Name)
 	}
 
+	if holdNodes {
+		// The DatabaseServer's StatefulSet isn't watched, so check it again shortly
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+	}
 	return ctrl.Result{}, nil
+}
+
+// reconcileNodeStatefulSet creates or updates the StatefulSet running a NodeSet's nodes
+func (r *StroomClusterReconciler) reconcileNodeStatefulSet(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, dbInfo *DatabaseConnectionInfo) error {
+	logger := log.FromContext(ctx)
+
+	newStatefulSet := r.createStatefulSet(stroomCluster, nodeSet, dbInfo)
+	existingStatefulSet := appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      newStatefulSet.Name,
+			Namespace: newStatefulSet.Namespace,
+		},
+	}
+	var oldReplicaCount int32
+	operationResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, &existingStatefulSet, func() error {
+		oldReplicaCount = existingStatefulSet.Status.Replicas
+		existingStatefulSet.Labels = newStatefulSet.Labels
+		existingStatefulSet.Annotations = newStatefulSet.Annotations
+		existingStatefulSet.OwnerReferences = newStatefulSet.OwnerReferences
+		existingStatefulSet.Spec = newStatefulSet.Spec
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("StatefulSet reconciled", "Result", operationResult, "Namespace", existingStatefulSet.Namespace, "Name", existingStatefulSet.Name)
+	if operationResult == controllerutil.OperationResultUpdated {
+		// StatefulSet may have been scaled down, so delete excess PVCs, depending on deletion policy
+		return r.deletePvcs(ctx, stroomCluster, nodeSet, oldReplicaCount, *newStatefulSet.Spec.Replicas)
+	}
+	return nil
+}
+
+// databaseServerSettled returns whether a DatabaseServer's StatefulSet has the Pod template the operator would apply
+// now, with all its pods updated and ready. If not, it returns why.
+func (r *StroomClusterReconciler) databaseServerSettled(ctx context.Context, dbServer *stroomv1.DatabaseServer) (bool, string, error) {
+	statefulSet := appsv1.StatefulSet{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: dbServer.Namespace, Name: dbServer.GetBaseName()}, &statefulSet); errors.IsNotFound(err) {
+		return false, "its StatefulSet doesn't exist yet", nil
+	} else if err != nil {
+		return false, "", err
+	}
+	desired := (&DatabaseServerReconciler{Scheme: r.Scheme}).createStatefulSet(dbServer)
+	settled, reason := statefulSetSettled(&statefulSet, podTemplateHash(&desired.Spec.Template))
+	return settled, reason, nil
+}
+
+// statefulSetSettled returns whether a DatabaseServer's StatefulSet was last updated with the Pod template whose hash
+// is given, and all its pods have that template and are ready. If not, it returns why.
+func statefulSetSettled(statefulSet *appsv1.StatefulSet, templateHash string) (bool, string) {
+	var replicas int32 = 1
+	if statefulSet.Spec.Replicas != nil {
+		replicas = *statefulSet.Spec.Replicas
+	}
+	status := statefulSet.Status
+	switch {
+	case statefulSet.Annotations[DatabaseServerTemplateHashAnnotation] != templateHash:
+		return false, "its StatefulSet is about to be updated"
+	case status.ObservedGeneration < statefulSet.Generation:
+		return false, "its StatefulSet's update hasn't been processed yet"
+	case status.UpdatedReplicas < replicas || status.CurrentRevision != status.UpdateRevision:
+		return false, "its pods are being updated"
+	case status.ReadyReplicas < replicas:
+		return false, "its pods aren't ready"
+	}
+	return true, ""
 }
 
 func (r *StroomClusterReconciler) deletePvcs(ctx context.Context, stroomCluster *stroomv1.StroomCluster, nodeSet *stroomv1.NodeSet, oldReplicaCount int32, newReplicaCount int32) error {
@@ -429,13 +493,36 @@ func (r *StroomClusterReconciler) disableTaskProcessing(ctx context.Context, str
 	} else {
 		defer CloseDatabase(db)
 
-		if _, err := db.Exec("update job_node set enabled = 0 where node_name like ?", stroomCluster.GetBaseName()+"%"); err != nil {
+		if _, err := db.Exec("update job_node set enabled = 0 where node_name regexp ?", clusterNodeNamePattern(stroomCluster)); isMissingTable(err) {
+			logger.Info("The Stroom database has no job_node table, so no node has run. Nothing to disable.", "StroomCluster", stroomCluster.Name)
+		} else if err != nil {
 			logger.Error(err, "Failed to disable Stroom node task processing", "StroomCluster", stroomCluster.Name)
 			return err
 		}
 	}
 
 	return nil
+}
+
+// isMissingTable returns whether a database error is because a table doesn't exist. The Stroom tables are created by
+// the first Stroom node to start, so a cluster whose nodes have never started has none, and nothing to drain.
+func isMissingTable(err error) bool {
+	var mysqlErr *mysql.MySQLError
+	return goerrors.As(err, &mysqlErr) && mysqlErr.Number == mysqlErrNoSuchTable
+}
+
+// mysqlErrNoSuchTable is MySQL's ER_NO_SUCH_TABLE error number
+const mysqlErrNoSuchTable = 1146
+
+// clusterNodeNamePattern returns a regular expression matching the Stroom node names of the cluster's node sets, which
+// are their pod names. Other clusters sharing the database may have node names that start the same way, so the
+// whole name is matched. Pod names contain only lowercase letters, digits and hyphens, so need no escaping.
+func clusterNodeNamePattern(stroomCluster *stroomv1.StroomCluster) string {
+	nodeSetNames := make([]string, len(stroomCluster.Spec.NodeSets))
+	for i := range stroomCluster.Spec.NodeSets {
+		nodeSetNames[i] = stroomCluster.GetNodeSetName(&stroomCluster.Spec.NodeSets[i])
+	}
+	return fmt.Sprintf("^(%v)-[0-9]+$", strings.Join(nodeSetNames, "|"))
 }
 
 // countRemainingTasks removes the finalizer from StroomCluster pods that have no active Stroom tasks.
@@ -449,16 +536,20 @@ func (r *StroomClusterReconciler) countRemainingTasks(ctx context.Context, stroo
 	} else {
 		defer CloseDatabase(db)
 
-		// Get a summary of active tasks by node
+		// Get a summary of active tasks by node, for the cluster's nodes
 		rows, err := db.Query("select n.name as node_name, count(*) as task_count "+
 			"from processor_task pt inner join node n on n.id = pt.fk_processor_node_id "+
-			"where pt.status = ? "+
-			"group by n.name", common.NodeTaskStatusProcessing)
+			"where pt.status = ? and n.name regexp ? "+
+			"group by n.name", common.NodeTaskStatusProcessing, clusterNodeNamePattern(stroomCluster))
 
-		if err != nil {
+		if isMissingTable(err) {
+			logger.Info("The Stroom database has no task tables, so no node has run. No tasks to wait for.", "StroomCluster", stroomCluster.Name)
+			return nil
+		} else if err != nil {
 			logger.Error(err, fmt.Sprintf("Failed to query the active Stroom processor tasks for cluster '%v'", stroomCluster.Name))
 			return err
 		}
+		defer rows.Close()
 
 		// For each pod in the StroomCluster determine whether any active Stroom tasks are running
 		var nodeName string
@@ -540,26 +631,34 @@ func (r *StroomClusterReconciler) getOrCreateObject(ctx context.Context, name st
 func (r *StroomClusterReconciler) claimDatabaseServer(ctx context.Context, stroomCluster *stroomv1.StroomCluster, dbRef stroomv1.ResourceRef, db *stroomv1.DatabaseServer) error {
 	logger := log.FromContext(ctx)
 
+	clusterRef := stroomv1.ResourceRef{Name: stroomCluster.Name, Namespace: stroomCluster.Namespace}
+
 	// If DatabaseServer is claimed by a StroomCluster, check whether it is the current cluster
 	if !db.StroomClusterRef.IsZero() {
-		if db.StroomClusterRef.Name == stroomCluster.Name && db.StroomClusterRef.Namespace == stroomCluster.Namespace {
+		if db.StroomClusterRef == clusterRef {
 			// Already claimed by this cluster
 			return nil
 		}
 
-		// Already owned by another cluster, so we can't claim it
-		err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v/%v'. Cannot be claimed by StroomCluster '%v/%v'",
-			db.Namespace, db.Name, db.StroomClusterRef.Namespace, db.StroomClusterRef.Name, stroomCluster.Namespace, stroomCluster.Name))
-		logger.Error(err, "Cannot claim DatabaseServer")
-		return err
-	} else {
-		// Register the StroomCluster with the DatabaseServer
-		db.StroomClusterRef = dbRef
-		err := r.Update(ctx, db)
-		if err != nil {
-			logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef, stroomCluster.Namespace, stroomCluster.Name))
+		// A claim by a StroomCluster that no longer exists is stale, and can be replaced. Earlier operator versions
+		// recorded the DatabaseServer's own name in place of the StroomCluster's, which is replaced in the same way.
+		claimingCluster := stroomv1.StroomCluster{}
+		if err := r.Get(ctx, db.StroomClusterRef.NamespacedName(), &claimingCluster); err == nil {
+			// Already owned by another cluster, so we can't claim it
+			err := errors.NewBadRequest(fmt.Sprintf("DatabaseServer '%v/%v' already claimed by StroomCluster '%v/%v'. Cannot be claimed by StroomCluster '%v/%v'",
+				db.Namespace, db.Name, db.StroomClusterRef.Namespace, db.StroomClusterRef.Name, stroomCluster.Namespace, stroomCluster.Name))
+			logger.Error(err, "Cannot claim DatabaseServer")
+			return err
+		} else if !errors.IsNotFound(err) {
 			return err
 		}
+	}
+
+	// Register the StroomCluster with the DatabaseServer
+	db.StroomClusterRef = clusterRef
+	if err := r.Update(ctx, db); err != nil {
+		logger.Error(err, fmt.Sprintf("Could not claim the DatabaseServer '%v' by StroomCluster '%v/%v'", dbRef, stroomCluster.Namespace, stroomCluster.Name))
+		return err
 	}
 
 	return nil

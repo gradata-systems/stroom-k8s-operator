@@ -1,0 +1,128 @@
+site_name: Stroom K8s Operator
+site_description: Deploy and operate Stroom clusters on Kubernetes with the Stroom K8s Operator.
+site_url: https://gradata-systems.github.io/stroom-k8s-operator/
+site_author: Gradata Systems
+repo_url: https://github.com/gradata-systems/stroom-k8s-operator
+repo_name: gradata-systems/stroom-k8s-operator
+edit_uri: edit/master/docs/
+copyright: >-
+  Copyright &copy; Gradata Systems. Portions adapted from the
+  <a href="https://github.com/gchq/stroom-docs">Stroom documentation</a> (Apache-2.0);
+  see <a href="https://gradata-systems.github.io/stroom-k8s-operator/about/attribution/">Attribution</a>.
+
+docs_dir: docs
+site_dir: site
+strict: true
+
+# Fail the build on broken links or anchors (warnings become errors with --strict)
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+exclude_docs: |
+  requirements.txt
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - content.action.edit
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+plugins:
+  - search
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Architecture: getting-started/architecture.md
+      - Prerequisites: getting-started/prerequisites.md
+      - Quick start: getting-started/quick-start.md
+  - Installation:
+      - installation/index.md
+      - Helm (OCI): installation/helm.md
+      - Air-gapped environments: installation/air-gapped.md
+  - Configuring a StroomCluster:
+      - configuration/index.md
+      - Node sets and roles: configuration/node-sets.md
+      - Storage: configuration/storage.md
+      - Ingress and TLS: configuration/ingress-tls.md
+      - Identity provider (OpenID): configuration/identity-provider.md
+      - Stroom configuration: configuration/stroom-config.md
+      - Resources and JVM memory: configuration/resources-jvm.md
+      - Health probes: configuration/health-probes.md
+      - Log shipping: configuration/log-shipping.md
+      - Security: configuration/security.md
+  - Database:
+      - Operator-managed DatabaseServer: database/database-server.md
+      - External database: database/external-database.md
+      - Backups: database/backups.md
+  - Autoscaling: autoscaling.md
+  - Operations:
+      - Upgrading: operations/upgrading.md
+      - Scaling: operations/scaling.md
+      - Node lifecycle, restarts and draining: operations/node-lifecycle.md
+      - Stopping and removal: operations/stopping-and-removal.md
+      - Troubleshooting: operations/troubleshooting.md
+  - Reference:
+      - CRD reference: reference/api.md
+  - Contributing to the docs: contributing.md
+  - About:
+      - Attribution: about/attribution.md

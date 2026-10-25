@@ -1,0 +1,36 @@
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/affinity-mode: persistent
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+  labels:
+    app.kubernetes.io/component: stroom-cluster
+    app.kubernetes.io/name: stroom
+    stroom/cluster: minimal
+  name: stroom-minimal
+  namespace: golden-minimal
+spec:
+  rules:
+  - host: stroom.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: stroom-minimal-node-node-http
+            port:
+              name: app-http
+        path: /stroom/noauth/datafeed
+        pathType: Exact
+  - host: stroom.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: stroom-minimal-node-node-http
+            port:
+              name: app-http
+        path: /
+        pathType: Prefix
+status:
+  loadBalancer: {}
