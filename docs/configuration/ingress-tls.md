@@ -100,13 +100,10 @@ spec:
 | `tlsKeystorePasswordSecret` | The Secret name and key holding the password for the generated keystore and truststore. |
 
 An init container (`generate-keystore`) converts the certificate into PKCS#12 files, `keystore.p12` (the
-certificate and key) and `truststore.p12` (the CA), in a Pod-local volume mounted at `/stroom/pki/tls`. The bundled
-Stroom configuration reads them from there.
+certificate and key) and `truststore.p12` (the CA), in a Pod-local volume mounted at `/stroom/pki/tls`. With
+`spec.https` set, the operator mounts the variant of its bundled Stroom configuration that has an HTTPS connector
+on port 8443, reading them from there. Your own configuration needs the same connector (see
+[Stroom configuration](stroom-config.md)).
 
 The keystore is built when the Pod starts. After the certificate is renewed, restart the nodes so they pick it up.
 See [Rolling restarts](../operations/node-lifecycle.md#rolling-restarts).
-
-!!! warning "The bundled configuration expects `spec.https`"
-    The bundled Stroom configuration always defines an HTTPS connector that reads `/stroom/pki/tls/keystore.p12`,
-    which only exists when `spec.https` is set. If you don't set `spec.https`, supply your own configuration with
-    the HTTPS connector removed. See [Stroom configuration](stroom-config.md).

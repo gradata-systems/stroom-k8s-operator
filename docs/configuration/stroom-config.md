@@ -5,13 +5,18 @@ Each node reads its configuration from `/stroom/config/config.yml`.
 ## The bundled configuration
 
 By default, the operator mounts its own configuration, which it stores in the ConfigMap
-`stroom-<cluster>-static-content` under the key `stroomcluster-config.yaml`. The source is
-[`internal/controller/static_content/stroomcluster-config.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/internal/controller/static_content/stroomcluster-config.yaml).
+`stroom-<cluster>-static-content`. There are two variants, which differ only in the HTTPS connector:
+
+| Key | Used when | Source |
+| --- | --- | --- |
+| `stroomcluster-config.yaml` | `spec.https` isn't set | [`stroomcluster-config.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/internal/controller/static_content/stroomcluster-config.yaml) |
+| `stroomcluster-config-https.yaml` | `spec.https` is set | [`stroomcluster-config-https.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/internal/controller/static_content/stroomcluster-config-https.yaml) |
+
 To see the version your operator uses:
 
 ```shell
 kubectl -n stroom get configmap stroom-dev-static-content \
-  -o jsonpath='{.data.stroomcluster-config\.yaml}'
+  -o jsonpath='{.data.stroomcluster-config-https\.yaml}'
 ```
 
 It takes most values from environment variables that the operator sets (see below). It's a good starting point,
@@ -45,8 +50,8 @@ Start from the bundled configuration and keep the parts the operator relies on:
 - The database connections, which use the `STROOM_JDBC_*` and `STROOM_STATISTICS_JDBC_*` variables.
 - The log files under `logs/app`, `logs/access` and `logs/user`, rolled every minute, if you use
   [log shipping](log-shipping.md).
-- The HTTPS connector's keystore and truststore paths (`/stroom/pki/tls/...`), if you set `spec.https`. If you
-  don't, remove the HTTPS connector.
+- The HTTPS connector, with the keystore and truststore paths (`/stroom/pki/tls/...`), only if you set
+  `spec.https`. Without `spec.https` the keystore doesn't exist, and Stroom exits as it starts.
 
 See the [Stroom configuration documentation](https://gchq.github.io/stroom-docs/docs/install-guide/configuration/stroom-and-proxy/configuring-stroom/)
 for everything else.

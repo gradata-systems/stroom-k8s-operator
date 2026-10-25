@@ -647,10 +647,14 @@ func (r *StroomClusterReconciler) appendConfigVolumeMounts(stroomCluster *stroom
 			ReadOnly:  true,
 		})
 	} else {
-		// Use the default config
+		// Use the default config, which only has an HTTPS connector when HTTPS is enabled, as it needs the key store
+		configFile := "stroomcluster-config.yaml"
+		if !stroomCluster.Spec.Https.IsZero() {
+			configFile = "stroomcluster-config-https.yaml"
+		}
 		*volumeMounts = append(*volumeMounts, corev1.VolumeMount{
 			Name:      StaticContentVolumeName,
-			SubPath:   "stroomcluster-config.yaml",
+			SubPath:   configFile,
 			MountPath: configMountPath,
 			ReadOnly:  true,
 		})

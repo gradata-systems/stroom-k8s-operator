@@ -45,6 +45,8 @@ for details.
   sent as an empty class.
 - Task autoscaling divided by zero without a CPU limit, and autoscalers for the same cluster interfered with each
   other.
+- Stroom failed to start with the bundled configuration unless `spec.https` was set, as the configuration always had
+  an HTTPS connector. It now only has one with `spec.https`.
 
 ### Security
 

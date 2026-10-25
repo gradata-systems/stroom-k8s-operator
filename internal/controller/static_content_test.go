@@ -34,6 +34,41 @@ case "$url" in
 esac
 `
 
+var _ = Describe("Bundled Stroom configuration", func() {
+	It("should only add the HTTPS connector, in the HTTPS variant", func() {
+		read := func(file string) string {
+			content, err := StaticFiles.ReadFile("static_content/" + file)
+			Expect(err).ToNot(HaveOccurred())
+			return strings.ReplaceAll(string(content), "\r\n", "\n")
+		}
+		// Header comments that say which variant is which
+		withoutComments := func(content string) string {
+			var lines []string
+			for _, line := range strings.Split(content, "\n") {
+				if !strings.HasPrefix(line, "# The operator uses this file") && !strings.HasPrefix(line, "# the HTTPS connector") {
+					lines = append(lines, line)
+				}
+			}
+			return strings.Join(lines, "\n")
+		}
+		const httpsConnector = `    - type: https
+      port: ${STROOM_APP_HTTPS_PORT:-8443}
+      keyStoreType: PKCS12
+      keyStorePath: /stroom/pki/tls/keystore.p12
+      keyStorePassword: ${STROOM_KEYSTORE_PASSWORD}
+      trustStoreType: PKCS12
+      trustStorePath: /stroom/pki/tls/truststore.p12
+      trustStorePassword: ${STROOM_KEYSTORE_PASSWORD}
+      validateCerts: false
+`
+		http := withoutComments(read("stroomcluster-config.yaml"))
+		https := withoutComments(read("stroomcluster-config-https.yaml"))
+		Expect(http).ToNot(ContainSubstring("type: https"))
+		Expect(https).To(ContainSubstring(httpsConnector))
+		Expect(strings.Replace(https, httpsConnector, "", 1)).To(Equal(http))
+	})
+})
+
 var _ = Describe("Node lifecycle scripts", func() {
 
 	var root string

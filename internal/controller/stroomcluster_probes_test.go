@@ -4,9 +4,40 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
 )
+
+var _ = Describe("StroomCluster configuration file", func() {
+	configMount := func(stroomCluster *stroomv1.StroomCluster) corev1.VolumeMount {
+		var mounts []corev1.VolumeMount
+		(&StroomClusterReconciler{}).appendConfigVolumeMounts(stroomCluster, &mounts)
+		Expect(mounts).To(HaveLen(1))
+		return mounts[0]
+	}
+	https := stroomv1.HttpsSettings{
+		TlsSecretName:                "stroom-tls",
+		TlsKeystorePasswordSecretRef: stroomv1.SecretItem{SecretName: "stroom-keystore", Key: "password"},
+	}
+
+	It("should mount the bundled configuration without an HTTPS connector, when HTTPS isn't enabled", func() {
+		Expect(configMount(&stroomv1.StroomCluster{}).SubPath).To(Equal("stroomcluster-config.yaml"))
+	})
+	It("should mount the bundled configuration with an HTTPS connector, when HTTPS is enabled", func() {
+		stroomCluster := &stroomv1.StroomCluster{}
+		stroomCluster.Spec.Https = https
+		Expect(configMount(stroomCluster).SubPath).To(Equal("stroomcluster-config-https.yaml"))
+	})
+	It("should mount the referenced configuration, with or without HTTPS", func() {
+		stroomCluster := &stroomv1.StroomCluster{}
+		stroomCluster.Spec.ConfigMapRef = stroomv1.ConfigMapRef{Name: "stroom-config", ItemName: "config.yml"}
+		stroomCluster.Spec.Https = https
+		Expect(configMount(stroomCluster)).To(Equal(corev1.VolumeMount{
+			Name: "config-override", SubPath: "config.yml", MountPath: "/stroom/config/config.yml", ReadOnly: true,
+		}))
+	})
+})
 
 var _ = Describe("StroomCluster probes", func() {
 

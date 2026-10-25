@@ -56,11 +56,11 @@ kubectl -n stroom create secret generic stroom-keystore \
 ## 4. Create the Stroom configuration
 
 The configuration bundled with the operator uses Stroom's internal IdP, so supply your own based on it. Download
-the bundled file:
+the bundled file with the HTTPS connector:
 
 ```shell
 curl -sSfLo config.yml \
-  https://raw.githubusercontent.com/gradata-systems/stroom-k8s-operator/master/internal/controller/static_content/stroomcluster-config.yaml
+  https://raw.githubusercontent.com/gradata-systems/stroom-k8s-operator/master/internal/controller/static_content/stroomcluster-config-https.yaml
 ```
 
 Edit the `appConfig.security.authentication.openId` section so that it reads:
