@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,19 +36,27 @@ var _ = Describe("Database resources", func() {
 			sql := reconciler.createDbInitConfigMap(newDatabaseServer("x`; DROP DATABASE mysql; -- ")).Data["init-stroom-db.sql"]
 			Expect(sql).To(ContainSubstring("CREATE DATABASE IF NOT EXISTS `x``; DROP DATABASE mysql; -- `;"))
 		})
-		It("should report ready even when MySQL can't be queried", func() {
-			// BASELINE: known bug. The readiness probe prints its result instead of exiting with it, so the pod is
-			// ready before MySQL accepts connections.
-			if _, err := exec.LookPath("sh"); err != nil {
-				Skip("sh is required to run the readiness probe")
-			}
-			bin := GinkgoT().TempDir()
-			Expect(os.WriteFile(filepath.Join(bin, "mysql"), []byte("#!/bin/sh\nexit 1\n"), 0o755)).To(Succeed())
+		Context("readiness probe", func() {
+			// runProbe runs the readiness probe command, against a fake mysql client that exits with the given status
+			runProbe := func(mysqlExitStatus int) error {
+				if _, err := exec.LookPath("sh"); err != nil {
+					Skip("sh is required to run the fake mysql client")
+				}
+				bin := GinkgoT().TempDir()
+				fakeMysql := fmt.Sprintf("#!/bin/sh\nexit %v\n", mysqlExitStatus)
+				Expect(os.WriteFile(filepath.Join(bin, "mysql"), []byte(fakeMysql), 0o755)).To(Succeed())
 
-			command := reconciler.createStatefulSet(newDatabaseServer("stroom")).Spec.Template.Spec.Containers[0].ReadinessProbe.Exec.Command
-			cmd := exec.Command(command[0], command[1:]...)
-			cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-			Expect(cmd.Run()).To(Succeed())
+				command := reconciler.createStatefulSet(newDatabaseServer("stroom")).Spec.Template.Spec.Containers[0].ReadinessProbe.Exec.Command
+				cmd := exec.Command(filepath.Join(bin, command[0]), command[1:]...)
+				return cmd.Run()
+			}
+
+			It("should report ready when MySQL can be queried", func() {
+				Expect(runProbe(0)).To(Succeed())
+			})
+			It("should report not ready when MySQL can't be queried", func() {
+				Expect(runProbe(1)).ToNot(Succeed())
+			})
 		})
 		It("should set the root password from the generated Secret", func() {
 			container := reconciler.createStatefulSet(newDatabaseServer("stroom")).Spec.Template.Spec.Containers[0]

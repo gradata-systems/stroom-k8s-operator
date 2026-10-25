@@ -213,11 +213,11 @@ func (r *DatabaseServerReconciler) createReadinessProbe(timings stroomv1.ProbeTi
 	return &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			Exec: &corev1.ExecAction{
+				// MySQL is ready once it accepts a query, so exit with the query's status
 				Command: []string{
-					"sh",
-					"-c",
-					"status=$(mysql -u healthcheck -e \"SELECT 'OK'\" | grep 'OK');\n" +
-						"if [[ $status ]]; then echo 1; else echo 0; fi",
+					"mysql",
+					"-u", "healthcheck",
+					"-e", "SELECT 1",
 				},
 			},
 		},

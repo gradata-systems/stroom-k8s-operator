@@ -58,11 +58,11 @@ spec:
         readinessProbe:
           exec:
             command:
-            - sh
-            - -c
-            - |-
-              status=$(mysql -u healthcheck -e "SELECT 'OK'" | grep 'OK');
-              if [[ $status ]]; then echo 1; else echo 0; fi
+            - mysql
+            - -u
+            - healthcheck
+            - -e
+            - SELECT 1
         resources: {}
         securityContext: {}
         volumeMounts:
