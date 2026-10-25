@@ -3,8 +3,8 @@
 ## Kubernetes cluster
 
 - A currently supported Kubernetes release. The operator manages StatefulSets, Services, Ingresses
-  (`networking.k8s.io/v1`) and CronJobs, and the autoscaler reads Pod metrics from `metrics.k8s.io/v1beta1`. See
-  the [known issue with CronJobs](../database/backups.md) on Kubernetes 1.25 and later.
+  (`networking.k8s.io/v1`) and CronJobs (`batch/v1`), and the autoscaler reads Pod metrics from
+  `metrics.k8s.io/v1beta1`.
 - `kubectl`, and cluster-admin rights for the installation. The installation creates CRDs, a ClusterRole and a
   ClusterRoleBinding.
 - [Helm](https://helm.sh/) 3.8 or later, if you install with Helm. The charts are published as OCI artifacts.

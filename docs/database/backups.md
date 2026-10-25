@@ -3,12 +3,10 @@
 A `DatabaseBackup` runs `mysqldump` on a schedule, as a Kubernetes CronJob, and writes compressed dumps to a volume
 you provide.
 
-!!! warning "Known issue: CronJob lookup on Kubernetes 1.25 and later"
-    The `DatabaseBackup` controller looks up its CronJob through the `batch/v1beta1` API, which was removed in
-    Kubernetes 1.25. On such clusters the lookup fails, and the CronJob may never be created. Check that
-    `kubectl -n <namespace> get cronjob stroom-<name>-db-backup` exists after you create a `DatabaseBackup`, and
-    watch the operator log for errors. Until this is fixed, you can create an equivalent CronJob yourself, using the
-    command described under [What a backup contains](#what-a-backup-contains).
+!!! note "Operator 1.1.5 and earlier"
+    Earlier operator versions looked up the CronJob through the `batch/v1beta1` API, which Kubernetes 1.25 removed,
+    so on current clusters no CronJob was created and no backups ran. If you created a `DatabaseBackup` with one of
+    those versions, check that `kubectl -n <namespace> get cronjob stroom-<name>-db-backup` exists after upgrading.
 
 ## Create a DatabaseBackup
 
@@ -75,8 +73,8 @@ Things to bear in mind:
 - **No retention.** Old backups are never deleted. Prune the backup volume yourself.
 - **Consistency.** `--single-transaction` gives a consistent snapshot without locking tables, but conflicts with
   schema changes. Don't upgrade Stroom, which may migrate the schema, while a backup is running.
-- **Changes aren't applied.** The operator creates the CronJob once. To change the schedule or anything else,
-  delete the `DatabaseBackup` and create it again.
+- **Changes.** Changes to a `DatabaseBackup`, such as its schedule, are applied to its CronJob. A backup already
+  running isn't affected.
 - **The Secret.** The dumps don't include the database Secret. Back it up separately; see
   [Credentials](database-server.md#credentials).
 
