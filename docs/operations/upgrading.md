@@ -63,12 +63,18 @@ kubectl -n "$ns" rollout status deployment/stroom-operator-controller-manager
 ```
 
 The new operator then reconciles each cluster, as for any upgrade (below). From then on, upgrade with Helm. The
-e2e tests run these commands against an operator installed from the 1.1.5 manifest.
+e2e tests run these commands against an operator installed from the 1.1.5 manifest, and check that the CRDs and
+`StroomCluster`s are kept.
 
 !!! note "The 1.1.5 manifest installs operator 1.1.3"
     The manifest published with 1.1.5 wasn't regenerated, so it installs the 1.1.3 operator and CRDs. Check which
     you're running with `kubectl -n stroom-operator-system get deployment stroom-operator-controller-manager
     -o jsonpath='{.spec.template.spec.containers[0].image}'`. The upgrade notes for 1.2.0 apply either way.
+
+    Operator 1.1.3 can't update a `StroomCluster` that sets `https.enabled: false` or `logSender.mtlsEnabled: false`.
+    It drops `false` values from its updates, which its CRD then rejects. Its log repeats
+    `spec.https.enabled: Required value`, and the cluster's nodes are never deployed or changed. Moving to Helm fixes
+    this.
 
 ### What happens to running Stroom clusters
 

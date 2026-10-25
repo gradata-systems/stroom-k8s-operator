@@ -118,9 +118,15 @@ func manifestMigrationSpecs() {
 		})
 	})
 
-	It("should run a StroomCluster with the operator installed from the manifest", func() {
+	It("should run the operator installed from the manifest", func() {
 		Expect(operatorImage()).To(Equal(previousManifestImage))
-		waitForCondition(namespace, "pod/"+pod, "jsonpath={.status.phase}=Running", defaultTimeout)
+		waitForCondition(namespace, "pod/stroom-e2e-db-0", "condition=Ready", defaultTimeout)
+		// The manifest's operator drops false values when it updates a StroomCluster, so its CRD rejects the update of
+		// any cluster without HTTPS or log sender mTLS, and it never deploys the nodes. Moving to Helm fixes that.
+		Eventually(func() string {
+			output, _ := kubectl("logs", "-n", operatorNamespace, "deployment/stroom-operator-controller-manager")
+			return output
+		}, 2*time.Minute, 5*time.Second).Should(ContainSubstring("spec.https.enabled: Required value"))
 		uids = map[string]string{"stroomcluster": uid("stroomcluster", "e2e", "-n", namespace)}
 		for _, crd := range operatorKinds {
 			uids[crd] = uid("crd", crd+".stroom.gchq.github.io")
@@ -141,10 +147,12 @@ func manifestMigrationSpecs() {
 		}
 		Expect(uid("stroomcluster", "e2e", "-n", namespace)).To(Equal(uids["stroomcluster"]))
 
-		// The new operator reconciles the cluster, which rolls its nodes with this release's pod template
+		// The new operator reconciles the cluster, and deploys its nodes with this release's pod template
 		Eventually(func() string {
-			return mustKubectl("get", "statefulset", "stroom-e2e-node-node", "-n", namespace, "-o",
+			// The StatefulSet doesn't exist until the new operator creates it
+			output, _ := kubectl("get", "statefulset", "stroom-e2e-node-node", "-n", namespace, "-o",
 				`jsonpath={.spec.template.spec.containers[?(@.name=="stroom-node")].livenessProbe.httpGet.path}`)
+			return output
 		}, 5*time.Minute, 5*time.Second).Should(HaveSuffix("?allow=deadlocks"))
 		waitForCondition(namespace, "pod/"+pod, "jsonpath={.status.phase}=Running", defaultTimeout)
 	})
