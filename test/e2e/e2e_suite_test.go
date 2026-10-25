@@ -21,6 +21,8 @@ const (
 	operatorRepository = "ghcr.io/gradata-systems/stroom-k8s-operator"
 	// previousRepository is the image repository of the previous release, from before the move to GHCR
 	previousRepository = "gradata/stroom-k8s-operator"
+	// previousManifestImage is the operator image the previous release's all-in-one manifest installs
+	previousManifestImage = previousRepository + ":1.1.3"
 )
 
 var (
@@ -39,6 +41,7 @@ var (
 // Images used by the tests, which are loaded into the kind cluster in advance so pods don't wait on image pulls
 var testImages = []string{
 	previousRepository + ":" + previousRelease,
+	previousManifestImage,
 	"gchq/stroom:" + stroomTag,
 	"gchq/stroom:" + previousStroomTag,
 	"mysql/mysql-server:8.0.32",
@@ -126,21 +129,49 @@ func deployOperatorCharts(chartsDir string, imageTag string) {
 	mustKubectl("rollout", "status", "-n", operatorNamespace, operatorDeployment, "--timeout=5m")
 }
 
-// deployOperatorManifests installs the operator with the kustomize manifests, as deploy/all-in-one.yaml is built
-func deployOperatorManifests() {
-	manifests := mustRun("bin/kustomize", "build", "config/default")
-	manifests = replaceOperatorImage(manifests, operatorRepository+":"+operatorTag)
-	path := filepath.Join(GinkgoT().TempDir(), "operator.yaml")
-	Expect(os.WriteFile(path, []byte(manifests), 0o600)).To(Succeed())
+// deployPreviousReleaseManifest installs the operator from the all-in-one manifest at the previous release's Git tag,
+// which releases up to 1.1.5 were published as. The 1.1.5 manifest was never regenerated, so it installs the 1.1.3
+// CRDs and operator (previousManifestImage), as users of it have.
+func deployPreviousReleaseManifest() {
+	manifest := mustRun("git", "show", previousRelease+":deploy/all-in-one.yaml")
+	path := filepath.Join(GinkgoT().TempDir(), "all-in-one.yaml")
+	Expect(os.WriteFile(path, []byte(manifest), 0o600)).To(Succeed())
 	mustKubectl("apply", "--server-side", "-f", path)
 	waitForCondition(operatorNamespace, operatorDeployment, "condition=Available", defaultTimeout)
 }
 
+// operatorKinds are the plural names of the operator's resource kinds, as its CRDs are named
+var operatorKinds = []string{"stroomclusters", "databaseservers", "databasebackups", "stroomtaskautoscalers"}
+
 // removeOperator uninstalls the operator, however it was installed. Removing the CRDs removes any remaining
-// resources of those kinds, such as those left by an interrupted run, whose finalizers are removed first, as without
-// the operator nothing else will remove them.
+// resources of those kinds, such as those left by an interrupted run. The controller is stopped first, then the
+// resources' finalizers are removed, as with the controller stopped nothing else will, and while it runs it would
+// add them back.
 func removeOperator() {
-	for _, kind := range []string{"stroomclusters", "databaseservers", "databasebackups", "stroomtaskautoscalers"} {
+	_, _ = run("helm", "--kube-context", "kind-"+kindCluster, "uninstall", "stroom-operator", "-n", operatorNamespace, "--wait")
+	_, _ = kubectl("delete", operatorDeployment, "-n", operatorNamespace, "--ignore-not-found", "--wait=true", "--timeout=5m")
+	removeFinalizers()
+
+	_, _ = run("helm", "--kube-context", "kind-"+kindCluster, "uninstall", "stroom-operator-crds", "-n", operatorNamespace, "--wait")
+	if manifests, err := run("bin/kustomize", "build", "config/default"); err == nil {
+		path := filepath.Join(GinkgoT().TempDir(), "operator.yaml")
+		Expect(os.WriteFile(path, []byte(manifests), 0o600)).To(Succeed())
+		_, _ = kubectl("delete", "--ignore-not-found", "--wait=true", "--timeout=5m", "-f", path)
+	}
+	_, _ = kubectl("delete", "namespace", operatorNamespace, "--ignore-not-found", "--wait=true", "--timeout=5m")
+	for _, kind := range operatorKinds {
+		_, _ = kubectl("delete", "crd", kind+".stroom.gchq.github.io", "--ignore-not-found", "--wait=false")
+	}
+	// Resources being deleted with the CRDs may still have finalizers
+	removeFinalizers()
+	for _, kind := range operatorKinds {
+		_, _ = kubectl("wait", "--for=delete", "crd/"+kind+".stroom.gchq.github.io", "--timeout=5m")
+	}
+}
+
+// removeFinalizers removes the finalizers from every resource of the operator's kinds
+func removeFinalizers() {
+	for _, kind := range operatorKinds {
 		resources, err := kubectl("get", kind+".stroom.gchq.github.io", "-A", "-o",
 			`jsonpath={range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}`)
 		if err != nil {
@@ -151,18 +182,6 @@ func removeOperator() {
 			_, _ = kubectl("patch", kind+".stroom.gchq.github.io", name, "-n", namespace, "--type=merge",
 				"-p", `{"metadata":{"finalizers":null}}`)
 		}
-	}
-	for _, release := range []string{"stroom-operator", "stroom-operator-crds"} {
-		_, _ = run("helm", "--kube-context", "kind-"+kindCluster, "uninstall", release, "-n", operatorNamespace, "--wait")
-	}
-	if manifests, err := run("bin/kustomize", "build", "config/default"); err == nil {
-		path := filepath.Join(GinkgoT().TempDir(), "operator.yaml")
-		Expect(os.WriteFile(path, []byte(manifests), 0o600)).To(Succeed())
-		_, _ = kubectl("delete", "--ignore-not-found", "--wait=true", "--timeout=5m", "-f", path)
-	}
-	_, _ = kubectl("delete", "namespace", operatorNamespace, "--ignore-not-found", "--wait=true", "--timeout=5m")
-	for _, crd := range []string{"stroomclusters", "databaseservers", "databasebackups", "stroomtaskautoscalers"} {
-		_, _ = kubectl("delete", "crd", crd+".stroom.gchq.github.io", "--ignore-not-found", "--wait=true", "--timeout=5m")
 	}
 }
 
@@ -177,16 +196,4 @@ func restartOperator() {
 	mustKubectl("delete", "pod", "-n", operatorNamespace, "-l", "control-plane=controller-manager", "--wait=true")
 	mustKubectl("rollout", "status", "-n", operatorNamespace, operatorDeployment, "--timeout=5m")
 	waitForCondition(operatorNamespace, operatorDeployment, "condition=Available", defaultTimeout)
-}
-
-// replaceOperatorImage points the operator Deployment at the image under test, without editing the kustomization
-func replaceOperatorImage(manifests string, image string) string {
-	var lines []string
-	for _, line := range strings.Split(manifests, "\n") {
-		if strings.Contains(line, "image: "+operatorRepository+":") {
-			line = line[:strings.Index(line, "image:")] + "image: " + image
-		}
-		lines = append(lines, line)
-	}
-	return strings.Join(lines, "\n")
 }

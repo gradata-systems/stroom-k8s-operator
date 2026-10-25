@@ -78,8 +78,6 @@ Remove the Stroom resources first, then the operator, then the CRDs.
     helm uninstall stroom-operator-crds --namespace stroom-operator-system
     ```
 
-If you installed from the [all-in-one manifest](../installation/manifest.md), do step 1 and then
-`kubectl delete -f all-in-one.yaml`.
 
 !!! danger "Order matters"
     - Deleting the CRDs deletes every resource of those kinds, in every namespace.

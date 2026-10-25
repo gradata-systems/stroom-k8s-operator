@@ -144,12 +144,13 @@ test-e2e: setup-test-e2e manifests generate fmt vet kustomize ## Run the core e2
 	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -ginkgo.label-filter='$(E2E_LABELS)' \
 		-ginkgo.timeout $(E2E_TIMEOUT) -timeout 0; \
 		status=$$?; \
-		if [ "$(E2E_KEEP_CLUSTER)" != "1" ]; then $(MAKE) cleanup-test-e2e; fi; \
+		if [ "$(E2E_KEEP_CLUSTER)" != "1" ]; then $(KIND) delete cluster --name $(KIND_CLUSTER); fi; \
 		exit $$status
+# The recipes don't use $(MAKE), which make runs even with -n, so make -n test-e2e only prints the commands
 
 .PHONY: test-e2e-extended
-test-e2e-extended: ## Run the extended e2e tests, which run nightly.
-	$(MAKE) test-e2e E2E_LABELS=extended
+test-e2e-extended: E2E_LABELS = extended
+test-e2e-extended: test-e2e ## Run the extended e2e tests, which run nightly.
 
 .PHONY: cleanup-test-e2e
 cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
@@ -204,20 +205,6 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile.cross .
 	- $(CONTAINER_TOOL) buildx rm operator-builder
 	rm Dockerfile.cross
-
-.PHONY: build-installer
-build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p dist
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > dist/install.yaml
-
-##@ Build for offline usage
-
-build-offline-bundle: build docker-build docker-push manifests kustomize
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > deploy/all-in-one.yaml
-	# Write a list of images for use in air-gapped environments
-	sh deploy/get-images.sh > deploy/images.txt
 
 ##@ Documentation
 

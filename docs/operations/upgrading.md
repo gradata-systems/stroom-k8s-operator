@@ -23,10 +23,52 @@ kubectl -n stroom-operator-system rollout status deployment/stroom-operator-cont
 
 The CRDs are ordinary templates in the `stroom-operator-crds` chart, so `helm upgrade` updates them.
 
-### With the all-in-one manifest
+### From the all-in-one manifest
 
-Apply the new version's manifest, as in [the installation](../installation/manifest.md#upgrade). Don't delete the old
-one first.
+From 1.2.0 the operator is only published as Helm charts, not as the all-in-one manifest (`deploy/all-in-one.yaml`).
+An operator installed from the manifest moves to Helm without stopping Stroom: label and annotate its resources as
+belonging to the two Helm releases, so that Helm adopts them rather than refusing to install over them, then install
+the charts. The charts' resources have the same names as the manifest's.
+
+!!! danger "Don't delete the manifest's resources"
+    Deleting the manifest (`kubectl delete -f all-in-one.yaml`) deletes the CRDs, and with them every
+    `StroomCluster`, `DatabaseServer`, `DatabaseBackup` and `StroomTaskAutoscaler`.
+
+```shell
+ns=stroom-operator-system
+
+# The CRDs belong to the stroom-operator-crds release
+for crd in stroomclusters databaseservers databasebackups stroomtaskautoscalers; do
+  kubectl annotate --overwrite "crd/$crd.stroom.gchq.github.io" \
+    meta.helm.sh/release-name=stroom-operator-crds meta.helm.sh/release-namespace="$ns"
+  kubectl label --overwrite "crd/$crd.stroom.gchq.github.io" app.kubernetes.io/managed-by=Helm
+done
+
+# The controller and its RBAC belong to the stroom-operator release
+for resource in $(kubectl get clusterroles,clusterrolebindings -o name | grep '/stroom-operator-'); do
+  kubectl annotate --overwrite "$resource" meta.helm.sh/release-name=stroom-operator meta.helm.sh/release-namespace="$ns"
+  kubectl label --overwrite "$resource" app.kubernetes.io/managed-by=Helm
+done
+for resource in serviceaccount/stroom-operator-controller-manager role/stroom-operator-leader-election-role \
+    rolebinding/stroom-operator-leader-election-rolebinding deployment/stroom-operator-controller-manager; do
+  kubectl -n "$ns" annotate --overwrite "$resource" meta.helm.sh/release-name=stroom-operator meta.helm.sh/release-namespace="$ns"
+  kubectl -n "$ns" label --overwrite "$resource" app.kubernetes.io/managed-by=Helm
+done
+
+helm install stroom-operator-crds oci://ghcr.io/gradata-systems/helm-charts/stroom-operator-crds \
+  --namespace "$ns" --version <chart version>
+helm install stroom-operator oci://ghcr.io/gradata-systems/helm-charts/stroom-operator \
+  --namespace "$ns" --version <chart version>
+kubectl -n "$ns" rollout status deployment/stroom-operator-controller-manager
+```
+
+The new operator then reconciles each cluster, as for any upgrade (below). From then on, upgrade with Helm. The
+e2e tests run these commands against an operator installed from the 1.1.5 manifest.
+
+!!! note "The 1.1.5 manifest installs operator 1.1.3"
+    The manifest published with 1.1.5 wasn't regenerated, so it installs the 1.1.3 operator and CRDs. Check which
+    you're running with `kubectl -n stroom-operator-system get deployment stroom-operator-controller-manager
+    -o jsonpath='{.spec.template.spec.containers[0].image}'`. The upgrade notes for 1.2.0 apply either way.
 
 ### What happens to running Stroom clusters
 

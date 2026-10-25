@@ -5,9 +5,10 @@ either Keycloak or Stroom's internal identity provider.
 
 The suites are in two groups, selected by Ginkgo label:
 
-- **core**: run on merge to master. The operator is installed with its Helm charts.
-- **extended**: run nightly. The operator is installed with the kustomize manifests that `deploy/all-in-one.yaml` is
-  built from.
+- **core**: run on merge to master.
+- **extended**: run nightly.
+
+The operator is installed with its Helm charts, except where a suite installs the previous release another way.
 
 ## Running
 
@@ -27,7 +28,7 @@ go test ./test/e2e/ -v -ginkgo.v -ginkgo.focus "external database"   # rerun one
 |---|---|---|
 | `KIND_CLUSTER` | `stroom-operator-e2e` | kind cluster to use |
 | `E2E_LABELS` | `core` | Ginkgo label filter selecting the suites, for `make test-e2e` |
-| `E2E_OPERATOR_TAG` | `e2e` | Tag of the operator image built and tested, as `gradata/stroom-k8s-operator:<tag>` |
+| `E2E_OPERATOR_TAG` | `e2e` | Tag of the operator image built and tested, as `ghcr.io/gradata-systems/stroom-k8s-operator:<tag>` |
 | `E2E_SKIP_BUILD` | | Set to `1` to test an existing operator image |
 | `E2E_PREVIOUS_RELEASE` | `1.1.5` | Operator release the upgrade suite upgrades from |
 | `E2E_STROOM_TAG` | `v7.13.2` | Stroom image tag |
@@ -41,6 +42,7 @@ go test ./test/e2e/ -v -ginkgo.v -ginkgo.focus "external database"   # rerun one
 | Group | Suite | Namespace | What it covers |
 |---|---|---|---|
 | core | Operator upgrade | `stroom-e2e-upgrade` | Running Stroom with the previous operator release, then upgrading the operator with Helm |
+| core | Operator installed from the all-in-one manifest, moved to Helm | `stroom-e2e-manifest` | Installing the previous release from its all-in-one manifest, then moving it to the Helm charts as the upgrade docs describe (`adopt-manifest-install.sh`), keeping the CRDs and a StroomCluster |
 | core | DatabaseServer | `stroom-e2e-db` | MySQL with the `mysql/mysql-server` and official `mysql` images; root password handling; DatabaseBackup |
 | core | External identity provider, operator-managed database | `stroom-e2e-external` | Keycloak, a Stroom user for the operator with only the Manage Nodes, Manage Jobs and Manage Tasks permissions, node start, health check filters, node drain, scaling the node set up and down, an identity provider outage, and deleting the cluster while a node has a processing task |
 | core | External identity provider, external database | `stroom-e2e-external-db` | As above, except scaling and the outage, with a MySQL server not managed by the operator (`external-mysql.yaml`), connected to by address |

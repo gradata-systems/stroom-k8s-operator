@@ -15,10 +15,12 @@ This produces `stroom-operator-crds-<version>.tgz` and `stroom-operator-<version
 
 ## 2. Download the container images
 
-You need the operator image and the images your custom resources reference. The operator image tag is the chart's
-`appVersion` (`helm show chart <chart archive or OCI reference>`).
-[`deploy/images.txt`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/deploy/images.txt) lists
-the image used by the all-in-one manifest, which may lag behind the chart.
+You need the operator image and the images your custom resources reference. To see the operator image a chart
+deploys:
+
+```shell
+helm template ./stroom-operator-<version>.tgz | grep 'image:'
+```
 
 ```shell
 images="
@@ -64,8 +66,7 @@ helm install stroom-operator ./stroom-operator-<version>.tgz \
 ```
 
 The `registry` value replaces the registry in the operator image, giving
-`registry.example.com/gradata-systems/stroom-k8s-operator:<tag>`. If you use the
-[all-in-one manifest](manifest.md) instead, edit its `image:` lines.
+`registry.example.com/gradata-systems/stroom-k8s-operator:<tag>`.
 
 ## 5. Point your resources at the registry
 

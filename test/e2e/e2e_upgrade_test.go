@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -84,6 +85,68 @@ func operatorUpgradeSpecs() {
 		timings := mustKubectl("get", "stroomcluster", "e2e", "-n", namespace, "-o",
 			"jsonpath={.spec.nodeSets[0].startupProbeTimings.failureThreshold} {.spec.nodeSets[0].livenessProbeTimings.failureThreshold}")
 		Expect(timings).To(Equal(values["STARTUP_FAILURE_THRESHOLD"] + " 10"))
+	})
+}
+
+// manifestMigrationSpecs tests moving an operator installed from the previous release's all-in-one manifest to the
+// Helm charts, as docs/operations/upgrading.md describes, with a StroomCluster running. The cluster runs the pause
+// image, as only its resources need to survive.
+func manifestMigrationSpecs() {
+	const namespace = "stroom-e2e-manifest"
+	const pod = "stroom-e2e-node-node-0"
+	uid := func(args ...string) string {
+		return mustKubectl(append([]string{"get", "-o", "jsonpath={.metadata.uid}"}, args...)...)
+	}
+	var uids map[string]string
+
+	BeforeAll(func() {
+		By("installing operator " + previousRelease + " from its all-in-one manifest")
+		removeOperator()
+		deployPreviousReleaseManifest()
+
+		createNamespace(namespace)
+		applyTestData(namespace, "secrets.yaml", keycloakClusterValues(operatorDatabase, namespace))
+		applyTestData(namespace, "database-server.yaml", map[string]string{
+			"DATABASE_SERVER_NAME": "e2e", "MYSQL_REPOSITORY": "mysql/mysql-server", "MYSQL_TAG": "8.0.32",
+		})
+		// The manifest's operator only lets a StroomCluster use a DatabaseServer with the same name, and never deploys
+		// one without a log sender. Its CRD requires https and the log sender's mtlsEnabled.
+		applyTestData(namespace, "stroom-cluster-pause.yaml", map[string]string{
+			"CLUSTER_NAME": "e2e", "DATABASE_SERVER_REF": "{serverRef: {name: e2e}}", "NODE_COUNT": "1",
+			"VOLUME_CLAIM_DELETE_POLICY": "# No volumeClaimDeletePolicy", "HTTPS": "https: {enabled: false}",
+			"LOG_SENDER": "logSender: {enabled: false, mtlsEnabled: false, image: {repository: gchq/stroom-log-sender, tag: " + logSenderTag + "}}",
+		})
+	})
+
+	It("should run a StroomCluster with the operator installed from the manifest", func() {
+		Expect(operatorImage()).To(Equal(previousManifestImage))
+		waitForCondition(namespace, "pod/"+pod, "jsonpath={.status.phase}=Running", defaultTimeout)
+		uids = map[string]string{"stroomcluster": uid("stroomcluster", "e2e", "-n", namespace)}
+		for _, crd := range operatorKinds {
+			uids[crd] = uid("crd", crd+".stroom.gchq.github.io")
+		}
+	})
+
+	It("should move the operator to the Helm charts, keeping the CRDs and the StroomCluster", func() {
+		mustRun("bash", filepath.Join("test", "e2e", "testdata", "adopt-manifest-install.sh"), "kind-"+kindCluster)
+		deployOperatorCharts(filepath.Join(projectDir, "charts"), operatorTag)
+		Expect(operatorImage()).To(Equal(operatorRepository + ":" + operatorTag))
+		for _, release := range []string{"stroom-operator-crds", "stroom-operator"} {
+			Expect(mustRun("helm", "--kube-context", "kind-"+kindCluster, "status", release, "-n", operatorNamespace)).
+				To(ContainSubstring("STATUS: deployed"), release)
+		}
+
+		for _, crd := range operatorKinds {
+			Expect(uid("crd", crd+".stroom.gchq.github.io")).To(Equal(uids[crd]), "the %v CRD should be kept", crd)
+		}
+		Expect(uid("stroomcluster", "e2e", "-n", namespace)).To(Equal(uids["stroomcluster"]))
+
+		// The new operator reconciles the cluster, which rolls its nodes with this release's pod template
+		Eventually(func() string {
+			return mustKubectl("get", "statefulset", "stroom-e2e-node-node", "-n", namespace, "-o",
+				`jsonpath={.spec.template.spec.containers[?(@.name=="stroom-node")].livenessProbe.httpGet.path}`)
+		}, 5*time.Minute, 5*time.Second).Should(HaveSuffix("?allow=deadlocks"))
+		waitForCondition(namespace, "pod/"+pod, "jsonpath={.status.phase}=Running", defaultTimeout)
 	})
 }
 

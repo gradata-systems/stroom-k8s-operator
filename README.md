@@ -4,7 +4,7 @@ Its purpose is to simplify the deployment and operational management of a Stroom
 
 **Documentation: <https://gradata-systems.github.io/stroom-k8s-operator/>**
 
-The documentation covers installation (Helm, all-in-one manifest and air-gapped), configuring a `StroomCluster`, databases and backups, task autoscaling, day-2 operations, troubleshooting and a full CRD reference.
+The documentation covers installation (Helm, including air-gapped), configuring a `StroomCluster`, databases and backups, task autoscaling, day-2 operations, troubleshooting and a full CRD reference.
 
 This project is not related to [stroom-kubernetes](https://github.com/p-kimberley/stroom-kubernetes), which is a Helm chart for deploying a Stroom stack, including optional components like Kafka.
 The purpose of this Operator is to focus on the Stroom deployment and automation. 
@@ -41,10 +41,16 @@ Then follow the [quick start](https://gradata-systems.github.io/stroom-k8s-opera
 # Building
 If you are just looking to install the Operator and don't wish to make any changes, you can skip this section.
 
-This project was built with the Operator SDK, which bundles Kubernetes resource manifests (such as CRDs) and custom code into a deployable format.
-1. Install [Operator SDK](https://sdk.operatorframework.io/docs/installation/) and [additional prerequisites](https://sdk.operatorframework.io/docs/building-operators/golang/installation/)
-2. Clone this repository
-3. `make build-offline-bundle` (optional)`PRIVATE_REGISTRY=my-registry.example.com`
+You need Go (the version in `go.mod`) and Docker. The Makefile downloads the other tools it uses into `bin/`.
+
+```sh
+make build                                   # build the operator binary
+make test                                    # unit and envtest tests
+make docker-build IMG=<registry>/<image>:<tag>   # build the operator image
+make test-e2e                                # end-to-end tests in a kind cluster; see test/e2e/README.md
+```
+
+See [RELEASING.md](RELEASING.md) for how releases are published.
 
 # Documentation
 The documentation source is in [./docs](./docs) and is published with MkDocs Material. If you change the API types in `api/v1`, regenerate the CRD reference with `hack/gen-crd-docs.sh`. See [Contributing to the docs](https://gradata-systems.github.io/stroom-k8s-operator/contributing/).

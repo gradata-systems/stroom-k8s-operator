@@ -51,6 +51,7 @@ const (
 // suites still run. Ginkgo runs the suites in the order they're defined, as they're in the same top-level container.
 var _ = Describe("Stroom operator", Label("core"), func() {
 	Context("Operator upgrade", Ordered, operatorUpgradeSpecs)
+	Context("Operator installed from the all-in-one manifest, moved to Helm", Ordered, manifestMigrationSpecs)
 	Context("DatabaseServer", Ordered, withOperator(databaseServerSpecs))
 	Context("StroomCluster with an external identity provider and an operator-managed database", Ordered,
 		withOperator(externalIdpSpecs(operatorDatabase, "stroom-e2e-external")))
@@ -96,7 +97,7 @@ func databaseServerSpecs() {
 	It("should deploy a StroomCluster without a log sender, and delete it before any node has started", func() {
 		applyTestData(namespace, "stroom-cluster-pause.yaml", map[string]string{
 			"CLUSTER_NAME": "no-log-sender", "DATABASE_SERVER_REF": "{serverRef: {name: oracle}}", "NODE_COUNT": "1",
-			"VOLUME_CLAIM_DELETE_POLICY": "# No volumeClaimDeletePolicy", "LOG_SENDER": noLogSender,
+			"VOLUME_CLAIM_DELETE_POLICY": "# No volumeClaimDeletePolicy", "HTTPS": noHttps, "LOG_SENDER": noLogSender,
 		})
 		Eventually(func() error {
 			_, err := kubectl("get", "statefulset", "-n", namespace, "stroom-no-log-sender-node-node")

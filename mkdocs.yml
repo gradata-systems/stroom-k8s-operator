@@ -98,7 +98,6 @@ nav:
   - Installation:
       - installation/index.md
       - Helm (OCI): installation/helm.md
-      - All-in-one manifest: installation/manifest.md
       - Air-gapped environments: installation/air-gapped.md
   - Configuring a StroomCluster:
       - configuration/index.md

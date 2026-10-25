@@ -10,6 +10,9 @@ for details.
 - **The operator image moves to `ghcr.io/gradata-systems/stroom-k8s-operator`.** Releases up to 1.1.5 remain on
   Docker Hub. The Helm chart's `registry` value now replaces the registry in the new `image.repository` value, so
   mirrors are expected at `<registry>/gradata-systems/stroom-k8s-operator`.
+- **The all-in-one manifest is no longer published.** Install and upgrade with the Helm charts. An operator
+  installed from the manifest moves to Helm without stopping Stroom, by labelling its resources for Helm to adopt;
+  see [Upgrading](https://gradata-systems.github.io/stroom-k8s-operator/operations/upgrading/#from-the-all-in-one-manifest).
 - **Every node set rolls once**, as the Stroom node probes and security settings change.
 - **Database servers restart once**, as their Pod is now updated to match the `DatabaseServer`.
 - **Liveness and readiness probes filter Stroom's health checks** (#62). Liveness runs only the `deadlocks` check, and

@@ -1,1 +1,0 @@
-ghcr.io/gradata-systems/stroom-k8s-operator:1.2.0

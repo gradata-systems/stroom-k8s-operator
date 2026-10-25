@@ -21,6 +21,7 @@ spec:
   ingress:
     hostName: ${CLUSTER_NAME}.e2e.local
   ${VOLUME_CLAIM_DELETE_POLICY}
+  ${HTTPS}
   ${LOG_SENDER}
   podManagementPolicy: Parallel
   nodeTerminationPeriodSecs: 5

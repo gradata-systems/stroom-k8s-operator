@@ -12,8 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// The extended suites run nightly rather than on every merge. They deploy the operator with the kustomize
-// manifests, as deploy/all-in-one.yaml is built, rather than the Helm charts.
+// The extended suites run nightly rather than on every merge
 const (
 	ingressNginxManifest  = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.15.1/deploy/static/provider/kind/deploy.yaml"
 	metricsServerManifest = "https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml"
@@ -23,32 +22,13 @@ const (
 // As for the core suites, each suite is an ordered container, within a container that isn't, so a failing suite
 // doesn't skip the others
 var _ = Describe("Stroom operator, extended", Label("extended"), func() {
-	Context("Operator deployed with the kustomize manifests", Ordered, withManifestOperator(func() {
-		It("should run the operator", func() {
-			Expect(operatorImage()).To(Equal(operatorRepository + ":" + operatorTag))
-		})
-	}))
 	Context("StroomCluster with node roles, HTTPS, an Ingress, the log sender and task autoscaling", Ordered,
-		withManifestOperator(featureSpecs))
-	Context("StroomCluster volume claim delete policies", Ordered, withManifestOperator(volumeClaimDeletePolicySpecs))
-	Context("Operator restarts", Ordered, withManifestOperator(operatorRestartSpecs))
-	Context("Sample deployment with an operator-managed database", Ordered, withManifestOperator(sampleOperatorDatabaseSpecs))
-	Context("Sample deployment with an external database", Ordered, withManifestOperator(sampleExternalDatabaseSpecs))
+		withOperator(featureSpecs))
+	Context("StroomCluster volume claim delete policies", Ordered, withOperator(volumeClaimDeletePolicySpecs))
+	Context("Operator restarts", Ordered, withOperator(operatorRestartSpecs))
+	Context("Sample deployment with an operator-managed database", Ordered, withOperator(sampleOperatorDatabaseSpecs))
+	Context("Sample deployment with an external database", Ordered, withOperator(sampleExternalDatabaseSpecs))
 })
-
-// withManifestOperator installs the current operator with the kustomize manifests before a suite's specs. An operator
-// installed with Helm is removed first, as the two would conflict.
-func withManifestOperator(specs func()) func() {
-	return func() {
-		BeforeAll(func() {
-			if _, err := run("helm", "--kube-context", "kind-"+kindCluster, "status", "stroom-operator", "-n", operatorNamespace); err == nil {
-				removeOperator()
-			}
-			deployOperatorManifests()
-		})
-		specs()
-	}
-}
 
 func featureSpecs() {
 	const namespace = "stroom-e2e-features"
@@ -173,7 +153,7 @@ func volumeClaimDeletePolicySpecs() {
 			}
 			applyTestData(namespace, "stroom-cluster-pause.yaml", map[string]string{
 				"CLUSTER_NAME": cluster, "VOLUME_CLAIM_DELETE_POLICY": policyLine, "NODE_COUNT": "2",
-				"DATABASE_SERVER_REF": sharedDatabase, "LOG_SENDER": noLogSender,
+				"DATABASE_SERVER_REF": sharedDatabase, "HTTPS": noHttps, "LOG_SENDER": noLogSender,
 			})
 		}
 	})
@@ -219,7 +199,7 @@ func operatorRestartSpecs() {
 		deployPauseClusterPrerequisites(namespace)
 		applyTestData(namespace, "stroom-cluster-pause.yaml", map[string]string{
 			"CLUSTER_NAME": cluster, "VOLUME_CLAIM_DELETE_POLICY": "# No volumeClaimDeletePolicy", "NODE_COUNT": "1",
-			"DATABASE_SERVER_REF": "{serverRef: {name: e2e}}", "LOG_SENDER": noLogSender,
+			"DATABASE_SERVER_REF": "{serverRef: {name: e2e}}", "HTTPS": noHttps, "LOG_SENDER": noLogSender,
 		})
 		waitForCondition(namespace, "pod/"+pods[0], "jsonpath={.status.phase}=Running", defaultTimeout)
 	})
