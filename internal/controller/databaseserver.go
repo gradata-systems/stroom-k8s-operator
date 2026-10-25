@@ -115,7 +115,7 @@ func (r *DatabaseServerReconciler) createStatefulSet(dbServer *stroomv1.Database
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: dbServer.Annotations,
+					Annotations: dbServer.Spec.PodAnnotations,
 					Labels:      dbServer.GetLabels(),
 				},
 				Spec: corev1.PodSpec{

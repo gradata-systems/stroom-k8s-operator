@@ -48,7 +48,7 @@ See also [`samples/database-server.yaml`](https://github.com/gradata-systems/str
 | `volumeClaim` | PersistentVolumeClaim spec for the data directory. Use fast, low-latency storage. |
 | `readinessProbeTimings`, `livenessProbeTimings` | Probe timings. If omitted, Kubernetes' probe defaults apply. |
 | `podSecurityContext`, `securityContext`, `nodeSelector`, `tolerations`, `affinity` | Pod settings. |
-| `podAnnotations` | Currently ignored: the database Pod gets the `DatabaseServer`'s own `metadata.annotations` instead. |
+| `podAnnotations` | Annotations for the database Pod. |
 
 ### Connection limit
 
@@ -105,19 +105,27 @@ and the operator connect as `stroomuser`, which is granted all privileges on eac
 
 ## Changing a DatabaseServer
 
-The operator creates the Secret, ConfigMaps, StatefulSet and Service when the `DatabaseServer` is first
-reconciled, and doesn't update them afterwards. Changing the `DatabaseServer` (for example its image, resources or
-`additionalConfig`) has no effect on the running server.
+Changes to a `DatabaseServer`'s image, resources, probe timings, Pod settings and `additionalConfig` are applied
+to the running server. Changing anything in its Pod restarts MySQL, so Stroom loses its database connection
+briefly; plan changes for a quiet period. A change to `additionalConfig` alone updates the configuration, which
+MySQL reads when it next starts.
 
-To apply a change:
+Some changes need more:
 
-1. [Delete the `StroomCluster`](../operations/stopping-and-removal.md#stopping-a-stroom-cluster), which drains it.
-2. Delete the `DatabaseServer`. Its PersistentVolumeClaim (`data-stroom-<name>-db-0`) and Secret are kept.
-3. Apply the changed `DatabaseServer`. The new server reuses the existing volume and Secret.
-4. Apply the `StroomCluster` again.
+- **`volumeClaim`.** Kubernetes doesn't allow a StatefulSet's volume claim template to change, so the operator
+  keeps the original. To change it, delete the `DatabaseServer` (its PersistentVolumeClaim
+  `data-stroom-<name>-db-0` and Secret are kept), resize or replace the volume claim yourself, and apply the
+  `DatabaseServer` again.
+- **`databaseNames`.** The databases are created when MySQL first initialises its data directory. Adding a name
+  later doesn't create the database; create it, and grant `stroomuser` access to it, yourself.
+- **The passwords.** The generated Secret is never changed by the operator.
 
-Take a [backup](backups.md) first. Upgrading MySQL to a new major or minor version also needs the usual MySQL
-upgrade checks.
+Take a [backup](backups.md) before changing the image. Upgrading MySQL to a new major or minor version also needs
+the usual MySQL upgrade checks.
+
+!!! note "Operator 1.1.5 and earlier"
+    Earlier versions created these resources once and didn't update them afterwards. After upgrading the operator,
+    the database server's Pod is updated to match the `DatabaseServer`, which restarts MySQL once.
 
 ## Deleting a DatabaseServer
 
