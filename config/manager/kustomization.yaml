@@ -7,4 +7,4 @@ generatorOptions:
 images:
 - name: controller
   newName: ghcr.io/gradata-systems/stroom-k8s-operator
-  newTag: 1.2.0
+  newTag: 1.2.0-beta.1
