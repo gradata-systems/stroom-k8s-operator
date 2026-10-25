@@ -28,6 +28,8 @@ go test ./test/e2e/ -v -ginkgo.v -ginkgo.focus "external database"   # rerun one
 |---|---|---|
 | `KIND_CLUSTER` | `stroom-operator-e2e` | kind cluster to use |
 | `E2E_LABELS` | `core` | Ginkgo label filter selecting the suites, for `make test-e2e` |
+| `E2E_FOCUS` | | Regular expression: only run the specs whose names match it, for `make test-e2e` |
+| `E2E_DIAGNOSTICS_DIR` | | Directory to save each failed suite's namespace to (resources, events, pod descriptions and logs) before it's deleted |
 | `E2E_OPERATOR_TAG` | `e2e` | Tag of the operator image built and tested, as `ghcr.io/gradata-systems/stroom-k8s-operator:<tag>` |
 | `E2E_SKIP_BUILD` | | Set to `1` to test an existing operator image |
 | `E2E_PREVIOUS_RELEASE` | `1.1.5` | Operator release the upgrade suite upgrades from |

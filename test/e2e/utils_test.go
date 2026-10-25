@@ -84,11 +84,42 @@ func createNamespace(namespace string) {
 	_, _ = kubectl("delete", "namespace", namespace, "--ignore-not-found", "--wait=true", "--timeout=10m")
 	mustKubectl("create", "namespace", namespace)
 	DeferCleanup(func() {
+		if CurrentSpecReport().Failed() {
+			saveDiagnostics(namespace)
+		}
 		if os.Getenv("E2E_KEEP_NAMESPACES") == "1" {
 			return
 		}
 		_, _ = kubectl("delete", "namespace", namespace, "--wait=true", "--timeout=10m")
 	})
+}
+
+// saveDiagnostics writes a namespace's resources, events, pod descriptions and logs to a directory under
+// E2E_DIAGNOSTICS_DIR, if it's set, before the namespace is deleted
+func saveDiagnostics(namespace string) {
+	root := os.Getenv("E2E_DIAGNOSTICS_DIR")
+	if root == "" {
+		return
+	}
+	dir := filepath.Join(root, namespace)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		_, _ = fmt.Fprintf(GinkgoWriter, "saving diagnostics: %v\n", err)
+		return
+	}
+	save := func(file string, args ...string) {
+		output, _ := kubectl(append([]string{"-n", namespace}, args...)...)
+		_ = os.WriteFile(filepath.Join(dir, file), []byte(output), 0o644)
+	}
+	save("resources.txt", "get", "all,pvc,configmaps,secrets", "-o", "wide")
+	save("events.txt", "get", "events", "--sort-by=.lastTimestamp")
+	save("stroom-resources.yaml", "get", strings.Join(operatorKinds, ","), "-o", "yaml")
+	save("pods.txt", "describe", "pods")
+	pods, _ := kubectl("get", "pods", "-n", namespace, "-o", "jsonpath={.items[*].metadata.name}")
+	for _, pod := range strings.Fields(pods) {
+		save("logs-"+pod+".txt", "logs", pod, "--all-containers", "--prefix")
+		save("logs-previous-"+pod+".txt", "logs", pod, "--all-containers", "--prefix", "--previous")
+	}
+	_, _ = fmt.Fprintf(GinkgoWriter, "saved diagnostics for namespace %v to %v\n", namespace, dir)
 }
 
 // podRestartCount returns the restart count of a pod's stroom-node container

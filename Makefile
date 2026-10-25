@@ -124,6 +124,8 @@ KIND_CLUSTER ?= stroom-operator-e2e
 E2E_TIMEOUT ?= 180m
 # Ginkgo label filter selecting the suites to run: core (on merge) or extended (nightly)
 E2E_LABELS ?= core
+# Optional regular expression: only run the specs whose names match it
+E2E_FOCUS ?=
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
@@ -142,7 +144,7 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 test-e2e: setup-test-e2e manifests generate fmt vet kustomize ## Run the core e2e tests. Expected an isolated environment using Kind.
 	# Ginkgo's own suite timeout, an hour by default, applies as well as go test's, which is disabled
 	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -ginkgo.label-filter='$(E2E_LABELS)' \
-		-ginkgo.timeout $(E2E_TIMEOUT) -timeout 0; \
+		-ginkgo.focus='$(E2E_FOCUS)' -ginkgo.timeout $(E2E_TIMEOUT) -timeout 0; \
 		status=$$?; \
 		if [ "$(E2E_KEEP_CLUSTER)" != "1" ]; then $(KIND) delete cluster --name $(KIND_CLUSTER); fi; \
 		exit $$status

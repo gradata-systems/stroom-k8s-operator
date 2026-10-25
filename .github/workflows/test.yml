@@ -12,6 +12,9 @@ on:
       e2e-labels:
         description: e2e suites to run (Ginkgo label filter), e.g. core, extended or core || extended
         default: core
+      e2e-focus:
+        description: Only run e2e specs whose names match this regular expression (optional)
+        default: ""
 
 permissions:
   contents: read
@@ -50,6 +53,9 @@ jobs:
       KIND_CLUSTER: stroom-operator-e2e
       E2E_STROOM_NODES: "2"
       E2E_LABELS: ${{ github.event_name == 'schedule' && 'extended' || inputs.e2e-labels || 'core' }}
+      E2E_FOCUS: ${{ inputs.e2e-focus }}
+      # Each failed suite's namespace is saved here before it's deleted
+      E2E_DIAGNOSTICS_DIR: ${{ github.workspace }}/diagnostics
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -66,7 +72,7 @@ jobs:
         with:
           cluster_name: ${{ env.KIND_CLUSTER }}
       - name: Test
-        run: E2E_KEEP_CLUSTER=1 make test-e2e E2E_LABELS="$E2E_LABELS"
+        run: E2E_KEEP_CLUSTER=1 make test-e2e E2E_LABELS="$E2E_LABELS" E2E_FOCUS="$E2E_FOCUS"
       - name: Collect diagnostics
         if: failure()
         run: |
