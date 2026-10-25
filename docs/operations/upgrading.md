@@ -1,0 +1,119 @@
+# Upgrading
+
+## Upgrading the operator
+
+### With Helm
+
+Upgrade the CRDs first, so that any new fields and defaults are in place before the new controller starts, then
+the operator. Use the same chart version for both:
+
+```shell
+version=<chart version>
+
+helm upgrade stroom-operator-crds \
+  oci://ghcr.io/gradata-systems/helm-charts/stroom-operator-crds \
+  --namespace stroom-operator-system --version "$version"
+
+helm upgrade stroom-operator \
+  oci://ghcr.io/gradata-systems/helm-charts/stroom-operator \
+  --namespace stroom-operator-system --version "$version" --reuse-values
+
+kubectl -n stroom-operator-system rollout status deployment/stroom-operator-controller-manager
+```
+
+The CRDs are ordinary templates in the `stroom-operator-crds` chart, so `helm upgrade` updates them.
+
+### With the all-in-one manifest
+
+Apply the new version's manifest, as in [the installation](../installation/manifest.md#upgrade). Don't delete the old
+one first.
+
+### What happens to running Stroom clusters
+
+Replacing the operator Pod doesn't stop Stroom. However, once the new operator starts, it reconciles every
+`StroomCluster`, and if the new version generates different Pods (new environment variables, volume mounts or
+probe settings, for example), **each node set is rolled**, one node at a time, with each node drained first. Read
+the release notes and plan operator upgrades for a quiet period.
+
+To check which operator version is running:
+
+```shell
+kubectl -n stroom-operator-system get deployment stroom-operator-controller-manager \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+```
+
+If the new operator Pod fails to start, the old one keeps running until it does.
+
+## Upgrading Stroom
+
+1. Read the Stroom release notes for the target version, particularly for database migrations and configuration
+   changes. If you use your own configuration, update it first.
+2. [Back up](../database/backups.md) the database.
+3. If the upgrade includes a long database migration, raise the
+   [startup probe's `failureThreshold`](../configuration/health-probes.md#allowing-for-long-upgrades) in the same
+   change.
+4. Change `spec.image.tag` and apply the manifest:
+
+    ```shell
+    kubectl apply -f stroom-cluster.yaml
+    kubectl -n stroom rollout status statefulset/stroom-dev-node-data
+    kubectl -n stroom rollout status statefulset/stroom-dev-node-ui
+    ```
+
+The operator updates each node set's StatefulSet, and Kubernetes replaces the nodes one at a time, starting from
+the highest ordinal. Each node is drained before it stops, and the next node isn't replaced until the new one is
+`Ready`. The first node on the new version migrates the database.
+
+!!! warning "Mixed versions during a rolling upgrade"
+    While the rollout is in progress, nodes on the old and new versions run side by side against the migrated
+    database. That's normally fine for patch releases. For upgrades between minor versions, check the Stroom
+    release notes; if they advise against mixed versions, stop the cluster first (see
+    [Stopping and removal](stopping-and-removal.md#stopping-a-stroom-cluster)), change the image, and start it
+    again.
+
+## Upgrade notes
+
+### Probe changes
+
+The release after operator 1.1.5 changes the Stroom node probes. See [Health probes](../configuration/health-probes.md)
+for the full description. Applying the upgrade rolls every node set, because the probes are part of the Pod
+template.
+
+**Liveness and readiness filters.** The liveness probe now runs only the `deadlocks` health check, and the
+readiness probe runs every check except `stroom.security.common.impl.ExternalIdpConfigurationProvider`. Previously
+both ran every check, so an outage of the IdP or database could fail liveness on every node and restart the whole
+cluster. Existing `StroomCluster`s pick up the new defaults automatically, because the `allow` and `deny` fields are
+new. If you relied on the old behaviour, set `livenessProbeTimings.allow: []` (see the
+[caveat](../configuration/health-probes.md#examples) about empty lists).
+
+**`periodSeconds`.** Previously the readiness and liveness probes took their period from `initialDelaySeconds`,
+and `periodSeconds` had no effect. It's now honoured. With the default values (both 5) nothing changes; if you set
+either, check that the resulting timings are what you want.
+
+**Startup probe default.** The default startup `failureThreshold` rises from 10 to 24 (about two minutes instead
+of 50 seconds), and the new `lockWaitAllowanceSeconds` (default 30) extends it for `Parallel` node sets.
+
+!!! warning "Existing clusters keep `failureThreshold: 10`"
+    The Kubernetes API server stores defaulted values, so a `StroomCluster` created with an earlier version has
+    `startupProbeTimings.failureThreshold: 10` saved in it, even if your manifest never mentioned it. It keeps that
+    value after the upgrade. Check:
+
+    ```shell
+    kubectl -n stroom get stroomcluster dev \
+      -o jsonpath='{range .spec.nodeSets[*]}{.name}: {.startupProbeTimings.failureThreshold}{"\n"}{end}'
+    ```
+
+    To adopt the new default, set it explicitly in your manifest (`failureThreshold: 24`) and apply, or patch
+    each node set by index:
+
+    ```shell
+    kubectl -n stroom patch stroomcluster dev --type=json \
+      -p '[{"op": "replace", "path": "/spec/nodeSets/0/startupProbeTimings/failureThreshold", "value": 24}]'
+    ```
+
+**Scaling `Parallel` node sets.** Under `podManagementPolicy: Parallel`, changing a node set's `count` now changes
+its startup probe, so scaling also rolls the node set's existing nodes.
+
+**Draining.** The `preStop` drain no longer treats a failed task list request as "no tasks". It keeps retrying
+until the node has no active tasks or the termination grace period runs out. See
+[Node lifecycle](node-lifecycle.md#stopping).

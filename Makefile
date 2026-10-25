@@ -218,6 +218,20 @@ build-offline-bundle: build docker-build docker-push manifests kustomize
 	# Write a list of images for use in air-gapped environments
 	sh deploy/get-images.sh > deploy/images.txt
 
+##@ Documentation
+
+.PHONY: crd-docs
+crd-docs: ## Generate the CRD reference (docs/reference/api.md) from api/v1.
+	LOCALBIN=$(LOCALBIN) bash hack/gen-crd-docs.sh
+
+.PHONY: docs
+docs: crd-docs ## Build the docs site (needs: pip install -r docs/requirements.txt).
+	mkdocs build --strict
+
+.PHONY: docs-serve
+docs-serve: crd-docs ## Preview the docs at http://127.0.0.1:8000/.
+	mkdocs serve
+
 ##@ Build Helm chart
 
 build-helm-chart: build manifests kustomize

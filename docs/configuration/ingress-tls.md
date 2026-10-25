@@ -1,0 +1,109 @@
+# Ingress and TLS
+
+## Ingress settings
+
+```yaml
+spec:
+  ingress:
+    hostName: stroom.example.com   # public DNS name (required)
+    className: nginx               # IngressClass to use; always set this
+    secretName: stroom-tls         # TLS Secret for the Ingress; used only when spec.https is set
+    pathTypeOverride: false        # true: use pathType ImplementationSpecific for every path
+```
+
+`hostName` is also passed to Stroom as its public host name (`API_GATEWAY_HOST`), with port 443. If your public
+port differs, set `API_GATEWAY_PORT` in [`extraEnv`](stroom-config.md#extra-environment-variables).
+
+## Routing
+
+The operator creates up to two Ingresses for the cluster, from the node sets whose `ingressEnabled` is `true` (the
+default):
+
+| Ingress | Created for | Path | Routed to |
+| --- | --- | --- | --- |
+| `stroom-<cluster>` | A node set with role `Frontend` or no role | `/stroom/noauth/datafeed` (exact) | The first node set that isn't `Frontend` |
+| | | `/` (prefix) | That node set |
+| `stroom-<cluster>-datafeed` | A node set with role `Processing` or no role | `/stroom/datafeeddirect` (exact), rewritten to `/stroom/noauth/datafeed` | That node set |
+
+So with `Processing` and `Frontend` node sets, event data posted to `https://<host>/stroom/datafeeddirect` or
+`https://<host>/stroom/noauth/datafeed` goes to the processing nodes, and everything else goes to the frontend
+nodes.
+
+!!! note "Other datafeed paths"
+    Only the two paths above are routed to processing nodes. Data posted to any other receipt path, for example
+    `/stroom/datafeed`, matches the `/` rule and is received by a frontend node. Point data senders at
+    `/stroom/datafeeddirect`.
+
+### Default annotations
+
+The operator adds these annotations, intended for [ingress-nginx](https://kubernetes.github.io/ingress-nginx/):
+
+| Ingress | Annotation | Value |
+| --- | --- | --- |
+| `stroom-<cluster>` | `nginx.ingress.kubernetes.io/backend-protocol` | `HTTPS` if `spec.https` is set, otherwise `HTTP` |
+| | `nginx.ingress.kubernetes.io/affinity` | `cookie` (sticky sessions for the UI) |
+| | `nginx.ingress.kubernetes.io/affinity-mode` | `persistent` |
+| | `nginx.ingress.kubernetes.io/proxy-body-size` | `0` (no request size limit) |
+| `stroom-<cluster>-datafeed` | `nginx.ingress.kubernetes.io/rewrite-target` | `/stroom/noauth/datafeed` |
+| | `haproxy.router.openshift.io/rewrite-target` | `/stroom/noauth/datafeed` |
+| | `nginx.ingress.kubernetes.io/proxy-body-size` | `0` |
+
+The datafeed Ingress has no `backend-protocol` annotation. If you set `spec.https`, add
+`nginx.ingress.kubernetes.io/backend-protocol: HTTPS` to the processing node set's `ingressAnnotations`.
+
+Add or override annotations and labels per node set. They apply to the Ingresses created for that node set:
+
+```yaml
+    - name: ui
+      role: Frontend
+      ingressAnnotations:
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      ingressLabels:
+        team: data-platform
+```
+
+### Other Ingress controllers
+
+With a controller other than ingress-nginx, use `ingressAnnotations` to configure the equivalent behaviour:
+rewriting `/stroom/datafeeddirect` to `/stroom/noauth/datafeed`, the backend protocol, unlimited request bodies and
+sticky sessions for the user interface. If your controller needs `pathType: ImplementationSpecific` (for example to
+interpret paths as regular expressions), set `ingress.pathTypeOverride: true`.
+
+## TLS at the Ingress
+
+When `spec.https` is set, each Ingress has a TLS section for `ingress.hostName` using the Secret
+`ingress.secretName`, a standard `kubernetes.io/tls` Secret with `tls.crt` and `tls.key`.
+
+When `spec.https` isn't set, `ingress.secretName` is ignored and the Ingresses have an empty TLS entry, so the
+certificate served depends on your Ingress controller's defaults (ingress-nginx, for example, serves its default
+certificate).
+
+## HTTPS inside the cluster
+
+`spec.https` makes the Stroom nodes serve HTTPS on port 8443, and the Ingress connects to them over HTTPS:
+
+```yaml
+spec:
+  https:
+    tlsSecretName: stroom-node-tls
+    tlsKeystorePasswordSecret:
+      secretName: stroom-keystore
+      key: password
+```
+
+| Field | Contents |
+| --- | --- |
+| `tlsSecretName` | A Secret containing `tls.crt` (the server certificate), `tls.key` (its private key) and `ca.crt` (the CA certificate). A Secret issued by cert-manager has this layout. |
+| `tlsKeystorePasswordSecret` | The Secret name and key holding the password for the generated keystore and truststore. |
+
+An init container (`generate-keystore`) converts the certificate into PKCS#12 files, `keystore.p12` (the
+certificate and key) and `truststore.p12` (the CA), in a Pod-local volume mounted at `/stroom/pki/tls`. The bundled
+Stroom configuration reads them from there.
+
+The keystore is built when the Pod starts. After the certificate is renewed, restart the nodes so they pick it up.
+See [Rolling restarts](../operations/node-lifecycle.md#rolling-restarts).
+
+!!! warning "The bundled configuration expects `spec.https`"
+    The bundled Stroom configuration always defines an HTTPS connector that reads `/stroom/pki/tls/keystore.p12`,
+    which only exists when `spec.https` is set. If you don't set `spec.https`, supply your own configuration with
+    the HTTPS connector removed. See [Stroom configuration](stroom-config.md).

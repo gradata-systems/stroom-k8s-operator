@@ -1,0 +1,131 @@
+# Operator-managed DatabaseServer
+
+A `DatabaseServer` is a single-instance MySQL 8 server that the operator runs for one `StroomCluster`. The
+operator generates its passwords and creates the Stroom databases. It suits evaluation and smaller deployments.
+For production, consider an [external database](external-database.md) with replication and managed backups:
+a `DatabaseServer` has one replica and no failover.
+
+## Create a DatabaseServer
+
+```yaml
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseServer
+metadata:
+  name: dev
+  namespace: stroom
+spec:
+  image:
+    repository: mysql
+    tag: "8.4"
+  databaseNames:
+    - stroom
+    - stats
+  additionalConfig:
+    - max_connections=1000
+  resources:
+    requests:
+      cpu: "1"
+      memory: 4Gi
+    limits:
+      memory: 4Gi
+  volumeClaim:
+    storageClassName: fast-ssd
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 100Gi
+```
+
+See also [`samples/database-server.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/database-server.yaml).
+
+| Field | Description |
+| --- | --- |
+| `image` | A MySQL 8 server image. The operator relies on the image's standard entrypoint (`MYSQL_USER`, `MYSQL_PASSWORD` and `/docker-entrypoint-initdb.d`). |
+| `databaseNames` | Databases to create on first start. Include the `StroomCluster`'s `appDatabaseName` and `statsDatabaseName` (by default `stroom` and `stats`). |
+| `additionalConfig` | Lines appended to the `[mysqld]` section of `/etc/my.cnf`. |
+| `resources` | Container requests and limits. |
+| `volumeClaim` | PersistentVolumeClaim spec for the data directory. Use fast, low-latency storage. |
+| `readinessProbeTimings`, `livenessProbeTimings` | Probe timings. If omitted, Kubernetes' probe defaults apply. |
+| `podSecurityContext`, `securityContext`, `nodeSelector`, `tolerations`, `affinity` | Pod settings. |
+| `podAnnotations` | Currently ignored: the database Pod gets the `DatabaseServer`'s own `metadata.annotations` instead. |
+
+### Connection limit
+
+MySQL allows 151 connections by default. Each Stroom node opens connection pools to both databases, and the
+operator also connects, so a cluster of more than a few nodes can exceed the default. Set `max_connections` in
+`additionalConfig`, with headroom.
+
+## Deploy and check
+
+```shell
+kubectl apply -f database-server.yaml
+kubectl -n stroom get databaseserver dev
+kubectl -n stroom logs stroom-dev-db-0 -f
+```
+
+The `State` column shows `Deployed` once the operator has created the database objects. The Pod is
+`stroom-<name>-db-0` and the server is reachable in the cluster at
+`stroom-<name>-db-headless.<namespace>.svc.cluster.local:3306`.
+
+## Connect a StroomCluster
+
+```yaml
+spec:
+  databaseServerRef:
+    serverRef:
+      name: dev
+      # namespace: stroom   # defaults to the StroomCluster's namespace
+```
+
+A `DatabaseServer` can serve only one `StroomCluster`. The first cluster to reference it claims it. A second
+cluster referencing it fails to reconcile, with the error `DatabaseServer ... already claimed by StroomCluster ...`
+in the operator log.
+
+While a `StroomCluster` uses it, the `DatabaseServer` can't be deleted: the deletion waits until the cluster has
+gone.
+
+!!! warning "Known issue: give the DatabaseServer the same name as the StroomCluster"
+    The operator currently records the claim using the `DatabaseServer`'s own name rather than the cluster's. If
+    the two names differ, the owning cluster fails its own claim on a later reconcile (`already claimed`), and the
+    deletion safeguard doesn't work. Until this is fixed, name the `DatabaseServer` and the `StroomCluster` the
+    same, as in the examples (`dev`).
+
+## Credentials
+
+The operator generates a Secret, `stroom-<name>-db`, with passwords under the keys `root` and `stroomuser`. Stroom
+and the operator connect as `stroomuser`, which is granted all privileges on each of `databaseNames`.
+
+!!! warning "Back up this Secret"
+    The Secret isn't deleted with the `DatabaseServer`, but if it's lost the data can't be reached with the
+    generated credentials. Keep a copy somewhere secure:
+
+    ```shell
+    kubectl -n stroom get secret stroom-dev-db -o yaml > stroom-dev-db-secret.yaml
+    ```
+
+## Changing a DatabaseServer
+
+The operator creates the Secret, ConfigMaps, StatefulSet and Service when the `DatabaseServer` is first
+reconciled, and doesn't update them afterwards. Changing the `DatabaseServer` (for example its image, resources or
+`additionalConfig`) has no effect on the running server.
+
+To apply a change:
+
+1. [Delete the `StroomCluster`](../operations/stopping-and-removal.md#stopping-a-stroom-cluster), which drains it.
+2. Delete the `DatabaseServer`. Its PersistentVolumeClaim (`data-stroom-<name>-db-0`) and Secret are kept.
+3. Apply the changed `DatabaseServer`. The new server reuses the existing volume and Secret.
+4. Apply the `StroomCluster` again.
+
+Take a [backup](backups.md) first. Upgrading MySQL to a new major or minor version also needs the usual MySQL
+upgrade checks.
+
+## Deleting a DatabaseServer
+
+```shell
+kubectl -n stroom delete databaseserver dev
+```
+
+If a `StroomCluster` still uses it, the command waits (press ++ctrl+c++ to stop waiting; the deletion continues in
+the background) until that cluster is deleted. The data volume claim and the Secret are kept. Delete them yourself
+if you no longer need the data.

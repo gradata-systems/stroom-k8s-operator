@@ -1,0 +1,96 @@
+# Database backups
+
+A `DatabaseBackup` runs `mysqldump` on a schedule, as a Kubernetes CronJob, and writes compressed dumps to a volume
+you provide.
+
+!!! warning "Known issue: CronJob lookup on Kubernetes 1.25 and later"
+    The `DatabaseBackup` controller looks up its CronJob through the `batch/v1beta1` API, which was removed in
+    Kubernetes 1.25. On such clusters the lookup fails, and the CronJob may never be created. Check that
+    `kubectl -n <namespace> get cronjob stroom-<name>-db-backup` exists after you create a `DatabaseBackup`, and
+    watch the operator log for errors. Until this is fixed, you can create an equivalent CronJob yourself, using the
+    command described under [What a backup contains](#what-a-backup-contains).
+
+## Create a DatabaseBackup
+
+```yaml
+apiVersion: stroom.gchq.github.io/v1
+kind: DatabaseBackup
+metadata:
+  name: dev
+  namespace: stroom
+spec:
+  image:
+    repository: mysql
+    tag: "8.4"
+  schedule: "0 2 * * *"           # every day at 02:00
+  databaseServerRef:
+    serverRef:
+      name: dev
+  databaseNames:
+    - stroom
+    - stats
+  volume:
+    nfs:
+      server: backup.example.com
+      path: /exports/stroom-backups
+```
+
+See also [`samples/database-backup.yaml`](https://github.com/gradata-systems/stroom-k8s-operator/blob/master/samples/database-backup.yaml).
+
+| Field | Description |
+| --- | --- |
+| `image` | An image with `bash`, `mysqldump` and `gzip`. A MySQL server image of the same version as the server works. |
+| `schedule` | A [cron schedule](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax). |
+| `databaseServerRef` | A `DatabaseServer` (`serverRef`) or an external server (`serverAddress` and `userName`), as for a [`StroomCluster`](external-database.md#3-reference-the-server). If both are set, `serverRef` is used. |
+| `databaseNames` | Databases to back up. If omitted, all databases are backed up (`--all-databases`). |
+| `volume` | Any Kubernetes [volume source](https://kubernetes.io/docs/concepts/storage/volumes/), such as `nfs` or `persistentVolumeClaim`, where the dumps are written. |
+
+```shell
+kubectl apply -f database-backup.yaml
+kubectl -n stroom get cronjob stroom-dev-db-backup
+```
+
+To run a backup now, outside the schedule:
+
+```shell
+kubectl -n stroom create job --from=cronjob/stroom-dev-db-backup stroom-dev-db-backup-manual
+kubectl -n stroom logs -f job/stroom-dev-db-backup-manual
+```
+
+## What a backup contains
+
+Each run connects as the database user (by default `stroomuser`, with the password from the database Secret) and
+runs:
+
+```shell
+mysqldump --single-transaction --no-tablespaces --databases stroom stats | gzip > "<file>"
+```
+
+The file is written to `<volume>/<YYYY-MM>/<backup name>_<YYYY-MM-DD_HH-MM-SS>.sql.gz` and made read-only. Runs
+never overlap (`concurrencyPolicy: Forbid`), and finished Job Pods are removed after five minutes, so check the
+outcome soon after a run, or rely on your monitoring.
+
+Things to bear in mind:
+
+- **No retention.** Old backups are never deleted. Prune the backup volume yourself.
+- **Consistency.** `--single-transaction` gives a consistent snapshot without locking tables, but conflicts with
+  schema changes. Don't upgrade Stroom, which may migrate the schema, while a backup is running.
+- **Changes aren't applied.** The operator creates the CronJob once. To change the schedule or anything else,
+  delete the `DatabaseBackup` and create it again.
+- **The Secret.** The dumps don't include the database Secret. Back it up separately; see
+  [Credentials](database-server.md#credentials).
+
+## Restoring a backup
+
+A restore replaces the contents of the Stroom databases. Test the procedure before you need it.
+
+1. Stop Stroom: [delete the `StroomCluster`](../operations/stopping-and-removal.md#stopping-a-stroom-cluster) and wait
+   for it to go.
+2. Load the dump into the database server. For an operator-managed `DatabaseServer`:
+
+    ```shell
+    gunzip -c dev_2026-10-25_02-00-00.sql.gz | \
+      kubectl -n stroom exec -i stroom-dev-db-0 -- sh -c 'mysql -u stroomuser -p"$MYSQL_PASSWORD"'
+    ```
+
+3. Apply the `StroomCluster` again.
