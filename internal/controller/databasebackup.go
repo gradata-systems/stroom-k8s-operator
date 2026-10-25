@@ -18,10 +18,12 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 	const fileDatePattern = "%Y-%m-%d_%H-%M-%S"
 
 	archiveFileName := fmt.Sprintf("$(date +'%v_%v.sql.gz')", dbBackup.Name, fileDatePattern)
-	backupDirectory := path.Join(targetDirectory, "$(date +'%Y-%m')") // Subdirectory in the format YYYY-MM
+	// Subdirectory in the format YYYY-MM. BACKUP_ROOT is only set by tests.
+	backupDirectory := path.Join("${BACKUP_ROOT:-"+targetDirectory+"}", "$(date +'%Y-%m')")
 	archivePath := path.Join(backupDirectory, archiveFileName)
 
-	mysqlDumpCommand := "mysqldump --user=${MYSQL_USER} --password=${MYSQL_PASSWORD} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces"
+	// The password is in MYSQL_PWD, which mysqldump reads, as arguments are visible to other processes
+	mysqlDumpCommand := "mysqldump --user=${MYSQL_USER} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces"
 	plainTextDatabaseList := ""
 	databaseNames := dbBackup.Spec.DatabaseNames
 	if len(databaseNames) > 0 {
@@ -68,14 +70,19 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 								Command: []string{
 									"bash",
 									"-c",
-									fmt.Sprintf("archivePath=\"%v\"", archivePath) + "\n" +
+									// Without pipefail, a failed dump would leave an empty archive and report success
+									"set -o pipefail\n" +
+										fmt.Sprintf("backupDirectory=\"%v\"", backupDirectory) + "\n" +
+										fmt.Sprintf("archivePath=\"%v\"", archivePath) + "\n" +
 										fmt.Sprintf("echo \"Backing up \"%v\" to: $archivePath\"", shellQuote(plainTextDatabaseList)) + "\n" +
-										fmt.Sprintf("mkdir -p %v", backupDirectory) + "\n" +
-										fmt.Sprintf("%v | gzip > \"$archivePath\"", mysqlDumpCommand) + "\n" +
-										"if [ -f \"$archivePath\" ]; then\n" +
-										"  chmod 444 \"$archivePath\"\n" +
-										"  echo \"Backup successful\"\n" +
-										"fi",
+										"mkdir -p \"$backupDirectory\" || exit 1\n" +
+										fmt.Sprintf("if ! %v | gzip > \"$archivePath\"; then\n", mysqlDumpCommand) +
+										"  rm -f \"$archivePath\"\n" +
+										"  echo \"Backup failed\" >&2\n" +
+										"  exit 1\n" +
+										"fi\n" +
+										"chmod 444 \"$archivePath\"\n" +
+										"echo \"Backup successful\"",
 								},
 								Env: []corev1.EnvVar{{
 									Name:  "MYSQL_HOST",
@@ -87,7 +94,7 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 									Name:  "MYSQL_USER",
 									Value: dbInfo.UserName,
 								}, {
-									Name: "MYSQL_PASSWORD",
+									Name: "MYSQL_PWD",
 									ValueFrom: &corev1.EnvVarSource{
 										SecretKeyRef: &corev1.SecretKeySelector{
 											LocalObjectReference: corev1.LocalObjectReference{

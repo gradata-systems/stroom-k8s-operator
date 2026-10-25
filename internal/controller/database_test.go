@@ -95,5 +95,57 @@ var _ = Describe("Database resources", func() {
 			Expect(newCronJobCommand("$(id)")).To(ContainSubstring(`--databases '$(id)'`))
 			Expect(newCronJobCommand("$(id)")).To(ContainSubstring(`echo "Backing up "'databases ($(id))'" to: $archivePath"`))
 		})
+
+		Context("backup command", func() {
+			// runBackup runs the backup command against a fake mysqldump, which records its arguments and exits with
+			// the given status, returning the command's output and the backup directory
+			runBackup := func(mysqldumpExitStatus int) (string, string, error) {
+				for _, tool := range []string{"bash", "gzip"} {
+					if _, err := exec.LookPath(tool); err != nil {
+						Skip(tool + " is required to run the backup command")
+					}
+				}
+				root := GinkgoT().TempDir()
+				bin := filepath.Join(root, "bin")
+				Expect(os.MkdirAll(bin, 0o755)).To(Succeed())
+				fakeMysqldump := fmt.Sprintf("#!/bin/sh\necho \"$*\" > %v/arguments\necho '-- dump'\nexit %v\n", root, mysqldumpExitStatus)
+				Expect(os.WriteFile(filepath.Join(bin, "mysqldump"), []byte(fakeMysqldump), 0o755)).To(Succeed())
+
+				backupRoot := filepath.Join(root, "backup")
+				cmd := exec.Command("bash", "-c", newCronJobCommand("stroom"))
+				cmd.Env = append(os.Environ(),
+					"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+					"BACKUP_ROOT="+backupRoot,
+					"MYSQL_USER=stroomuser", "MYSQL_PWD=s3cret", "MYSQL_HOST=db", "MYSQL_PORT=3306",
+				)
+				output, err := cmd.CombinedOutput()
+				arguments, _ := os.ReadFile(filepath.Join(root, "arguments"))
+				Expect(string(arguments)).ToNot(ContainSubstring("s3cret"), "the password should not be an argument")
+				return string(output), backupRoot, err
+			}
+			archives := func(backupRoot string) []string {
+				files, err := filepath.Glob(filepath.Join(backupRoot, "*", "backup_*.sql.gz"))
+				Expect(err).ToNot(HaveOccurred())
+				return files
+			}
+
+			It("should write a read-only archive of the dump", func() {
+				output, backupRoot, err := runBackup(0)
+				Expect(err).ToNot(HaveOccurred(), output)
+				Expect(output).To(ContainSubstring("Backup successful"))
+				files := archives(backupRoot)
+				Expect(files).To(HaveLen(1))
+				info, err := os.Stat(files[0])
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o444)))
+			})
+			It("should fail, and leave no archive, when the dump fails", func() {
+				output, backupRoot, err := runBackup(2)
+				Expect(err).To(HaveOccurred(), output)
+				Expect(output).To(ContainSubstring("Backup failed"))
+				Expect(output).ToNot(ContainSubstring("Backup successful"))
+				Expect(archives(backupRoot)).To(BeEmpty())
+			})
+		})
 	})
 })

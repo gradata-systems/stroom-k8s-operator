@@ -64,9 +64,11 @@ runs:
 mysqldump --single-transaction --no-tablespaces --databases stroom stats | gzip > "<file>"
 ```
 
-The file is written to `<volume>/<YYYY-MM>/<backup name>_<YYYY-MM-DD_HH-MM-SS>.sql.gz` and made read-only. Runs
-never overlap (`concurrencyPolicy: Forbid`), and finished Job Pods are removed after five minutes, so check the
-outcome soon after a run, or rely on your monitoring.
+The file is written to `<volume>/<YYYY-MM>/<backup name>_<YYYY-MM-DD_HH-MM-SS>.sql.gz` and made read-only, and the
+log ends with `Backup successful`. If `mysqldump` fails, the partial file is removed, the log ends with
+`Backup failed`, and the Job fails, so failed backups show up as failed Jobs. Runs never overlap
+(`concurrencyPolicy: Forbid`), and finished Job Pods are removed after five minutes, so check the outcome soon after
+a run, or rely on your monitoring.
 
 Things to bear in mind:
 

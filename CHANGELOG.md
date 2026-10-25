@@ -33,7 +33,8 @@ for details.
   startup probe now allows `lockWaitAllowanceSeconds` (default 30) for each additional node starting in parallel.
 - A `StroomCluster` without a log sender was never deployed, as the operator couldn't add its finalizer.
 - Database backups didn't run on Kubernetes 1.25 and later, as the CronJob was looked up with `batch/v1beta1`.
-  Changes to a `DatabaseBackup` are now applied.
+  Changes to a `DatabaseBackup` are now applied. A backup whose dump failed reported success and left an empty
+  archive; it now fails the Job, and removes the archive.
 - Changes to a `DatabaseServer` were never applied, and its `podAnnotations` were ignored.
 - A `DatabaseServer`'s readiness probe always succeeded, before MySQL accepted connections.
 - A `DatabaseServer` whose name differed from its `StroomCluster`'s couldn't be used, as the claim recorded the wrong
@@ -59,7 +60,7 @@ for details.
 - Database names were interpolated into SQL run as root, and into the backup job's shell command.
 - With images other than `mysql/mysql-server`, the MySQL root password was the path `/etc/mysql/password/root`.
 - The OpenID client secret was visible in the node container's process list, and the key store password in the key
-  store init container's.
+  store init container's, and the database password in the backup job's.
 - `DatabaseServer.spec.additionalConfig` could set any server option, including those giving file access or
   bypassing authentication.
 - The operator could read and change every Secret in the cluster.

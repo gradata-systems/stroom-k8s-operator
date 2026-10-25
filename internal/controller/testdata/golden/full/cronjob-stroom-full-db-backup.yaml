@@ -30,14 +30,18 @@ spec:
             - bash
             - -c
             - |-
-              archivePath="/var/lib/mysql/backup/$(date +'%Y-%m')/$(date +'full_%Y-%m-%d_%H-%M-%S.sql.gz')"
+              set -o pipefail
+              backupDirectory="${BACKUP_ROOT:-/var/lib/mysql/backup}/$(date +'%Y-%m')"
+              archivePath="${BACKUP_ROOT:-/var/lib/mysql/backup}/$(date +'%Y-%m')/$(date +'full_%Y-%m-%d_%H-%M-%S.sql.gz')"
               echo "Backing up "'databases (stroom,stats)'" to: $archivePath"
-              mkdir -p /var/lib/mysql/backup/$(date +'%Y-%m')
-              mysqldump --user=${MYSQL_USER} --password=${MYSQL_PASSWORD} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces --databases 'stroom' 'stats' | gzip > "$archivePath"
-              if [ -f "$archivePath" ]; then
-                chmod 444 "$archivePath"
-                echo "Backup successful"
+              mkdir -p "$backupDirectory" || exit 1
+              if ! mysqldump --user=${MYSQL_USER} --host=${MYSQL_HOST} --port=${MYSQL_PORT} --single-transaction --no-tablespaces --databases 'stroom' 'stats' | gzip > "$archivePath"; then
+                rm -f "$archivePath"
+                echo "Backup failed" >&2
+                exit 1
               fi
+              chmod 444 "$archivePath"
+              echo "Backup successful"
             env:
             - name: MYSQL_HOST
               value: stroom-full-db
@@ -45,7 +49,7 @@ spec:
               value: "3306"
             - name: MYSQL_USER
               value: stroomuser
-            - name: MYSQL_PASSWORD
+            - name: MYSQL_PWD
               valueFrom:
                 secretKeyRef:
                   key: stroomuser
