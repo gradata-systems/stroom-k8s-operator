@@ -1,3 +1,4 @@
+# Keeps the processing nodes' CPU use between 50% and 90% of their limit, by adjusting their Data Processor task limit
 apiVersion: stroom.gchq.github.io/v1
 kind: StroomTaskAutoscaler
 metadata:

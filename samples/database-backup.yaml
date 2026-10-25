@@ -1,3 +1,4 @@
+# Backs up the Stroom databases on the dev DatabaseServer every day at 02:00, to a PersistentVolumeClaim you provide
 apiVersion: stroom.gchq.github.io/v1
 kind: DatabaseBackup
 metadata:
@@ -5,20 +6,15 @@ metadata:
   namespace: stroom
 spec:
   image:
-    repository: mysql/mysql-server
-    tag: 8.0.26
-  schedule: "*/5 * * * *"
+    repository: mysql
+    tag: "8.4"
   databaseServerRef:
     serverRef:
       name: dev
-    serverAddress:
-      host: mysql.example.com
-      port: 3306
-      secretName: stroom-dev-db
   databaseNames:
     - stroom
     - stats
   volume:
-    nfs:
-      path: /data/stroom
-      server: backup.fs.example.com
+    persistentVolumeClaim:
+      claimName: stroom-db-backups
+  schedule: "0 2 * * *"

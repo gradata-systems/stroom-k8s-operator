@@ -1,3 +1,6 @@
+# A Stroom cluster with processing and frontend node sets, HTTPS, an Ingress and log shipping, using an external
+# identity provider. It uses the DatabaseServer in database-server.yaml, the configuration in stroom-config.yaml and
+# the Secrets in secrets.yaml. Probe timings are left at their defaults.
 apiVersion: stroom.gchq.github.io/v1
 kind: StroomCluster
 metadata:
@@ -6,112 +9,85 @@ metadata:
 spec:
   image:
     repository: gchq/stroom
-    tag: v7.1-LATEST
-  imagePullPolicy: Always
+    tag: v7.13.2
   databaseServerRef:
     serverRef:
       name: dev
   appDatabaseName: stroom
   statsDatabaseName: stats
+  configMapRef:
+    name: stroom-config
+    itemName: config.yml
+  # The OpenID client the operator's node lifecycle scripts use to obtain a token
+  openId:
+    clientId: stroom-operator
+    clientSecret:
+      secretName: stroom-operator-openid
+      key: client-secret
   https:
     tlsSecretName: stroom-tls
-    keystorePasswordSecret:
-      secretName: stroom
-      key: keystore-password
+    tlsKeystorePasswordSecret:
+      secretName: stroom-keystore
+      key: password
   ingress:
     hostName: stroom.example.com
     secretName: stroom-tls
     className: nginx
+  # Start nodes at the same time, rather than one after another
+  podManagementPolicy: Parallel
+  # Time allowed for a node to finish its tasks when it stops
   nodeTerminationPeriodSecs: 300
   volumeClaimDeletePolicy: DeleteOnScaledownOnly
+  extraEnv:
+    # Stroom's own OpenID client secret, used by stroom-config.yaml
+    - name: STROOM_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: stroom-openid
+          key: client-secret
   logSender:
     enabled: true
     image:
       repository: gchq/stroom-log-sender
-      tag: v2.2.0
-    securityContext:
-      runAsNonRoot: false
-      privileged: true
-      runAsUser: 0
-      runAsGroup: 0
+      tag: v2.2.1
   nodeSets:
     - name: data
       count: 3
       role: Processing
       localDataVolumeClaim:
-        storageClassName: ""
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 1Gi
-          limits:
-            storage: 1Gi
-        selector:
-          matchLabels:
-            app: stroom
-            component: stroom-node
-      ingressEnabled: true
-      readinessProbeTimings: {}
-      livenessProbeTimings: {}
+            storage: 100Gi
+      resources:
+        requests:
+          cpu: "1"
+          memory: 4Gi
+        limits:
+          # A CPU limit is needed for task autoscaling (autoscaler.yaml)
+          cpu: "4"
+          memory: 8Gi
       memoryOptions:
         initialPercentage: 50
         maxPercentage: 75
-      resources:
-        requests:
-          cpu: 500m
-          memory: 2Gi
-        limits:
-          cpu: "2"
-          memory: 8Gi
-      podAnnotations: {}
-      podSecurityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-      nodeSelector: {}
-      tolerations: []
-      affinity: {}
     - name: ui
       count: 1
       role: Frontend
       localDataVolumeClaim:
-        storageClassName: ""
         accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 1Gi
-          limits:
-            storage: 1Gi
-        selector:
-          matchLabels:
-            app: stroom
-            component: stroom-node
-      ingressEnabled: true
+            storage: 10Gi
       ingressAnnotations:
         nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-      memoryOptions:
-        initialPercentage: 50
-        maxPercentage: 75
       resources:
         requests:
           cpu: 500m
           memory: 2Gi
         limits:
-          cpu: "2"
           memory: 4Gi
-      podSecurityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-  extraVolumes:
-    - name: shared
-      nfs:
-        server: stroom.fs.example.com
-        path: /data/stroom/stroom-shared
-  extraVolumeMounts:
-    - name: shared
-      mountPath: /stroom/data/data-shared
+      memoryOptions:
+        initialPercentage: 50
+        maxPercentage: 75

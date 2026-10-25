@@ -1,7 +1,20 @@
+# A copy of samples/database-backup.yaml, for the operator bundle. Keep the two in step.
+# Backs up the Stroom databases on the dev DatabaseServer every day at 02:00, to a PersistentVolumeClaim you provide
 apiVersion: stroom.gchq.github.io/v1
 kind: DatabaseBackup
 metadata:
-  name: databasebackup-sample
+  name: dev
 spec:
-  # Add fields here
-  foo: bar
+  image:
+    repository: mysql
+    tag: "8.4"
+  databaseServerRef:
+    serverRef:
+      name: dev
+  databaseNames:
+    - stroom
+    - stats
+  volume:
+    persistentVolumeClaim:
+      claimName: stroom-db-backups
+  schedule: "0 2 * * *"

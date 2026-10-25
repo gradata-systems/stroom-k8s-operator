@@ -18,7 +18,11 @@ spec:
     metadata: {}
     spec:
       template:
-        metadata: {}
+        metadata:
+          labels:
+            app.kubernetes.io/component: database-backup
+            app.kubernetes.io/instance: full
+            app.kubernetes.io/name: stroom
         spec:
           automountServiceAccountToken: false
           containers:

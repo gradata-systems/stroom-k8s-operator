@@ -110,6 +110,7 @@ nav:
       - Resources and JVM memory: configuration/resources-jvm.md
       - Health probes: configuration/health-probes.md
       - Log shipping: configuration/log-shipping.md
+      - Security: configuration/security.md
   - Database:
       - Operator-managed DatabaseServer: database/database-server.md
       - External database: database/external-database.md

@@ -1,48 +1,29 @@
+# A copy of samples/database-server.yaml, for the operator bundle. Keep the two in step.
+# A MySQL server for the dev StroomCluster, managed by the operator. The operator generates its passwords, in the
+# Secret stroom-dev-db.
 apiVersion: stroom.gchq.github.io/v1
 kind: DatabaseServer
 metadata:
   name: dev
-  namespace: stroom-7
 spec:
   image:
-    repository: mysql/mysql-server
-    tag: 8.0.25
+    repository: mysql
+    tag: "8.4"
   databaseNames:
     - stroom
     - stats
-  additionalConfig: []
+  additionalConfig:
+    # Each Stroom node opens connection pools to both databases
+    - max_connections=500
   resources:
     requests:
-      cpu: 100m
-      memory: 100Mi
-    limits:
       cpu: 500m
-      memory: 500Mi
+      memory: 2Gi
+    limits:
+      memory: 4Gi
   volumeClaim:
-    volumeName: stroom-db
     accessModes:
       - ReadWriteOnce
-    storageClassName: ""
     resources:
       requests:
-        storage: 100Mi
-      limits:
-        storage: 200Mi
-  readinessProbeTimings:
-    initialDelaySeconds: 5
-    periodSeconds: 1
-    timeoutSeconds: 5
-    successThreshold: 1
-    failureThreshold: 10
-  livenessProbeTimings:
-    initialDelaySeconds: 5
-    periodSeconds: 1
-    timeoutSeconds: 5
-    successThreshold: 1
-    failureThreshold: 10
-  podAnnotations: {}
-  podSecurityContext: {}
-  securityContext: {}
-  nodeSelector: {}
-  tolerations: []
-  affinity: {}
+        storage: 50Gi

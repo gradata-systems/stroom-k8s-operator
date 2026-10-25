@@ -1,0 +1,17 @@
+# To use a MySQL server the operator doesn't manage, in place of database-server.yaml: create the stroom and stats
+# databases and a stroomuser user with all privileges on them, store its password in this Secret, keyed by the user
+# name, and replace the StroomCluster's databaseServerRef in stroom-cluster.yaml with:
+#
+#   databaseServerRef:
+#     serverAddress:
+#       host: mysql.example.com
+#       port: 3306
+#       secretName: stroom-db
+#     userName: stroomuser
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stroom-db
+  namespace: stroom
+stringData:
+  stroomuser: replace-with-the-stroomuser-password

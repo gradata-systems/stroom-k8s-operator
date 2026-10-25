@@ -52,6 +52,10 @@ func (r *DatabaseBackupReconciler) createCronJob(dbBackup *stroomv1.DatabaseBack
 				Spec: batchv1.JobSpec{
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					Template: corev1.PodTemplateSpec{
+						// Labelled so a NetworkPolicy can allow backups to reach the database server
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: dbBackup.GetLabels(),
+						},
 						Spec: corev1.PodSpec{
 							RestartPolicy:                corev1.RestartPolicyOnFailure,
 							AutomountServiceAccountToken: &automountServiceAccountToken,
