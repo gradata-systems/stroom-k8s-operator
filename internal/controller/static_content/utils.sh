@@ -9,14 +9,31 @@ token_request_path='authproxy/v1/fetchClientCredsToken'
 http_response_pattern='^(.+?)\s*http_code=([0-9]+)$'
 
 #
-# Logs a message to the specified log file
+# Logs a message to the specified log file, or to stderr if the file can't be written, which Kubernetes records in
+# the probe or hook's failure event
 #
 function log() {
   log_msg=$1
   log_file=$2
   shift 2
 
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $log_msg" >> "$log_file"
+  local line
+  line="[$(date '+%Y-%m-%d %H:%M:%S')] $log_msg"
+  if ! { echo "$line" >> "$log_file"; } 2> /dev/null; then
+    echo "$line (unable to write to $log_file)" >&2
+  fi
+}
+
+#
+# Creates the directory the scripts log to. When the scripts run as root, it's given to the stroom user, which the
+# Stroom image runs Stroom as, so that the logs can still be written if the pod is changed to run as that user.
+#
+function prepare_log_dir() {
+  local log_dir="$stroom_root/logs/k8s"
+  mkdir -p "$log_dir"
+  if [ "$(id -u)" = '0' ] && id stroom > /dev/null 2>&1; then
+    chown -R stroom:stroom "$log_dir"
+  fi
 }
 
 #

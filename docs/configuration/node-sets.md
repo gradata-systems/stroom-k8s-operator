@@ -123,6 +123,9 @@ on storage that honours `fsGroup`:
         fsGroup: 1000
 ```
 
+An existing node set can be changed to run as the `stroom` user: Stroom's own files already belong to it, and the
+node lifecycle scripts give their logs (`/stroom/logs/k8s`) to it as well.
+
 ## Other node set settings
 
 | Field | See |

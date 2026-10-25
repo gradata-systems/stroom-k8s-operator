@@ -5,7 +5,7 @@ source "${STROOM_SCRIPT_ROOT:-/stroom}/scripts/utils.sh"
 
 log_file="$stroom_root/logs/k8s/node-start.log"
 
-mkdir -p "$(dirname $log_file)"
+prepare_log_dir
 
 # Enable the node
 call_api node/v1/enabled/"${STROOM_NODE}" -X PUT -d true

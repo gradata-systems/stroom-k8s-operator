@@ -213,6 +213,18 @@ var _ = Describe("Node lifecycle scripts", func() {
 			Expect(readFile("arguments")).ToNot(ContainSubstring("s3cret"))
 		})
 
+		It("should log to stderr when its log can't be written", func() {
+			if os.Getuid() == 0 {
+				Skip("root can write to a read-only file")
+			}
+			// For example, a log created by root, after the pod is changed to run as the stroom user
+			Expect(os.MkdirAll(filepath.Join(root, "logs", "k8s"), 0o755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(root, "logs", "k8s", "node-start.log"), nil, 0o444)).To(Succeed())
+			output, err := runScript("node-start.sh", "")
+			Expect(err).ToNot(HaveOccurred(), output)
+			Expect(output).To(ContainSubstring("Node node-1 jobs enabled (unable to write to "))
+		})
+
 		It("should enable all jobs when no managed jobs are listed", func() {
 			output, err := runScript("node-start.sh", "")
 			Expect(err).ToNot(HaveOccurred(), output)

@@ -5,7 +5,7 @@ source "${STROOM_SCRIPT_ROOT:-/stroom}/scripts/utils.sh"
 
 log_file="$stroom_root/logs/k8s/pre-stop.log"
 
-mkdir -p "$(dirname $log_file)"
+prepare_log_dir
 
 # Disable all node tasks, so the node can drain
 set_job_status "${STROOM_NODE}" 'false'

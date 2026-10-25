@@ -49,6 +49,9 @@ for details.
   an HTTPS connector. It now only has one with `spec.https`.
 - Stroom failed to start with `spec.https`, as the key store init container created the key store and trust store
   readable only by root, and the Stroom image runs Stroom as the `stroom` user. They're now given to that user.
+- After a node set was changed to run as the `stroom` user, the node lifecycle scripts couldn't write the logs they
+  had created as root. They now give their logs to that user, and log to stderr, which appears in the probe or
+  hook's failure event, when a log can't be written.
 
 ### Security
 
