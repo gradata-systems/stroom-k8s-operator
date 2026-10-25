@@ -967,6 +967,7 @@ spec:
                 description: Names of the databases to be created on startup (if they
                   don't already exist)
                 items:
+                  pattern: ^[A-Za-z0-9_]{1,64}$
                   type: string
                 type: array
               image:

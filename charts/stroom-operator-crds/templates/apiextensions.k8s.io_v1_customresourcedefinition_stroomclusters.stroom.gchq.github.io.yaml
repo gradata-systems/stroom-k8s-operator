@@ -41,7 +41,7 @@ spec:
               appDatabaseName:
                 default: stroom
                 description: Name of the main Stroom database, usually `stroom`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               configMapRef:
                 description: |-
@@ -3599,10 +3599,29 @@ spec:
                         controller provided labels.
                       type: object
                     livenessProbeTimings:
+                      default: {}
                       description: |-
                         LivenessProbeTimings determine the parameters for liveness probes. If a Pod fails successive probes, it is
                         restarted.
                       properties:
+                        allow:
+                          default:
+                          - deadlocks
+                          description: |-
+                            Allow lists the health checks to run. If empty, all health checks are run, except those listed in Deny.
+                            Defaults to the JVM thread deadlock check, so nodes are not restarted when an external dependency is down.
+                            Set to an empty list to run all health checks.
+                            A pointer, so an empty list is kept when the resource is updated, rather than replaced with the default.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
+                        deny:
+                          description: Deny lists the health checks to exclude.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
                         failureThreshold:
                           default: 10
                           format: int32
@@ -4099,10 +4118,29 @@ spec:
                           type: object
                       type: object
                     readinessProbeTimings:
+                      default: {}
                       description: |-
                         ReadinessProbeTimings determine the parameters for readiness probes. These help to protect nodes from overload,
                         removing them from service while they are non-responsive to health checks.
                       properties:
+                        allow:
+                          description: Allow lists the health checks to run. If empty,
+                            all health checks are run, except those listed in Deny.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
+                        deny:
+                          default:
+                          - stroom.security.common.impl.ExternalIdpConfigurationProvider
+                          description: |-
+                            Deny lists the health checks to exclude. Defaults to the external identity provider check, so nodes keep
+                            receiving data while the identity provider is unavailable. Set to an empty list to exclude no health checks.
+                            A pointer, so an empty list is kept when the resource is updated, rather than replaced with the default.
+                          items:
+                            pattern: ^[^,]+$
+                            type: string
+                          type: array
                         failureThreshold:
                           default: 10
                           format: int32
@@ -4385,17 +4423,29 @@ spec:
                           type: object
                       type: object
                     startupProbeTimings:
+                      default: {}
                       description: |-
                         StartupProbeTimings specify parameters for initial Pod startup. These should be set according to how long a node
                         typically takes to start up and respond to health checks.
                       properties:
                         failureThreshold:
-                          default: 10
+                          default: 24
+                          description: FailureThreshold multiplied by PeriodSeconds
+                            is the base time allowed for a node to start up.
                           format: int32
                           type: integer
                         initialDelaySeconds:
                           default: 5
                           format: int32
+                          type: integer
+                        lockWaitAllowanceSeconds:
+                          default: 30
+                          description: |-
+                            LockWaitAllowanceSeconds is added to the startup time allowed for each additional node in the NodeSet, when
+                            the StroomCluster PodManagementPolicy is `Parallel`. This gives nodes time to wait on the Stroom bootstrap lock,
+                            which is held while another node upgrades the database.
+                          format: int32
+                          minimum: 0
                           type: integer
                         periodSeconds:
                           default: 5
@@ -4494,7 +4544,7 @@ spec:
               statsDatabaseName:
                 default: stats
                 description: Name of the statistics database, usually `stats`
-                minLength: 1
+                pattern: ^[A-Za-z0-9_]{1,64}$
                 type: string
               volumeClaimDeletePolicy:
                 description: Delete Stroom node `PersistentVolumeClaim`s in accordance
