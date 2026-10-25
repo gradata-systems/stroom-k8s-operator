@@ -27,11 +27,13 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	stroomv1 "github.com/gradata-systems/stroom-k8s-operator/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	metrics "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	//+kubebuilder:scaffold:imports
@@ -71,6 +73,13 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "81fe7dea.gchq.github.io",
+		Client: client.Options{
+			Cache: &client.CacheOptions{
+				// Read Secrets directly, rather than caching every Secret in the cluster, so the operator only needs
+				// permission to get the Secrets it uses
+				DisableFor: []client.Object{&corev1.Secret{}},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
