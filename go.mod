@@ -6,7 +6,7 @@ toolchain go1.26.10
 
 require (
 	github.com/go-logr/logr v1.4.3
-	github.com/go-sql-driver/mysql v1.10.0
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/onsi/ginkgo/v2 v2.29.0
 	github.com/onsi/gomega v1.41.0
 	github.com/sethvargo/go-password v0.3.1
